@@ -50,7 +50,7 @@ function lineup(settings: Settings): HTMLElement {
   );
 }
 
-export function titleScreen(settings: Settings, actions: { play(): void; settings(): void }): HTMLElement {
+export function titleScreen(settings: Settings, actions: { play(): void; howTo(): void; settings(): void }): HTMLElement {
   const m = settings.match;
   const rules = [
     `${Math.floor(m.roundSeconds / 60)}:${String(m.roundSeconds % 60).padStart(2, '0')} rounds`,
@@ -70,6 +70,7 @@ export function titleScreen(settings: Settings, actions: { play(): void; setting
     conflicts ? h('p', { class: 'lw-warning lw-center', role: 'alert' }, 'Some keys are bound twice. Check Settings → Controls.') : null,
     menu([
       { label: 'Play', onSelect: actions.play, primary: true },
+      { label: 'How to play', onSelect: actions.howTo },
       { label: 'Settings', onSelect: actions.settings },
     ]),
     h('p', { class: 'lw-hint' }, 'Arrows / D-pad to move · Enter / A to choose · Esc / B back'),

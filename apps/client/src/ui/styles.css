@@ -126,3 +126,16 @@
   .lw-slot > :last-child { grid-column: 1 / -1; }
 }
 @media (prefers-reduced-motion: reduce) { .lw-key.lw-waiting { animation: none; } }
+
+/* How to play */
+.lw-howto { max-width: 860px; max-height: 92vh; overflow-y: auto; text-align: left; }
+.lw-howto h2 { margin: 0 0 12px; font-size: 26px; }
+.lw-howto h3 { margin: 18px 0 8px; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--lw-muted); }
+.lw-howto-rules { margin: 0; padding-left: 20px; line-height: 1.5; font-size: 14px; }
+.lw-howto-rules li { margin-bottom: 6px; }
+.lw-howto-recipes, .lw-howto-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.lw-howto-recipe, .lw-howto-keys { padding: 10px 12px; background: var(--lw-panel-2); border-radius: var(--lw-radius); font-size: 13px; line-height: 1.6; color: var(--lw-muted); }
+.lw-howto-recipe b { display: block; color: var(--lw-text); margin-bottom: 2px; }
+.lw-howto-keys h3 { margin: 0 0 4px; color: var(--lw-text); }
+.lw-howto kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid var(--lw-border, #3a3f4b); border-radius: 4px; background: #111318; color: var(--lw-text); font: 600 12px/18px ui-monospace, monospace; text-align: center; }
+.lw-howto .lw-menu { margin-top: 18px; }
