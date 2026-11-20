@@ -44,6 +44,8 @@ export interface Kitchen {
    * (it paces between them, like a person would, rather than standing frozen).
    */
   watchTiles: number[];
+  /** Own-kitchen floor tiles next to a doorway: stepping on one banks a carried charm (RULES §10). */
+  bankTiles: number[];
 }
 
 const kitchenCache = new WeakMap<object, Map<string, Kitchen>>();
@@ -84,6 +86,7 @@ function buildKitchen(state: MatchState, team: TeamId): Kitchen {
     owned: [],
     rivalDoorFront: [],
     watchTiles: [],
+    bankTiles: [],
   };
   for (let i = 0; i < state.arena.tiles.length; i++) {
     const def = state.arena.tiles[i]!;
@@ -136,6 +139,23 @@ function buildKitchen(state: MatchState, team: TeamId): Kitchen {
     if (!nb.some((j) => tileOwner(state, j) === rival && state.arena.tiles[j]?.kind === 'floor')) continue;
     for (const j of nb) if (nav.market[j] && nav.open[j] && !k.rivalDoorFront.includes(j)) k.rivalDoorFront.push(j);
   }
+  // Bank tiles: our kitchen floor tiles that touch a doorway (zone none) tile; any of our floor if none do.
+  const ownFloor: number[] = [];
+  for (let i = 0; i < nav.n; i++) {
+    if (!nav.open[i] || state.arena.tiles[i]?.kind !== 'floor' || tileOwner(state, i) !== team) continue;
+    ownFloor.push(i);
+    const [x, y] = nav.xy(i);
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+      const nx = x + dx;
+      const ny = y + dy;
+      const j = ny * nav.w + nx;
+      if (nx >= 0 && ny >= 0 && nx < nav.w && ny < nav.h && nav.open[j] && state.arena.zones[j] === 'none' && tileOwner(state, j) === null) {
+        k.bankTiles.push(i);
+        break;
+      }
+    }
+  }
+  if (k.bankTiles.length === 0) k.bankTiles.push(...ownFloor);
   const mid = (tiles: number[]): Vec2 | null => {
     if (!tiles.length) return null;
     let x = 0;

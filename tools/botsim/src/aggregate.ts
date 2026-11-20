@@ -50,6 +50,8 @@ export interface ScenarioAggregate {
   critic: { spawned: number; wonA: number; wonB: number; unserved: number; trailingFirst: number; trailingWon: number };
   stuck: number;
   stuckSamples: StuckEvent[];
+  /** Charms per round: spawned, banked by crew A / B, faded, knocks on charm carriers (both crews). */
+  charmsPerRound: { spawned: number; banked: Pair; faded: number; knocks: number };
 }
 
 const both = (p: Pair): number => p[0] + p[1];
@@ -151,5 +153,11 @@ export function aggregate(scenario: string, records: readonly MatchRecord[]): Sc
     },
     stuck: stuck.length,
     stuckSamples: stuck.slice(0, 10),
+    charmsPerRound: {
+      spawned: perRound(rounds, (r) => r.charms.spawned),
+      banked: [perRound(rounds, (r) => r.charms.banked[0]), perRound(rounds, (r) => r.charms.banked[1])],
+      faded: perRound(rounds, (r) => r.charms.faded),
+      knocks: perRound(rounds, (r) => both(r.charms.knocks)),
+    },
   };
 }

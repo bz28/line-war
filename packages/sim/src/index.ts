@@ -11,3 +11,4 @@ export { interactTarget } from './systems/kitchen/world';
 export { plateFits, isPlateCold } from './systems/kitchen/plate';
 export { vesselTimeline } from './systems/kitchen/cooking';
 export { isVisibleTo } from './systems/tickets';
+export { isCharm, charmDueTick, charmSpawnTiles } from './systems/charms';

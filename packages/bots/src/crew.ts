@@ -21,6 +21,8 @@ import { BotRng } from './rng';
 import { BOT_TUNING } from './tuning';
 import { skillParams, type SkillParams } from './skill';
 import {
+  BankCharmTask,
+  CharmTask,
   ClearBurntTask,
   DisposeTask,
   ExtinguishTask,
@@ -136,6 +138,7 @@ export class Crew {
   /** Would some dish use this item as it is (so picking it up is progress, not clutter)? */
   wantsItem(state: MatchState, item: Item): boolean {
     if (this.assigned.has(item.id)) return true;
+    if (item.type === 'charm') return true; // worth carrying home (RULES §10)
     if (item.type === 'plate') return !item.dirty && this.orders.some((o) => o.plate === null && !o.cancelled && plateUsableFor(state, item, o));
     return this.orders.some((o) => !o.cancelled && o.slots.some((s) => !s.onPlate && s.item === null && s.vessel === null && canBecome(state, item.kind, item.state, s.food)));
   }
@@ -610,6 +613,16 @@ export class Crew {
       if (o.plate === null && run === null && (rackStock > 0 || findSparePlate(ctx, o) !== null)) offer(new PlateRunTask(o), S.getPlate + base, k.racks[0] ?? null);
     });
 
+    // A charm nearby: one crewmate goes for it (the 'charm' claim), if nothing better is on.
+    for (const [id, loc] of ctx.items) {
+      if (loc.item.type !== 'charm' || loc.at !== 'floor' || !loc.resting) continue;
+      const t = k.nav.tileAt(loc.pos);
+      if (t < 0 || !k.nav.open[t]) continue;
+      const d = k.nav.tiles(ctx.tile, t);
+      if (!Number.isFinite(d) || d > T.charmRange) continue;
+      offer(new CharmTask(id), S.charm - d * T.distancePenaltyPerTile, null);
+    }
+
     // Plates and tidying.
     for (const sink of k.sinks) {
       const st = stationOf(state, sink);
@@ -621,6 +634,7 @@ export class Crew {
     for (const [id, loc] of ctx.items) {
       if (this.assigned.has(id) || loc.at === 'held' || !reachable(ctx, loc)) continue;
       const it = loc.item;
+      if (it.type === 'charm') continue;
       const at = loc.at === 'station' ? loc.tile : null;
       if (at !== null && !k.owned.includes(at)) continue;
       if (it.type === 'plate') {
@@ -652,6 +666,7 @@ export class Crew {
   /** Holding something: carry on with whatever it belongs to, or put it away. */
   private continuation(ctx: Ctx): Task {
     const held = ctx.me.holding!;
+    if (held.type === 'charm') return new BankCharmTask();
     const ok = (t: Task): boolean => !this.recentlyFailed(t.key, ctx.state.tick);
     {
       // Free my hands if food is about to burn (or burnt food is about to catch fire) and nobody is on it.

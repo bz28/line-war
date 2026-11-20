@@ -571,7 +571,9 @@ export class Bot {
         if ((ahead < 0.5 && this.huntTarget !== r.id) || !this.dashLaneClear(nav, me.pos, ux, uy, Math.min(al, t.dashDistance))) continue;
         const episode = r.id * 100000 + (r.holding.id % 100000);
         // Empty-handed we can steal the popped item; carrying we can still deny it (less tempting).
-        const chance = this.params.knockChance * (me.holding ? BOT_TUNING.knockWhileCarrying : 1);
+        // A charm carrier is worth more than a crate run: points and Heat (RULES §10).
+        const appetite = r.holding.type === 'charm' ? BOT_TUNING.charmAppetite : 1;
+        const chance = Math.min(1, this.params.knockChance * appetite * (me.holding ? BOT_TUNING.knockWhileCarrying : 1));
         if (this.huntTarget === r.id || this.decideOnce(episode, chance, state.tick)) return { ...NO_INPUT, move: { x: ux, y: uy }, dash: true };
       }
     }
@@ -582,13 +584,14 @@ export class Bot {
       for (const r of state.players) {
         if (r.team === me.team || !r.holding || r.knockImmuneTicks > 0) continue;
         const it = r.holding;
-        const premium = it.type === 'ingredient' ? !!state.ingredients[it.kind]?.premium : it.contents.length > 0;
+        const premium = it.type === 'ingredient' ? !!state.ingredients[it.kind]?.premium : it.type === 'plate' ? it.contents.length > 0 : true;
         const rt = nav.tileAt(r.pos);
         if (!premium || rt < 0 || nav.market[rt] !== 1) continue;
         const close = nearMarket && dist(me.pos, r.pos) <= HUNT_RANGE;
         if (!close && !(spare && this.cutOff(ctx, r) !== null)) continue;
         const episode = -(r.id * 100000 + (it.id % 100000));
-        if (this.decideOnce(episode, this.params.huntChance, state.tick)) {
+        const appetite = it.type === 'charm' ? BOT_TUNING.charmAppetite : 1;
+        if (this.decideOnce(episode, Math.min(1, this.params.huntChance * appetite), state.tick)) {
           this.huntTarget = r.id;
           this.huntUntil = state.tick + HUNT_TICKS;
           // Drop the kitchen job (and its claims) so a crewmate can pick it up meanwhile.

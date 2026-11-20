@@ -750,3 +750,47 @@ export class IdleTask extends Task {
     return ctx.tile === this.tile ? { kind: 'wait' } : { kind: 'goto', tile: this.tile };
   }
 }
+
+// ---------- charms (RULES §10) ----------
+
+/** Walk the charm I'm carrying into our kitchen (the nearest bank tile): stepping in banks it. */
+function bankAct(ctx: Ctx): Act | null {
+  let best: number | null = null;
+  let bestC = Infinity;
+  for (const t of ctx.k.bankTiles) {
+    const c = ctx.k.nav.tiles(ctx.tile, t);
+    if (c < bestC) {
+      bestC = c;
+      best = t;
+    }
+  }
+  return best === null ? null : { kind: 'goto', tile: best };
+}
+
+/** Fetch a resting charm and carry it home. One crewmate at a time (claim 'charm'). */
+export class CharmTask extends Task {
+  readonly key = 'charm';
+  constructor(readonly itemId: number) {
+    super();
+    this.claims = [this.key];
+  }
+  step(ctx: Ctx): StepResult {
+    const loc = ctx.items.get(this.itemId);
+    if (!loc || loc.item.type !== 'charm') return DONE; // banked, faded, or round over
+    if (loc.at === 'held') {
+      if (loc.player !== ctx.me.id) return DONE; // someone else has it (a rival: the market play hunts them)
+      return bankAct(ctx) ?? FAIL;
+    }
+    if (loc.at !== 'floor' || ctx.me.holding) return FAIL;
+    return loc.resting ? { kind: 'pick', item: this.itemId } : { kind: 'wait' };
+  }
+}
+
+/** Holding a charm some other way (caught, knocked into my path): take it home. */
+export class BankCharmTask extends Task {
+  readonly key = 'bankCharm';
+  step(ctx: Ctx): StepResult {
+    if (ctx.me.holding?.type !== 'charm') return DONE;
+    return bankAct(ctx) ?? FAIL;
+  }
+}

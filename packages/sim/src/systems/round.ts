@@ -7,6 +7,7 @@
 import { createStations, spawnPlayers } from '../match';
 import { secondsToTicks, timerTicks } from '../tuning';
 import type { MatchState, Phase, TeamId } from '../types';
+import { clearCharms } from './charms';
 import { phaseAt, roundStartTick, roundTimes } from './rules/timing';
 
 /** Rounds a team needs to win the match. */
@@ -38,6 +39,7 @@ function setPhase(state: MatchState, phase: Phase): void {
 }
 
 function endRound(state: MatchState): void {
+  clearCharms(state);
   const [a, b] = state.teams;
   const winner: TeamId | null = a.score > b.score ? 0 : b.score > a.score ? 1 : null;
   if (winner !== null) state.teams[winner].roundsWon++;
@@ -68,6 +70,7 @@ export function startNextRound(state: MatchState): void {
   r.tick = 0;
   r.intermissionTicks = 0;
   r.criticSpawned = false;
+  state.charmsSpawned = 0;
   setPhase(state, 'prep');
 }
 

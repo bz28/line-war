@@ -47,6 +47,12 @@ export const BOT_TUNING = {
   /** Evasive dash chance as a fraction of the defend lever. */
   evadeShare: 0.6,
 
+  // ---------- charms (RULES §10) ----------
+  /** Farthest (path tiles) a resting charm can be for a crewmate to go and fetch it. */
+  charmRange: 16,
+  /** Knock / hunt appetite multiplier against a rival carrying a charm (they are worth points and Heat). */
+  charmAppetite: 1.6,
+
   // ---------- crew planning (crew.ts) ----------
   /** A task that failed is not offered again for this long. */
   failBlacklistTicks: 45,
@@ -107,6 +113,8 @@ export const BOT_TUNING = {
     unbacked: -20,
     perRank: -6,
     getPlate: 44,
+    /** Fetch a resting charm (one crewmate at a time), minus distancePenaltyPerTile per path tile. */
+    charm: 66,
     /** Washing: no plates and a dish waiting / no plates / one plate / some plates. */
     washUrgent: 70,
     washEmpty: 45,

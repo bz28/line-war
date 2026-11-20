@@ -54,7 +54,8 @@ function fly(state: MatchState, fi: FloorItem): boolean {
       if (kindAt(state, to) !== 'floor') {
         const st = stationAt(state, to);
         const kind = kindAt(state, to);
-        if (st && (kind === 'counter' || kind === 'board') && st.item === null && !fireAt(state, to)) {
+        // A flying charm never lands on a surface (RULES §10): it stops like at a wall.
+        if (st && (kind === 'counter' || kind === 'board') && st.item === null && !fireAt(state, to) && fi.item.type !== 'charm') {
           st.item = fi.item;
           st.workTicks = 0;
           if (fi.thrownBy !== null) emit(state, { type: 'drop', player: fi.thrownBy, itemId: fi.item.id, tile: to });

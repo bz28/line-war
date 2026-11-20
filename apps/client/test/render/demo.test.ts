@@ -45,7 +45,7 @@ describe('buildDemoState', () => {
     expect(s.fires.length).toBeGreaterThan(0);
 
     const items = allItems(s);
-    const foodStates = new Set(items.flatMap((i) => (i.type === 'ingredient' ? [i.state] : i.contents.map((f) => f.state))));
+    const foodStates = new Set(items.flatMap((i) => (i.type === 'ingredient' ? [i.state] : i.type === 'plate' ? i.contents.map((f) => f.state) : [])));
     for (const st of ['raw', 'chopped', 'cooked', 'burnt'] as const) expect(foodStates).toContain(st);
     const plates = items.filter((i) => i.type === 'plate');
     expect(plates.some((p) => p.type === 'plate' && p.cold)).toBe(true);
