@@ -1,4 +1,4 @@
-import { INGREDIENTS, RECIPES } from '@line-war/content';
+import { INGREDIENTS, levelById, RECIPES } from '@line-war/content';
 import { DEFAULT_TUNING, type IngredientDef, type IngredientKind, type RecipeDef } from '@line-war/sim';
 import { formatMult } from '../hud/text';
 
@@ -6,6 +6,7 @@ type IngredientDefs = Readonly<Record<IngredientKind, IngredientDef>>;
 import type { KeyBindings, Settings } from '../settings/types';
 import { button, h } from './dom';
 import { foodIcon } from '../hud/icons';
+import { charmIcon } from '../hud/charmIcon';
 import { keyLabel } from './keyNames';
 import { padActionLabel, type PadAction } from '../input/gamepad';
 import { svg } from './screens';
@@ -108,7 +109,7 @@ function stepCard(st: Step): HTMLElement {
 }
 
 /** "How you win" tiles: one big number each, so the multipliers read at a glance. */
-function winTiles(): HTMLElement {
+function winTiles(level: string): HTMLElement {
   const tu = DEFAULT_TUNING;
   const heat = tu.heatMultipliers.slice(1).map(formatMult).join(' · ');
   const tile = (stamp: HTMLElement, title: string, body: string) =>
@@ -124,7 +125,20 @@ function winTiles(): HTMLElement {
       'Finish strong',
       `The Critic (${formatMult(tu.criticMultiplier)}) shows up halfway, and the trailing crew sees it first. Dinner Rush scores ${formatMult(tu.rushMultiplier)} in the last minute.`,
     ),
+    tile(
+      svg(charmIcon('night-lantern'), 'lw-howto-chip lw-howto-chip-charm'),
+      'Grab the charms',
+      `${charmCountSentence(level)} Carry it into your kitchen for +${tu.charmPoints} and a Heat tier. It can be knocked loose, and it fades if nobody picks it up for ${tu.charmLifetimeSeconds} s. Each one you bank joins your charm shelf.`,
+    ),
   );
+}
+
+/** "In Night Market, a lantern bunny charm pops up in the middle of the market 3 times a round." */
+export function charmCountSentence(levelId: string): string {
+  const lv = levelById(levelId);
+  const n = lv.charmsPerRound;
+  const times = n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`;
+  return `In ${lv.name}, a lantern bunny charm pops up in the middle of the market ${times} a round.`;
 }
 
 const section = (n: string, title: string, ...body: (HTMLElement | HTMLElement[])[]) =>
@@ -142,7 +156,7 @@ export function howToScreen(settings: Settings, actions: { back(): void }): HTML
       h('p', { class: 'lw-howto-lede' }, 'Two crews, one ticket line. Race the other crew to every order.'),
     ),
     section('1', 'The loop', h('ol', { class: 'lw-howto-steps' }, loopSteps().map(stepCard))),
-    section('2', 'How you win', winTiles()),
+    section('2', 'How you win', winTiles(settings.level)),
     section(
       '3',
       'Menu',
