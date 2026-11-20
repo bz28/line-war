@@ -6,7 +6,9 @@
 import {
   NO_INPUT,
   interactTarget,
+  tileOwner,
   vecLength,
+  type Item,
   type MatchState,
   type PlayerId,
   type PlayerInput,
@@ -244,11 +246,20 @@ export class Bot {
       this.failTask(ctx);
       return NO_INPUT;
     }
+    // Empty-handed, Grab takes a resting floor item in front before the station (RULES §2). Use
+    // an access tile where that won't happen, unless the item is one we want anyway.
+    const emptyUse = act.kind === 'use' && !me.holding;
+    const clean = emptyUse ? acc.filter((a) => !this.unwantedInFront(ctx, ctx.k.nav.center(a.tile), a.dir)) : acc;
     const here = acc.find((a) => a.tile === ctx.tile);
-    if (!here || !this.reaches(ctx, me.pos, here.dir, tile)) {
-      const goals = this.freeAccess(ctx, acc.map((a) => a.tile));
+    const atHere = !!here && this.reaches(ctx, me.pos, here.dir, tile);
+    const blockedHere = emptyUse && atHere && this.unwantedInFront(ctx, me.pos, here!.dir);
+    const elsewhere = clean.filter((a) => a.tile !== ctx.tile);
+    if (!atHere || (blockedHere && elsewhere.length > 0)) {
+      const pool = blockedHere ? elsewhere : clean.length > 0 ? clean : acc;
+      const goals = this.freeAccess(ctx, pool.map((a) => a.tile));
       return this.taskMove(ctx, this.walk(ctx, goals, key));
     }
+    // (No clean spot at all: take the item; the crew then puts it away like any other.)
     this.stuck = 0;
     const facingOk = me.facing.x * here.dir.x + me.facing.y * here.dir.y > 0.999 && interactTarget(state, me).tile === tile;
     if (!facingOk) return { ...NO_INPUT, move: { x: here.dir.x * 0.01, y: here.dir.y * 0.01 } };
@@ -264,6 +275,28 @@ export class Bot {
       return NO_INPUT;
     }
     return this.input(w ?? { x: 0, y: 0 });
+  }
+
+  /**
+   * Would an empty-handed Grab from `pos` facing `dir` pick up a resting floor item (RULES §2:
+   * nearest within interactReach, in front, not on a rival tile) that the crew has no use for?
+   */
+  private unwantedInFront(ctx: Ctx, pos: Vec2, dir: Vec2): boolean {
+    const { state } = ctx;
+    const reach = state.config.tuning.interactReach;
+    let best: Item | null = null;
+    let bestD = Infinity;
+    for (const fi of state.floorItems) {
+      if (fi.vel.x !== 0 || fi.vel.y !== 0) continue;
+      const d = dist(pos, fi.pos);
+      if (d > reach || d >= bestD) continue;
+      if ((fi.pos.x - pos.x) * dir.x + (fi.pos.y - pos.y) * dir.y < 0) continue;
+      const t = ctx.k.nav.tileAt(fi.pos);
+      if (t >= 0 && tileOwner(state, t) === 1 - ctx.me.team) continue;
+      best = fi.item;
+      bestD = d;
+    }
+    return best !== null && !this.crew.wantsItem(state, best);
   }
 
   /**

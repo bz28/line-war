@@ -8,6 +8,7 @@ import {
   isPlateCold,
   vesselTimeline,
   type Food,
+  type Item,
   type MatchState,
   type PlateItem,
   type PlayerId,
@@ -132,6 +133,13 @@ export class Crew {
     const c = this.claims.get(key);
     return c !== undefined && c !== me;
   }
+  /** Would some dish use this item as it is (so picking it up is progress, not clutter)? */
+  wantsItem(state: MatchState, item: Item): boolean {
+    if (this.assigned.has(item.id)) return true;
+    if (item.type === 'plate') return !item.dirty && this.orders.some((o) => o.plate === null && !o.cancelled && plateUsableFor(state, item, o));
+    return this.orders.some((o) => !o.cancelled && o.slots.some((s) => !s.onPlate && s.item === null && s.vessel === null && canBecome(state, item.kind, item.state, s.food)));
+  }
+
   /** Claims held by `who` (for tests). */
   claimsOf(who: PlayerId): string[] {
     return [...this.claims].filter(([, v]) => v === who).map(([k]) => k);
