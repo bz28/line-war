@@ -19,7 +19,7 @@ Generated on `main` at `17a6a74` with
 
 Notes
 - Night Market passes every bar.
-- Harbor Pier's skill-gap bar sits just under 65% (its CI reaches 67.6%, so it overlaps the band). Everything else
-  passes.
+- Harbor Pier's skill-gap reading at 200 matches (63.4%) is noise: a 600-match run (seed 31, PR #27) gives
+  **77.9% [75.7, 80.0]**, inside the band. Everything else passes.
 - Rooftop Garden runs one knock per round over the band and has the same skill-gap shortfall; both are what the
   separate Rooftop tuning PR addresses.

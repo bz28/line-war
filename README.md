@@ -31,7 +31,7 @@ and Brunch Speed (slower timers) are all in Settings.
 ## Levels
 
 - **Night Market**: steak and fish sit in the open market between the two stalls. Grab them, guard them, knock them loose.
-- **Harbor Pier**: fish night. One narrow door per stall, steak between the doors, and fish across the pond.
+- **Harbor Pier**: fish night. One door per stall at the top, steak between the doors, and fish across the pond.
 - **Rooftop Garden**: the produce war. Lettuce and tomatoes only grow in the shared garden, and each stall has two doors to defend.
 
 ## Controls
