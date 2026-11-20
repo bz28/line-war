@@ -617,7 +617,15 @@ export class GreyboxRenderer implements Renderer {
     const tickets = sortTickets(s.tickets);
     const slots = ticketSlots(area, s.config.tuning.maxTickets + 1, tickets.length);
     if (tickets.length === 0) {
-      text(ctx, s.round.phase === 'prep' ? 'Tickets arrive when service starts' : 'No tickets', area.w / 2, area.y + area.h / 2, MUTED, 13, 'center', 600);
+      const prep = s.round.phase === 'prep' ? phaseBanner(s, TEAM_NAMES) : null;
+      if (prep) {
+        // Prep lasts the whole countdown, so it lives on the empty ticket board, not over the kitchens.
+        const cy = area.y + area.h / 2;
+        outlinedText(ctx, prep.title, area.x + area.w / 2, cy - 12, prep.color, 34);
+        text(ctx, `${prep.subtitle} · tickets arrive then`, area.x + area.w / 2, cy + 22, INK, 14, 'center', 700);
+      } else {
+        text(ctx, 'No tickets', area.w / 2, area.y + area.h / 2, MUTED, 13, 'center', 600);
+      }
       return;
     }
     tickets.forEach((t, i) => this.drawTicket(s, t, slots[i]!, fx, now));
@@ -679,7 +687,7 @@ export class GreyboxRenderer implements Renderer {
 
   private drawBanner(s: MatchState) {
     const banner = phaseBanner(s, TEAM_NAMES);
-    if (!banner) return;
+    if (!banner || s.round.phase === 'prep') return; // prep is shown on the ticket board
     const { ctx, layout } = this;
     const w = layout.world;
     if (banner.overlay) {
