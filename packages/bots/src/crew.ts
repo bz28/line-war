@@ -7,6 +7,7 @@
 import {
   isPlateCold,
   timerTicks,
+  vecLength,
   vesselTimeline,
   type Food,
   type Item,
@@ -103,6 +104,14 @@ export class Crew {
   private watchers = new Set<PlayerId>();
   private estimates = new Map<string, Estimate>();
   private failed = new Map<string, number>();
+  /**
+   * A rival has stood in every one of our doorways for doorBlockSeconds: the market is out of reach,
+   * so market, charm and premium jobs are dropped and the crew cooks from the pantries until the
+   * doorways have been clear for doorClearSeconds (anyone watching the doorway can see this).
+   */
+  doorBlocked = false;
+  private doorCoveredSince: number | null = null;
+  private doorFreeSince: number | null = null;
   readonly rng: BotRng;
 
   constructor(
@@ -193,12 +202,19 @@ export class Crew {
       this.estimates.clear();
       this.extraOrders = this.rollExtraOrders();
       this.watchers.clear();
+      this.doorBlocked = false;
+      this.doorCoveredSince = this.doorFreeSince = null;
       this.members.forEach((id, i) => {
         if (this.rng.chance(skillParams(this.memberSkill[i]!).huntChance * T.watchShare)) this.watchers.add(id);
       });
     }
     const k = kitchenFor(state, this.team);
+    // Both kitchens' nav up front (cached per arena): the rival's is read for rivalNearlyDone, and
+    // building it lazily mid-service cost a visible hitch (tens of ms) on that tick.
+    kitchenFor(state, (1 - this.team) as TeamId);
+    this.updateDoor(state, k);
     this.reconcile(state, k);
+    if (this.doorBlocked) this.dropMarketOrders(k);
     this.planOrders(state, k);
   }
 
@@ -339,6 +355,34 @@ export class Crew {
       else next.push(o);
     }
     this.orders = next;
+  }
+
+  private updateDoor(state: MatchState, k: Kitchen): void {
+    const covered =
+      k.doorTiles.length > 0 &&
+      k.doorTiles.every((d) => {
+        const c = k.nav.center(d);
+        return state.players.some((p) => p.team !== this.team && vecLength(p.pos.x - c.x, p.pos.y - c.y) <= T.doorBlockReach);
+      });
+    const rate = state.config.tuning.tickRate;
+    if (covered) {
+      this.doorFreeSince = null;
+      this.doorCoveredSince ??= state.tick;
+      if (state.tick - this.doorCoveredSince >= T.doorBlockSeconds * rate) this.doorBlocked = true;
+    } else {
+      this.doorCoveredSince = null;
+      this.doorFreeSince ??= state.tick;
+      if (state.tick - this.doorFreeSince >= T.doorClearSeconds * rate) this.doorBlocked = false;
+    }
+  }
+
+  /** Doorways blocked: drop dishes still waiting on a market ingredient nobody has fetched yet. */
+  private dropMarketOrders(k: Kitchen): void {
+    this.orders = this.orders.filter((o) => {
+      const waits = o.slots.some((s) => !s.onPlate && s.item === null && s.vessel === null && s.pendingVessel === null && !k.pantry.has(s.food.kind));
+      if (waits) o.cancelled = true;
+      return !waits;
+    });
   }
 
   private plateHasFood(state: MatchState, id: number): boolean {
@@ -492,7 +536,10 @@ export class Crew {
     const fakeCtx = { state, k, crew: this, me: state.players[this.members[0]!], tile: k.idleTile, items: itemIndex(state, this.team), stoveLeadTicks: 0 } as Ctx;
     // Plates: every dish needs one.
     const rackStock = k.racks.reduce((n, r) => n + (stationOf(state, r)?.stock ?? 0), 0);
-    const platesFree = rackStock + this.sparePlates(state) - this.orders.filter((o) => o.plate === null).length;
+    // While a dirty plate waits in the sink, one dish may be prepped ahead of it (it is washed in a
+    // few seconds); otherwise the crew would stand idle until the rack refills.
+    const washing = k.sinks.some((t) => (stationOf(state, t)?.dirtyPlates ?? 0) > 0) ? 1 : 0;
+    const platesFree = rackStock + this.sparePlates(state) + washing - this.orders.filter((o) => o.plate === null).length;
     if (platesFree <= 0) return null;
     const freePans = k.pans.filter((p) => freeVessel(fakeCtx, [p]) !== null).length - this.pendingPanSlots(state);
     const freePots = k.pots.filter((p) => freeVessel(fakeCtx, [p]) !== null).length - this.orders.filter((o) => o.pot === null && o.recipe.ingredients.some((f) => pipeline(state, f).vessel === 'pot')).length;
@@ -511,6 +558,7 @@ export class Crew {
         }
         continue;
       }
+      if (this.doorBlocked && r.ingredients.some((f) => !k.pantry.has(f.kind))) continue;
       const usesPan = r.ingredients.filter((f) => pipeline(state, f).vessel === 'pan').length;
       const usesPot = r.ingredients.some((f) => pipeline(state, f).vessel === 'pot');
       if (usesPan > freePans || (usesPot && freePots <= 0)) continue;
@@ -617,7 +665,7 @@ export class Crew {
     for (const [id, loc] of ctx.items) {
       if (loc.item.type !== 'charm' || loc.at !== 'floor' || !loc.resting) continue;
       const t = k.nav.tileAt(loc.pos);
-      if (t < 0 || !k.nav.open[t]) continue;
+      if (t < 0 || !k.nav.open[t] || (this.doorBlocked && state.arena.zones[t] !== state.arena.zones[ctx.tile])) continue;
       const d = k.nav.tiles(ctx.tile, t);
       if (!Number.isFinite(d) || d > T.charmRange) continue;
       offer(new CharmTask(id), S.charm - d * T.distancePenaltyPerTile, null);
@@ -655,7 +703,7 @@ export class Crew {
       const stock = this.stockNeed(ctx);
       if (stock) offer(new StockTask(stock), S.stock, k.pantry.get(stock) ?? null);
       const premiumUp = visibleTickets(state, this.team).some((t) => state.recipes.find((r) => r.id === t.recipe)?.premium);
-      if (this.watchers.has(me.id) && premiumUp && k.watchTiles.length > 0) {
+      if (this.watchers.has(me.id) && premiumUp && !this.doorBlocked && k.watchTiles.length > 0) {
         const spot = k.watchTiles[Math.floor(state.tick / T.watchTicks) % k.watchTiles.length]!;
         offer(new WatchTask(spot), S.watch, null);
       }

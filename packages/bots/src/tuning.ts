@@ -53,6 +53,14 @@ export const BOT_TUNING = {
   /** Knock / hunt appetite multiplier against a rival carrying a charm (they are worth points and Heat). */
   charmAppetite: 2,
 
+  // ---------- blocked doorways (crew.ts) ----------
+  /** A rival centre this close (tiles) to one of our doorway tiles covers it. */
+  doorBlockReach: 0.9,
+  /** Every doorway tile covered this long: treat the market as out of reach. */
+  doorBlockSeconds: 3,
+  /** ...until the doorways have been clear this long. */
+  doorClearSeconds: 2,
+
   // ---------- crew planning (crew.ts) ----------
   /** A task that failed is not offered again for this long. */
   failBlacklistTicks: 45,
