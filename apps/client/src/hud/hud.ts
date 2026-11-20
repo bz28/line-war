@@ -6,7 +6,7 @@ import { FLY_MS, ScoreFlyers } from './flyers';
 import { formatScore } from './text';
 import type { Renderer } from '../render/types';
 import { LanternClock } from './clock';
-import { Moments } from './moments';
+import { Moments, type RoundLine } from './moments';
 import { CrewSign } from './signs';
 import { TicketLine } from './slips';
 import { bankLabel, CharmCallout, heatRaised } from './charms';
@@ -27,6 +27,8 @@ export interface HudOptions {
   coach?: { player: PlayerId; keys: CoachKeys; storage: CoachStorage | null };
   /** A flying score token reached its crew sign (audio's tick-chime). */
   onScoreLand?: (team: 0 | 1) => void;
+  /** Each finished round's points, oldest first (the round card's ledger from round 2 on). */
+  rounds?: () => readonly RoundLine[];
   /** The local players' display charm per crew (hung from that crew's sign). */
   displayCharms?: Partial<Record<TeamId, string>>;
 }
@@ -54,6 +56,7 @@ export class HudRenderer implements Renderer {
   private lastTick = -1;
   private phase = '';
   private coaching = false;
+  private counting = false;
 
   constructor(host: HTMLElement, opts: HudOptions = {}) {
     const now = opts.now ?? (() => performance.now());
@@ -69,7 +72,7 @@ export class HudRenderer implements Renderer {
     this.signs = [new CrewSign(0, now, reduced), new CrewSign(1, now, reduced)];
     this.line = new TicketLine(now, reduced);
     this.clock = new LanternClock();
-    this.moments = new Moments(now);
+    this.moments = new Moments(now, opts.rounds);
     this.callout = new CharmCallout(now);
     for (const team of [0, 1] as const) {
       const d = opts.displayCharms?.[team];
@@ -167,6 +170,11 @@ export class HudRenderer implements Renderer {
     this.line.render(s);
     this.clock.render(s);
     this.moments.render(s);
+    const counting = this.moments.kind === 'count' && this.moments.onStage;
+    if (counting !== this.counting) {
+      this.counting = counting;
+      this.root.classList.toggle('lw-hud--count', counting);
+    }
     this.callout.render();
     if (this.coach) {
       // The 3-2-1 stamps share the stage with the coach (prep is its best window); banners and
