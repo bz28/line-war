@@ -4,6 +4,7 @@ import { loadSettings, saveSettings, type StorageLike } from '../settings/store'
 import type { Settings } from '../settings/types';
 import { h } from './dom';
 import { MenuNav } from './nav';
+import { howToScreen } from './howTo';
 import { matchOverScreen, pauseScreen, titleScreen } from './screens';
 import { SettingsMenu } from './settingsMenu';
 import './styles.css';
@@ -27,7 +28,7 @@ export interface AppOptions {
   getGamepads?: GetGamepads;
 }
 
-type Screen = 'title' | 'playing' | 'paused' | 'over';
+type Screen = 'title' | 'howto' | 'playing' | 'paused' | 'over';
 
 /**
  * Screen flow: Title -> match; Esc / Start pauses (Resume, Restart, Settings, Quit);
@@ -124,7 +125,14 @@ export class App {
     this.endSession();
     this.closeSettings();
     this.screen = 'title';
-    this.showPanel(titleScreen(this.settings, { play: () => this.play(), settings: () => this.openSettings() }));
+    this.showPanel(
+      titleScreen(this.settings, { play: () => this.play(), howTo: () => this.showHowTo(), settings: () => this.openSettings() }),
+    );
+  }
+
+  private showHowTo(): void {
+    this.screen = 'howto';
+    this.showPanel(howToScreen(this.settings, { back: () => this.showTitle() }));
   }
 
   private showMatchOver(): void {
@@ -142,7 +150,7 @@ export class App {
   }
 
   private togglePause(): void {
-    if (this.settingsMenu) return this.back();
+    if (this.settingsMenu || this.screen === 'howto') return this.back();
     if (this.screen === 'playing') this.pause();
     else if (this.screen === 'paused') this.resume();
   }
@@ -151,6 +159,7 @@ export class App {
   private back(): void {
     if (this.settingsMenu) return this.settingsMenu.back();
     if (this.screen === 'paused') this.resume();
+    else if (this.screen === 'howto') this.showTitle();
   }
 
   // ---------- settings ----------
@@ -194,7 +203,7 @@ export class App {
   }
 
   private showPanel(panel: HTMLElement): void {
-    this.overlay.classList.toggle('lw-opaque', this.screen === 'title');
+    this.overlay.classList.toggle('lw-opaque', this.screen === 'title' || this.screen === 'howto');
     this.overlay.replaceChildren(panel);
     this.overlay.hidden = false;
     // Focus the first control so keyboard and gamepad navigation work immediately.
