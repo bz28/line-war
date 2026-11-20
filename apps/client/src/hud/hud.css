@@ -612,6 +612,147 @@
 
 .lw-stage .lw-fps { position: absolute; top: auto; bottom: calc(var(--s) * 0.6); right: calc(var(--s) * 0.8); }
 
+/* ---------- score tokens: points fly from the pass into the crew sign ---------- */
+.lw-flyers { position: fixed; inset: 0; pointer-events: none; z-index: 4; }
+.lw-fly {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-family: var(--font-display);
+  font-size: calc(var(--s) * 2);
+  line-height: 1;
+  white-space: nowrap;
+  -webkit-text-stroke: calc(var(--s) * 0.1) var(--ink);
+  paint-order: stroke fill;
+  text-shadow: 0 0 calc(var(--s) * 1.2) color-mix(in srgb, var(--lantern) 70%, transparent), calc(var(--s) * 0.1) calc(var(--s) * 0.16) 0 var(--night-deep);
+  will-change: transform;
+}
+.lw-fly.lw-jade { color: var(--jade-light); }
+.lw-fly.lw-ember { color: var(--ember-light); }
+
+/* The board takes the hit when points land. */
+.lw-sign--thump .lw-sign-board { animation: lw-thump 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+.lw-sign--thump .lw-sign-score { animation: lw-thump-score 0.42s ease-out; }
+@keyframes lw-thump {
+  0% { transform: translateY(0) scale(1); }
+  25% { transform: translateY(calc(var(--s) * 0.35)) scale(1.06, 0.94); }
+  60% { transform: translateY(calc(var(--s) * -0.1)) scale(0.98, 1.03); }
+  100% { transform: none; }
+}
+@keyframes lw-thump-score {
+  0% { color: var(--paper); }
+  20% { color: var(--lantern); transform: scale(1.18); }
+  100% { color: var(--paper); transform: none; }
+}
+
+/* ---------- first-match coach: a paper note and a lantern pointer ---------- */
+.lw-coach { position: fixed; inset: 0; pointer-events: none; z-index: 3; }
+.lw-coach-note {
+  position: absolute;
+  left: 50%;
+  /* Hangs over the market's back wall, under the clock: clear of every station. */
+  top: calc(var(--band) + var(--s) * 1.2);
+  width: min(calc(var(--s) * 27), calc(100vw - 32px));
+  transition: opacity 0.25s, visibility 0.25s;
+  box-sizing: border-box;
+  padding: calc(var(--s) * 1) calc(var(--s) * 1.5) calc(var(--s) * 1.1);
+  transform: translateX(-50%) rotate(-0.6deg);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: calc(var(--s) * 0.35);
+  box-shadow: calc(var(--s) * 0.25) calc(var(--s) * 0.4) 0 color-mix(in srgb, var(--night-deep) 70%, transparent);
+  font-family: var(--font-ui);
+}
+/* Pinned to the market string with a bit of lantern-gold tape. */
+.lw-coach-note::before {
+  content: '';
+  position: absolute;
+  top: calc(var(--s) * -0.55);
+  left: 50%;
+  width: calc(var(--s) * 4.5);
+  height: calc(var(--s) * 1.1);
+  transform: translateX(-50%) rotate(2deg);
+  background: color-mix(in srgb, var(--lantern) 80%, transparent);
+  border-radius: 2px;
+}
+.lw-coach-note--in { animation: lw-coach-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.25); }
+@keyframes lw-coach-in {
+  0% { opacity: 0; transform: translateX(-50%) translateY(calc(var(--s) * 2)) rotate(2deg) scale(0.92); }
+  100% { opacity: 1; transform: translateX(-50%) rotate(-0.6deg); }
+}
+.lw-coach-note--away { opacity: 0; visibility: hidden; }
+.lw-coach-title { font-family: var(--font-display); font-size: calc(var(--s) * 1.25); line-height: 1.1; padding-right: calc(var(--s) * 4.5); }
+.lw-coach-body { margin-top: calc(var(--s) * 0.35); font-size: calc(var(--s) * 0.92); font-weight: 700; line-height: 1.35; color: color-mix(in srgb, var(--ink) 80%, transparent); }
+.lw-coach-note[data-step='done'] { background: var(--lantern); }
+.lw-coach-skip {
+  position: absolute;
+  top: calc(var(--s) * 0.6);
+  right: calc(var(--s) * 0.8);
+  pointer-events: auto;
+  border: 0;
+  background: none;
+  font: 700 calc(var(--s) * 0.8) var(--font-ui);
+  color: color-mix(in srgb, var(--ink) 55%, transparent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.lw-coach-skip:hover { color: var(--ink); }
+/* The pointer hangs over the target tile: a lantern-gold chevron bobbing down at it. */
+.lw-coach-pointer { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.lw-coach-pointer::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--s) * -1.1);
+  top: calc(var(--s) * -4.2);
+  width: calc(var(--s) * 2.2);
+  height: calc(var(--s) * 1.8);
+  background: var(--lantern);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  filter: drop-shadow(0 0 calc(var(--s) * 0.6) var(--lantern));
+  animation: lw-coach-bob 0.75s ease-in-out infinite alternate;
+}
+.lw-coach-pointer::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--s) * -1.9);
+  top: calc(var(--s) * -1.9);
+  width: calc(var(--s) * 3.8);
+  height: calc(var(--s) * 3.8);
+  border: calc(var(--s) * 0.22) solid var(--lantern);
+  border-radius: 50%;
+  opacity: 0.8;
+  animation: lw-coach-ring 1.2s ease-out infinite;
+}
+@keyframes lw-coach-bob { from { transform: translateY(0); } to { transform: translateY(calc(var(--s) * 0.9)); } }
+@keyframes lw-coach-ring { from { transform: scale(0.55); opacity: 0.9; } to { transform: scale(1.15); opacity: 0; } }
+
+/* ---------- phase pressure at the screen edges ---------- */
+.lw-edge { position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0; transition: opacity 0.8s; }
+.lw-hud[data-phase='rush'] .lw-edge {
+  opacity: 1;
+  box-shadow: inset 0 0 calc(var(--s) * 9) color-mix(in srgb, var(--lantern-hot) 30%, transparent);
+}
+/* Last call: a danger-red rim that beats once a second with the clock. */
+.lw-hud[data-phase='lastCall'] .lw-edge {
+  opacity: 1;
+  box-shadow: inset 0 0 calc(var(--s) * 10) color-mix(in srgb, var(--danger) 45%, transparent);
+  animation: lw-edge-beat 1s ease-out infinite;
+}
+@keyframes lw-edge-beat {
+  0% { opacity: 1; }
+  100% { opacity: 0.45; }
+}
+
+/* ---------- match over: let the winners' confetti and victory bounce show through ---------- */
+.lw-hud[data-phase='matchOver'] .lw-moments--card { background-color: color-mix(in srgb, var(--night-deep) 38%, transparent); }
+.lw-moment--matchOver .lw-result-crew.lw-won { animation: lw-won-pop 0.6s 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.4) both; }
+.lw-moment--matchOver .lw-result-crew.lw-won .lw-result-score { color: var(--crew-c); text-shadow: calc(var(--s) * 0.1) calc(var(--s) * 0.14) 0 var(--ink); }
+@keyframes lw-won-pop {
+  0% { transform: scale(0.85); }
+  60% { transform: scale(1.12) rotate(-2deg); }
+  100% { transform: scale(1.06) rotate(-1deg); }
+}
+
 /* ---------- reduced motion: keep every state change, drop the movement ---------- */
 @media (prefers-reduced-motion: reduce) {
   .lw-hud *, .lw-hud *::before, .lw-hud *::after { animation: none !important; }

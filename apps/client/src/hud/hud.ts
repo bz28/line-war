@@ -1,4 +1,9 @@
-import type { MatchState } from '@line-war/sim';
+import type { MatchState, Vec2 } from '@line-war/sim';
+import { passCenter } from '../render/effects';
+import type { PlayerId } from '@line-war/sim';
+import { Coach, type CoachKeys, type CoachStorage } from './coach';
+import { FLY_MS, ScoreFlyers } from './flyers';
+import { formatScore } from './text';
 import type { Renderer } from '../render/types';
 import { LanternClock } from './clock';
 import { Moments } from './moments';
@@ -11,6 +16,10 @@ export interface HudOptions {
   now?: () => number;
   /** Override prefers-reduced-motion (tests). */
   reducedMotion?: boolean;
+  /** World position (tiles) -> client px, from the world renderer; enables score tokens flying to the signs. */
+  locate?: (pos: Vec2) => Vec2 | null;
+  /** First-match coach for this local player (omit for no coach, e.g. all bots or already seen). */
+  coach?: { player: PlayerId; keys: CoachKeys; storage: CoachStorage | null };
 }
 
 /**
@@ -25,6 +34,11 @@ export class HudRenderer implements Renderer {
   private line: TicketLine;
   private clock: LanternClock;
   private moments: Moments;
+  private flyers: ScoreFlyers;
+  readonly coach: Coach | null;
+  private now: () => number;
+  private reduced: () => boolean;
+  private locate: ((pos: Vec2) => Vec2 | null) | null;
   private lastTick = -1;
   private phase = '';
 
@@ -32,6 +46,9 @@ export class HudRenderer implements Renderer {
     const now = opts.now ?? (() => performance.now());
     const mq = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
     const reduced = () => opts.reducedMotion ?? mq?.matches ?? false;
+    this.now = now;
+    this.reduced = reduced;
+    this.locate = opts.locate ?? null;
 
     this.root = document.createElement('div');
     this.root.className = 'lw-hud';
@@ -49,7 +66,15 @@ export class HudRenderer implements Renderer {
     centre.className = 'lw-line-wrap';
     centre.append(this.line.root, this.clock.root);
     band.append(lights, this.signs[0].root, centre, this.signs[1].root);
-    this.root.append(band, this.moments.root);
+    const fly = document.createElement('div');
+    fly.className = 'lw-flyers';
+    this.flyers = new ScoreFlyers(fly);
+    this.coach = opts.coach ? new Coach(opts.coach.player, opts.coach.keys, now, this.locate, opts.coach.storage) : null;
+    const edge = document.createElement('div');
+    edge.className = 'lw-edge';
+    edge.setAttribute('aria-hidden', 'true');
+    this.root.append(edge, band, this.moments.root, fly);
+    if (this.coach) this.root.append(this.coach.root);
     host.append(this.root);
   }
 
@@ -57,8 +82,24 @@ export class HudRenderer implements Renderer {
     if (s.tick === this.lastTick) return;
     this.lastTick = s.tick;
     this.line.onTick(s);
-    this.signs[0].onTick(s);
-    this.signs[1].onTick(s);
+    this.coach?.onTick(s);
+    for (const e of s.events) if (e.type === 'delivered') this.serve(s, e.team, e.points);
+  }
+
+  /** A serve pays out: the points fly from the crew's pass into its sign (or land at once). */
+  private serve(s: MatchState, team: 0 | 1, points: number): void {
+    const sign = this.signs[team];
+    const pass = this.locate && !this.reduced() ? passCenter(s, team) : null;
+    const from = pass && this.locate ? this.locate(pass) : null;
+    if (from) {
+      const r = sign.score.getBoundingClientRect();
+      const to = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      if (this.flyers.launch(team, `+${formatScore(points)}`, from, to, () => sign.land(points))) {
+        sign.deferCount(this.now() + FLY_MS);
+        return;
+      }
+    }
+    sign.land(points);
   }
 
   render(s: MatchState): void {
@@ -71,10 +112,13 @@ export class HudRenderer implements Renderer {
     this.line.render(s);
     this.clock.render(s);
     this.moments.render(s);
+    this.coach?.render(s, this.moments.showing);
   }
 
   dispose(): void {
     this.line.dispose();
+    this.flyers.dispose();
+    this.coach?.dispose();
     this.moments.dispose();
     this.root.remove();
   }
