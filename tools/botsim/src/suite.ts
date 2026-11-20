@@ -185,6 +185,9 @@ async function calibrate(o: SuiteOptions, point: SweepPoint, pool: MatchPool): P
 
 const pct = (x: number): string => `${(x * 100).toFixed(1)}%`;
 
+/** Recipe bar: the lowest per-recipe served rate must be at least this share of the highest. */
+export const RECIPE_SERVED_RATIO = 0.5;
+
 export function judgeBars(scenarios: readonly ScenarioAggregate[]): BarResult[] {
   const find = (name: string): ScenarioAggregate | undefined => scenarios.find((s) => s.scenario === name);
   const bars: BarResult[] = [];
@@ -212,22 +215,27 @@ export function judgeBars(scenarios: readonly ScenarioAggregate[]): BarResult[] 
   );
 
   if (even) {
-    const skips = Object.entries(even.recipes).filter(([, r]) => r.spawned > 0);
-    const shares = skips.map(([, r]) => r.skipShare);
-    const max = Math.max(...shares);
-    const min = Math.min(...shares);
-    const ok = shares.length > 0 && (max === 0 || max <= 2 * min);
-    const hi = skips.find(([, r]) => r.skipShare === max)?.[0];
-    const lo = skips.find(([, r]) => r.skipShare === min)?.[0];
+    // Served rate = served / spawned per recipe; the least-served recipe must reach half the best one.
+    const spawned = Object.entries(even.recipes).filter(([, r]) => r.spawned > 0);
+    const rates = spawned.map(([, r]) => r.servedRate);
+    const max = Math.max(...rates);
+    const min = Math.min(...rates);
+    const ok = rates.length > 0 && max > 0 && min >= RECIPE_SERVED_RATIO * max;
     bars.push({
-      id: 'skips',
-      name: 'No recipe skipped 2× as often as another',
-      target: 'max skip share ≤ 2 × min (even-2v2)',
-      value: shares.length ? `${hi} ${pct(max)} vs ${lo} ${pct(min)}` : 'no tickets',
-      status: shares.length === 0 ? 'N/A' : ok ? 'PASS' : 'FAIL',
+      id: 'recipes',
+      name: 'No recipe skipped twice as often as another',
+      target: `lowest served rate ≥ ${RECIPE_SERVED_RATIO} × highest (even-2v2)`,
+      value: rates.length ? spawned.map(([id, r]) => `${id} ${pct(r.servedRate)}`).join(', ') : 'no tickets',
+      status: rates.length === 0 ? 'N/A' : ok ? 'PASS' : 'FAIL',
     });
   } else {
-    bars.push({ id: 'skips', name: 'No recipe skipped 2× as often as another', target: 'max ≤ 2 × min (even-2v2)', value: 'not run', status: 'N/A' });
+    bars.push({
+      id: 'recipes',
+      name: 'No recipe skipped twice as often as another',
+      target: `lowest served rate ≥ ${RECIPE_SERVED_RATIO} × highest (even-2v2)`,
+      value: 'not run',
+      status: 'N/A',
+    });
   }
 
   const gap = find('gap-2v2');

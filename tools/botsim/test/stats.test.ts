@@ -1,6 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import { wilson } from '../src/stats';
-import { pickSkill } from '../src/suite';
+import type { ScenarioAggregate } from '../src/aggregate';
+import { judgeBars, pickSkill } from '../src/suite';
+
+describe('recipe pass bar (served rates)', () => {
+  const bar = (rates: Record<string, [number, number]>) => {
+    const recipes = Object.fromEntries(
+      Object.entries(rates).map(([id, [served, spawned]]) => [id, { spawned, served, expired: 0, leftover: 0, servedRate: served / spawned }]),
+    );
+    const even = { scenario: 'even-2v2', stuck: 0, knocksPerRound: 3, recipes } as unknown as ScenarioAggregate;
+    return judgeBars([even]).find((b) => b.id === 'recipes')!;
+  };
+  it('fails when the least-served recipe is below half the best one, and lists every rate', () => {
+    const b = bar({ soup: [0, 100], burger: [41, 100] });
+    expect(b.status).toBe('FAIL');
+    expect(b.value).toBe('soup 0.0%, burger 41.0%');
+  });
+  it('passes at exactly half, fails when nothing is served', () => {
+    expect(bar({ soup: [20, 100], burger: [40, 100] }).status).toBe('PASS');
+    expect(bar({ soup: [19, 100], burger: [40, 100] }).status).toBe('FAIL');
+    expect(bar({ soup: [0, 10], burger: [0, 10] }).status).toBe('FAIL');
+  });
+});
 
 describe('wilson interval', () => {
   it('matches reference values (95%)', () => {

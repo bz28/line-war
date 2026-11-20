@@ -10,8 +10,8 @@ export interface RecipeAggregate {
   served: number;
   expired: number;
   leftover: number;
-  /** (expired + leftover) / spawned: tickets nobody served. */
-  skipShare: number;
+  /** served / spawned (regular tickets; the Critic is excluded). */
+  servedRate: number;
 }
 
 export interface ScenarioAggregate {
@@ -75,14 +75,14 @@ export function aggregate(scenario: string, records: readonly MatchRecord[]): Sc
   const recipes: Record<string, RecipeAggregate> = {};
   for (const r of rounds) {
     for (const [id, c] of Object.entries(r.tickets)) {
-      const a = (recipes[id] ??= { spawned: 0, served: 0, expired: 0, leftover: 0, skipShare: 0 });
+      const a = (recipes[id] ??= { spawned: 0, served: 0, expired: 0, leftover: 0, servedRate: 0 });
       a.spawned += c.spawned;
       a.served += c.served;
       a.expired += c.expired;
       a.leftover += c.leftover;
     }
   }
-  for (const a of Object.values(recipes)) a.skipShare = ratio(a.expired + a.leftover, a.spawned);
+  for (const a of Object.values(recipes)) a.servedRate = ratio(a.served, a.spawned);
 
   const heatShare = ([0, 1] as const).map((t) => {
     const ticks = [0, 1, 2, 3].map((tier) => sum(rounds.map((r) => r.heatTicks[t][tier] ?? 0)));

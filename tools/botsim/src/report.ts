@@ -92,12 +92,12 @@ function scenarioTable(scenarios: readonly ScenarioAggregate[]): string {
 function recipeTable(scenarios: readonly ScenarioAggregate[]): string {
   const ids = [...new Set(scenarios.flatMap((s) => Object.keys(s.recipes)))];
   return table(
-    ['Recipe (skip % = expired or never served)', ...scenarios.map((s) => s.scenario)],
+    ['Recipe served rate (served / spawned)', ...scenarios.map((s) => s.scenario)],
     ids.map((id) => [
       id,
       ...scenarios.map((s) => {
         const r = s.recipes[id];
-        return r && r.spawned ? `${pct(r.skipShare)} (${r.served}/${r.spawned} served)` : '—';
+        return r && r.spawned ? `${pct(r.servedRate)} (${r.served}/${r.spawned})` : '—';
       }),
     ]),
   );
@@ -238,7 +238,7 @@ export function renderMarkdown(r: SuiteResult, meta: ReportMeta = {}): string {
       `- **Close %**: rounds with a margin ≤ ${CLOSE_MARGIN * 100}% of the winner's score (rounds where someone scored).`,
       '- **Comeback %**: rounds where the crew trailing when Dinner Rush began went on to win (rounds tied at rush start excluded).',
       '- **Lead changes**: times the non-tied leader changed, checked at each delivery.',
-      '- **Skip %** (recipe bar): regular tickets of the recipe that expired or were still on the board at round end, over tickets spawned. The Critic is excluded.',
+      '- **Served rate** (recipe bar): regular tickets of the recipe served, over tickets spawned (the Critic is excluded). The bar passes when the lowest rate is at least half the highest.',
       `- **Stuck**: a bot whose position stayed within 0.25 tiles and who pressed no grab/work/throw for more than ${o.stuckSeconds} s of time with tickets on the board. Idle (non-bot) slots are not checked.`,
       '- **Heat**: share of service/rush/last-call time at each Heat tier.',
     ].join('\n'),

@@ -30,7 +30,7 @@ describe('suite + report', () => {
     expect(p.scenarios.every((s) => s.matches === 3 && s.rounds === 3)).toBe(true);
     expect(p.calibration!.rows.map((x) => x.skill)).toEqual([0.7, 0.9, 1]);
     expect(p.calibration!.baseline).toBeGreaterThan(0);
-    expect(p.bars.map((b) => b.id)).toEqual(['stuck', 'knocks', 'skips', 'gap']);
+    expect(p.bars.map((b) => b.id)).toEqual(['stuck', 'knocks', 'recipes', 'gap']);
     expect(p.bars.find((b) => b.id === 'knocks')!.status).toBe('FAIL'); // the scripted bots never knock
     expect(p.sideBias.map((b) => b.id)).toEqual(['side-even-2v2', 'side-even-1v1']);
     expect(r.matchesRun).toBe(4 * 2 + 3 * 3);
