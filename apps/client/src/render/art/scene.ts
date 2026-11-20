@@ -30,10 +30,23 @@ export const LIFT = { counter: 0.17, tall: 0.27, wall: 0.3, rail: 0.12 } as cons
 const COUNTER_FAMILY: ReadonlySet<TileKind> = new Set(['counter', 'pantry', 'board', 'stove', 'sink', 'plates', 'pass']);
 export const isCounterFamily = (k: TileKind | null): boolean => k !== null && COUNTER_FAMILY.has(k);
 
+/** Per-level look for walls inside the market (Harbor's pond, Rooftop's planters); stone otherwise. */
+const MARKET_ACCENT: Record<string, 'pond' | 'planter'> = { 'harbor-pier': 'pond', 'rooftop-garden': 'planter' };
+
+export type WallLook = 'frame' | 'stone' | 'pond' | 'planter';
+
+export function wallLook(sc: Scene, x: number, y: number): WallLook {
+  if (zoneAt(sc, x, y) !== 'market') return 'frame';
+  if (y === 0 || y === sc.H - 1) return y === 0 ? 'stone' : 'frame';
+  return MARKET_ACCENT[sc.s.arena.id] ?? 'stone';
+}
+
 /** Lift of the block on tile (x,y) in px (0 for floor). */
 export function liftAt(sc: Scene, x: number, y: number): number {
   const k = kindAt(sc, x, y);
   if (k === null || k === 'floor') return 0;
+  if (k === 'wall' && wallLook(sc, x, y) === 'pond') return 0;
+  if (k === 'wall' && wallLook(sc, x, y) === 'planter') return LIFT.counter * sc.T;
   if (k === 'wall') return (y === sc.H - 1 ? LIFT.rail : LIFT.wall) * sc.T;
   if (k === 'crate' || k === 'trash') return LIFT.tall * sc.T;
   return LIFT.counter * sc.T;

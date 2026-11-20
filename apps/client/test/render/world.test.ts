@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { INGREDIENTS, NIGHT_MARKET, RECIPES } from '@line-war/content';
-import { createMatch, makeConfig, secondsToTicks } from '@line-war/sim';
+import { INGREDIENTS, LEVELS, NIGHT_MARKET, RECIPES } from '@line-war/content';
+import { createMatch, makeConfig, NO_INPUT, secondsToTicks, step } from '@line-war/sim';
+import type { MatchInputs } from '@line-war/sim';
 import type { MatchState, Phase } from '@line-war/sim';
 import { buildDemoState } from '../../src/render/demo';
 import { GreyboxRenderer } from '../../src/render/greybox';
@@ -69,6 +70,24 @@ describe('WorldRenderer', () => {
     const { calls } = renderOnce(s, {}, 0);
     expect(JSON.stringify(s)).toBe(before);
     expect(badNumbers(calls)).toEqual([]);
+  });
+
+  it('draws every level from its tiles (no Night Market assumptions), baked and live', () => {
+    for (const level of LEVELS) {
+      const s = createMatch({ arena: level.arena, recipes: level.recipes, ingredients: level.ingredients, config: makeConfig({ seed: 5 }) });
+      const idle = [NO_INPUT, NO_INPUT, NO_INPUT, NO_INPUT] as MatchInputs;
+      for (let i = 0; i < 30 * 20; i++) step(s, idle); // into service, tickets on the board
+      for (const swapped of [false, true]) {
+        s.round.swapped = swapped;
+        const before = JSON.stringify(s);
+        const { calls } = renderOnce(s);
+        expect(JSON.stringify(s), level.id).toBe(before);
+        expect(badNumbers(calls), `${level.id} live`).toEqual([]);
+        const { factory, made } = fakeFactory();
+        renderOnce(s, { createCanvas: factory });
+        for (const m of made) expect(badNumbers(m.calls), `${level.id} baked`).toEqual([]);
+      }
+    }
   });
 
   it('interpolates player positions between ticks', () => {

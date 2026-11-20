@@ -3,9 +3,9 @@ import { LIGHT, PALETTE, TEAMS, WORLD } from '../../art/tokens';
 import { mix, withAlpha } from '../palette';
 import type { Rect } from '../layout';
 import type { Ctx } from '../sprites';
-import { circle, ellipse, fill, glow, hash, rrect, softShadow, stroke } from './draw';
+import { circle, ellipse, fill, glow, hash, rrect, softShadow, stroke, TAU } from './draw';
 import { paintFood } from './food';
-import { isCounterFamily, kindAt, liftAt, ownerAt, px, py, tileAtXY, zoneAt, type Scene } from './scene';
+import { isCounterFamily, kindAt, liftAt, ownerAt, px, py, tileAtXY, wallLook, zoneAt, type Scene } from './scene';
 
 /**
  * Static diorama layers, painted once per resize / kitchen swap into offscreen canvases:
@@ -63,7 +63,7 @@ function clipTiles(ctx: Ctx, sc: Scene, pick: (x: number, y: number) => boolean,
   let any = false;
   for (let y = 0; y < sc.H; y++)
     for (let x = 0; x < sc.W; x++) {
-      if (kindAt(sc, x, y) === 'wall' || !pick(x, y)) continue;
+      if ((kindAt(sc, x, y) === 'wall' && wallLook(sc, x, y) !== 'planter') || !pick(x, y)) continue;
       ctx.rect(px(sc, x), py(sc, y), sc.T, sc.T);
       any = true;
     }
@@ -227,8 +227,9 @@ function blockShadows(ctx: Ctx, sc: Scene): void {
     for (let x = 0; x < sc.W; x++) {
       const k = kindAt(sc, x, y);
       if (k === null || k === 'floor') continue;
+      if (k === 'wall' && wallLook(sc, x, y) === 'pond') continue;
       const L = liftAt(sc, x, y);
-      if (k === 'trash') {
+      if (k === 'trash' || (k === 'wall' && wallLook(sc, x, y) === 'planter')) {
         ellipse(ctx, px(sc, x) + T / 2 + dx, py(sc, y) + T * 0.72 + dy * 0.6, T * 0.36, T * 0.16);
         fill(ctx, withAlpha(PALETTE.nightDeep, LIGHT.shadowAlpha));
         continue;
@@ -239,7 +240,7 @@ function blockShadows(ctx: Ctx, sc: Scene): void {
   // Contact shadow along the foot of every wall that faces down onto floor.
   for (let y = 1; y < sc.H; y++)
     for (let x = 0; x < sc.W; x++) {
-      if (kindAt(sc, x, y - 1) !== 'wall' || kindAt(sc, x, y) === 'wall') continue;
+      if (kindAt(sc, x, y - 1) !== 'wall' || kindAt(sc, x, y) === 'wall' || wallLook(sc, x, y - 1) === 'pond' || wallLook(sc, x, y - 1) === 'planter') continue;
       const g = ctx.createLinearGradient(0, py(sc, y), 0, py(sc, y) + T * 0.45);
       g.addColorStop(0, withAlpha(PALETTE.nightDeep, 0.55));
       g.addColorStop(1, withAlpha(PALETTE.nightDeep, 0));
@@ -718,14 +719,97 @@ function marketBackWall(ctx: Ctx, sc: Scene, c0: number, c1: number): void {
   ctx.fillRect(x0, yTop - T * 0.2, x1 - x0, 1.6);
 }
 
+/** Harbor: a sunken pond tile with a stone rim where it meets dry ground, and lantern glints. */
+function pondTile(ctx: Ctx, sc: Scene, x: number, y: number): void {
+  const { T } = sc;
+  const X = px(sc, x);
+  const Y = py(sc, y);
+  const isPond = (cx: number, cy: number) => kindAt(sc, cx, cy) === 'wall' && wallLook(sc, cx, cy) === 'pond';
+  ctx.fillStyle = mix(WORLD.water, PALETTE.night, 0.45);
+  ctx.fillRect(X - 0.5, Y - 0.5, T + 1, T + 1);
+  // Ripples and reflected lantern light.
+  ctx.strokeStyle = withAlpha(WORLD.steelLight, 0.25);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  for (let k = 0; k < 2; k++) {
+    const rx = X + T * (0.25 + hash(x, y, k) * 0.5);
+    const ry = Y + T * (0.3 + k * 0.35);
+    ctx.moveTo(rx - T * 0.14, ry);
+    ctx.quadraticCurveTo(rx, ry - 2.5, rx + T * 0.14, ry);
+  }
+  ctx.stroke();
+  if (hash(x, y, 9) < 0.45) {
+    ellipse(ctx, X + T * 0.5, Y + T * 0.55, T * 0.12, T * 0.03);
+    fill(ctx, withAlpha(PALETTE.lantern, 0.55));
+  }
+  if (hash(x, y, 4) < 0.3) {
+    // A lily pad.
+    ctx.beginPath();
+    ctx.ellipse(X + T * 0.3, Y + T * 0.35, T * 0.13, T * 0.09, 0, 0.35, TAU - 0.05);
+    ctx.lineTo(X + T * 0.3, Y + T * 0.35);
+    ctx.closePath();
+    fill(ctx, WORLD.lettuceDark);
+  }
+  // Stone rim on dry sides; the far (north) edge casts shade on the water.
+  const rim = T * 0.12;
+  if (!isPond(x, y - 1)) {
+    ctx.fillStyle = withAlpha(PALETTE.nightDeep, 0.4);
+    ctx.fillRect(X, Y + rim, T, T * 0.14);
+    ctx.fillStyle = PALETTE.slateLight;
+    ctx.fillRect(X, Y, T, rim);
+    ctx.fillStyle = withAlpha(WORLD.stoneLit, 0.8);
+    ctx.fillRect(X, Y, T, 1.4);
+  }
+  ctx.fillStyle = PALETTE.slateLight;
+  if (!isPond(x, y + 1)) ctx.fillRect(X, Y + T - rim * 0.7, T, rim * 0.7);
+  if (!isPond(x - 1, y)) ctx.fillRect(X, Y, rim, T);
+  if (!isPond(x + 1, y)) ctx.fillRect(X + T - rim, Y, rim, T);
+}
+
+/** Rooftop: a round terracotta pot with a bush (round, so it never reads as a square crate). */
+function planter(ctx: Ctx, sc: Scene, x: number, y: number): void {
+  const { T } = sc;
+  const cx = px(sc, x) + T / 2;
+  const base = py(sc, y) + T * 0.82;
+  const clay = mix(WORLD.tomatoDark, PALETTE.bamboo, 0.45);
+  // Pot body (tapered) and rim.
+  ctx.beginPath();
+  ctx.moveTo(cx - T * 0.34, base - T * 0.36);
+  ctx.lineTo(cx - T * 0.26, base);
+  ctx.quadraticCurveTo(cx, base + T * 0.06, cx + T * 0.26, base);
+  ctx.lineTo(cx + T * 0.34, base - T * 0.36);
+  ctx.closePath();
+  fill(ctx, clay);
+  ctx.fillStyle = withAlpha(PALETTE.nightDeep, 0.25);
+  ctx.fillRect(cx + T * 0.08, base - T * 0.36, T * 0.24, T * 0.34);
+  ellipse(ctx, cx, base - T * 0.37, T * 0.39, T * 0.12);
+  fill(ctx, mix(clay, PALETTE.paper, 0.2));
+  // Bush.
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * TAU + hash(x, y, k);
+    ellipse(ctx, cx + Math.cos(a) * T * 0.2, base - T * 0.55 + Math.sin(a) * T * 0.14, T * 0.17, T * 0.15);
+    fill(ctx, k % 2 ? WORLD.lettuceDark : WORLD.leaf);
+  }
+  ellipse(ctx, cx - T * 0.06, base - T * 0.62, T * 0.18, T * 0.14);
+  fill(ctx, mix(WORLD.leaf, WORLD.lettuce, 0.5));
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * TAU + hash(x, y, k + 9) * 2;
+    circle(ctx, cx + Math.cos(a) * T * 0.2, base - T * 0.56 + Math.sin(a) * T * 0.12, T * 0.045);
+    fill(ctx, k % 2 ? PALETTE.paper : PALETTE.lantern);
+  }
+}
+
 function wallBlock(ctx: Ctx, sc: Scene, x: number, y: number): void {
   const { T } = sc;
-  const z = zoneAt(sc, x, y);
-  const style = z === 'market' && y !== sc.H - 1 ? STONE : FRAME;
+  const look = wallLook(sc, x, y);
+  if (look === 'pond') return pondTile(ctx, sc, x, y);
+  if (look === 'planter') return planter(ctx, sc, x, y);
+  const style = look === 'stone' ? STONE : FRAME;
   const L = liftAt(sc, x, y);
-  const joinL = kindAt(sc, x - 1, y) === 'wall';
-  const joinR = kindAt(sc, x + 1, y) === 'wall';
-  const joinT = y > 0 && kindAt(sc, x, y - 1) === 'wall' && y !== sc.H - 1;
+  const same = (cx: number, cy: number) => kindAt(sc, cx, cy) === 'wall' && wallLook(sc, cx, cy) === look;
+  const joinL = same(x - 1, y);
+  const joinR = same(x + 1, y);
+  const joinT = y > 0 && same(x, y - 1) && y !== sc.H - 1;
   block(ctx, px(sc, x), py(sc, y), T, T, L, style, joinL, joinR, joinT);
   // Plank grain on wooden caps, running along the wall.
   if (style === FRAME) {
