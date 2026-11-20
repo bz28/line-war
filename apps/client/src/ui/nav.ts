@@ -10,9 +10,22 @@ export interface NavHandlers {
   getRoot(): HTMLElement | null;
   onBack(): void;
   onStart(): void;
+  /** Any new gamepad button press (menus or match): a chance to unlock audio. */
+  onPadButton?(): void;
 }
 
 const FOCUSABLE = 'button:not([disabled]), select:not([disabled]), input:not([disabled])';
+
+/**
+ * False for controls hidden by CSS (e.g. How to play's page tabs on tall screens), so focus
+ * never lands on something invisible. Without layout support (jsdom) everything counts as shown.
+ */
+export function isShown(el: HTMLElement): boolean {
+  return typeof el.checkVisibility === 'function' ? el.checkVisibility() : true;
+}
+
+/** Navigable controls under `root`, in document order. */
+export const focusables = (root: ParentNode): HTMLElement[] => [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(isShown);
 const REPEAT_DELAY_MS = 380;
 const REPEAT_MS = 110;
 
@@ -36,6 +49,11 @@ export class MenuNav {
 
   private onKey = (ev: Event): void => {
     const e = ev as KeyboardEvent;
+    // Held Esc / Enter auto-repeat: one press is one action, never a pause/resume flutter.
+    if (e.repeat && (e.code === 'Escape' || e.code === 'Enter' || e.code === 'NumpadEnter')) {
+      if (this.handlers.getRoot() || e.code === 'Escape') e.preventDefault();
+      return;
+    }
     if (e.code === 'Escape') {
       e.preventDefault();
       // Esc means "back" in menus and "pause" in a match; the app decides via onBack/onStart.
@@ -55,6 +73,11 @@ export class MenuNav {
     }
   };
 
+  /** Treat every pad button as already held, so only a fresh press after this counts. */
+  rebaseline(): void {
+    for (const i of [...this.prevButtons.keys()]) this.prevButtons.set(i, { a: true, b: true, start: true });
+  }
+
   /** Call once per animation frame. */
   poll(now: number): void {
     const pads = this.getGamepads();
@@ -68,6 +91,7 @@ export class MenuNav {
       const prev = this.prevButtons.get(i) ?? { a: true, b: true, start: true }; // ignore buttons already held on connect
       const cur = { a: isPressed(pad, PAD.A), b: isPressed(pad, PAD.B), start: isPressed(pad, PAD.START) };
       this.prevButtons.set(i, cur);
+      if ((cur.a && !prev.a) || (cur.b && !prev.b) || (cur.start && !prev.start)) this.handlers.onPadButton?.();
       const root = this.handlers.getRoot();
       if (cur.start && !prev.start) this.handlers.onStart();
       else if (root && cur.b && !prev.b) this.handlers.onBack();
@@ -89,7 +113,7 @@ export class MenuNav {
   }
 
   private move(root: HTMLElement, dir: Dir): void {
-    const items = [...root.querySelectorAll<HTMLElement>(FOCUSABLE)];
+    const items = focusables(root);
     if (!items.length) return;
     const active = document.activeElement as HTMLElement | null;
     const idx = active ? items.indexOf(active) : -1;
@@ -162,5 +186,5 @@ function adjust(el: HTMLElement, delta: 1 | -1): boolean {
 function activate(root: HTMLElement): void {
   const el = document.activeElement as HTMLElement | null;
   if (el && root.contains(el)) el.click();
-  else root.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+  else focusables(root)[0]?.focus();
 }

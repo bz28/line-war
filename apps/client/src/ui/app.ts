@@ -3,12 +3,13 @@ import { browserGamepads, type GetGamepads } from '../input/gamepad';
 import { loadSettings, saveSettings, type StorageLike } from '../settings/store';
 import type { Settings } from '../settings/types';
 import { h } from './dom';
-import { MenuNav } from './nav';
+import { focusables, MenuNav } from './nav';
 import { howToScreen } from './howTo';
-import { matchOverScreen, pauseScreen, titleScreen } from './screens';
+import { matchOverScreen, pauseScreen, pauseSummary, titleScreen } from './screens';
 import { SettingsMenu } from './settingsMenu';
 import { charmShelfScreen } from './charmShelf';
 import { CHARM_IDS, loadCollection, saveCollection, setDisplay } from '../collection/store';
+import type { RoundResult } from './results';
 import './styles.css';
 import './charms.css';
 
@@ -19,6 +20,8 @@ export interface MatchSession {
   setPaused(paused: boolean): void;
   /** Charms unlocked for the first time during this match (the match-over reveal). */
   readonly newCharms?: readonly string[];
+  /** Each finished round's points and winner, recorded from roundEnd events (the result ledger). */
+  readonly rounds?: readonly RoundResult[];
   /** Live-apply settings that do not need a new match (controllers, display). */
   applySettings(settings: Settings): void;
   dispose(): void;
@@ -31,7 +34,15 @@ export interface AppOptions {
   startSession: StartSession;
   storage?: StorageLike | null;
   getGamepads?: GetGamepads;
+  /** Clock for the result screen's input guard (tests inject one). */
+  now?: () => number;
+  /** A real user gesture in a menu (pad button): the place to unlock audio. */
+  onGesture?: () => void;
 }
+
+/** The result screen ignores presses this long after it opens, so grab held or tapped at the buzzer can't restart. */
+export const RESULT_GUARD_MS = 600;
+const ACTIVATE_KEYS = new Set(['Space', 'Enter', 'NumpadEnter']);
 
 type Screen = 'title' | 'howto' | 'charms' | 'playing' | 'paused' | 'over';
 
@@ -50,19 +61,30 @@ export class App {
   private getGamepads: GetGamepads;
   private raf = 0;
   private storage: StorageLike | null | undefined;
+  private now: () => number;
+  /** Clicks in the overlay are swallowed until this time (the match-over guard). */
+  private guardUntil = 0;
+  /** Activation keys pressed during the guard: their release must not click either. */
+  private guardKeys = new Set<string>();
 
   constructor(private opts: AppOptions) {
     this.storage = opts.storage;
     this.settings = loadSettings(opts.storage);
     this.getGamepads = opts.getGamepads ?? browserGamepads;
+    this.now = opts.now ?? (() => performance.now());
     this.stage = h('div', { class: 'lw-stage' });
     this.overlay = h('div', { class: 'lw-overlay' });
     opts.root.replaceChildren(this.stage, this.overlay);
+    // Capture phase: a guarded click never reaches the button (keyboard Enter/Space, pad A, mouse).
+    this.overlay.addEventListener('click', this.guardClick, true);
+    window.addEventListener('keydown', this.guardKeyDown, true);
+    window.addEventListener('keyup', this.guardKeyUp, true);
     this.nav = new MenuNav(
       {
         getRoot: () => (this.overlay.hidden ? null : this.overlay),
         onBack: () => this.back(),
         onStart: () => this.togglePause(),
+        onPadButton: () => opts.onGesture?.(),
       },
       this.getGamepads,
     );
@@ -84,6 +106,9 @@ export class App {
   dispose(): void {
     cancelAnimationFrame(this.raf);
     this.nav.dispose();
+    this.overlay.removeEventListener('click', this.guardClick, true);
+    window.removeEventListener('keydown', this.guardKeyDown, true);
+    window.removeEventListener('keyup', this.guardKeyUp, true);
     this.closeSettings();
     this.endSession();
     window.removeEventListener('gamepadconnected', this.onPadsChanged);
@@ -97,7 +122,15 @@ export class App {
     this.endSession();
     this.screen = 'playing';
     this.hideOverlay();
-    this.session = this.opts.startSession(this.settings, this.stage, { onMatchOver: () => this.showMatchOver() });
+    try {
+      this.session = this.opts.startSession(this.settings, this.stage, { onMatchOver: () => this.showMatchOver() });
+    } catch (err) {
+      // A match that fails to start must not leave a blank, input-dead screen.
+      console.error('LINE WAR: could not start the match', err);
+      this.session = null;
+      this.stage.replaceChildren();
+      this.showTitle('The match could not start. Try again, or pick another level.');
+    }
   }
 
   pause(): void {
@@ -114,7 +147,7 @@ export class App {
         restart: () => this.play(),
         settings: () => this.openSettings('Player, control and display changes apply now; match rules on restart.'),
         quit: () => this.showTitle(),
-      }),
+      }, this.session?.state.round ? pauseSummary(this.session.state) : undefined),
     );
   }
 
@@ -126,7 +159,7 @@ export class App {
     this.session.setPaused(false);
   }
 
-  showTitle(): void {
+  showTitle(error?: string): void {
     this.endSession();
     this.closeSettings();
     this.screen = 'title';
@@ -137,7 +170,7 @@ export class App {
         settings: () => this.openSettings(),
         pickLevel: (id) => this.pickLevel(id),
         charms: () => this.showCharms(),
-      }, this.charmSummary()),
+      }, this.charmSummary(), error),
     );
   }
 
@@ -191,12 +224,42 @@ export class App {
     this.screen = 'over';
     this.showPanel(
       matchOverScreen(
-        { winner: state.winner, roundsWon: [state.teams[0].roundsWon, state.teams[1].roundsWon] },
+        {
+          winner: state.winner,
+          roundsWon: [state.teams[0].roundsWon, state.teams[1].roundsWon],
+          rounds: this.session.rounds,
+          totals: [state.totalScores[0], state.totalScores[1]],
+        },
         { again: () => this.play(), title: () => this.showTitle(), shelf: () => this.showCharms(this.session?.newCharms?.[0]) },
         this.session.newCharms ?? [],
       ),
     );
+    // Grab held or tapped through the match-over stamp must not restart the match.
+    this.guardUntil = this.now() + RESULT_GUARD_MS;
+    this.nav.rebaseline();
   }
+
+  private guarding(): boolean {
+    return this.screen === 'over' && this.now() < this.guardUntil;
+  }
+
+  private guardClick = (e: Event): void => {
+    if (!this.guarding() && !this.guardKeys.size) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  };
+
+  private guardKeyDown = (e: KeyboardEvent): void => {
+    if (!ACTIVATE_KEYS.has(e.code) || !this.guarding()) return;
+    this.guardKeys.add(e.code);
+    e.preventDefault();
+  };
+
+  /** A press that began inside the guard is swallowed on release too (Space clicks on keyup). */
+  private guardKeyUp = (e: KeyboardEvent): void => {
+    if (!this.guardKeys.delete(e.code)) return;
+    e.preventDefault();
+  };
 
   private togglePause(): void {
     if (this.settingsMenu || this.screen === 'howto' || this.screen === 'charms') return this.back();
@@ -261,7 +324,7 @@ export class App {
     this.overlay.hidden = false;
     this.stage.dataset.menu = this.screen;
     // Focus the first control so keyboard and gamepad navigation work immediately.
-    panel.querySelector<HTMLElement>('button, select, input')?.focus();
+    focusables(panel)[0]?.focus();
   }
 
   private hideOverlay(): void {

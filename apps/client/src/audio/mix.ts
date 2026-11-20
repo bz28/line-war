@@ -58,6 +58,12 @@ export const OUTPUT_GAIN = dbToGain(-1);
 export const HIT_STOP_DIP_HZ = 520;
 /** Open (no filtering) frequency of the impact filter. */
 export const IMPACT_OPEN_HZ = 20000;
+/**
+ * The rest of the mix also drops this far for the freeze. A low-pass alone is nearly inaudible
+ * under the Dinner Rush music, whose loudness sits below 520 Hz (pad, bass, drum): measured
+ * -0.5 LU. The impact cues (IMPACT_CUES) skip both, so the hit lands in a hush.
+ */
+export const HIT_STOP_DUCK_DB = -10;
 /** Time constants (s) of the dip closing and reopening. */
 export const HIT_STOP_CLOSE = 0.006;
 export const HIT_STOP_OPEN = 0.07;

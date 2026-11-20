@@ -355,9 +355,10 @@ export const RECIPES: Record<CueId, Recipe> = {
   },
   charmSpawn: (o) => {
     // A paper lantern lighting up: a soft "fwoomp" of air, then a gentle two-note wind chime.
+    // D6 then A6: in the music's key (D major pentatonic), at the top of the melody's range.
     noise(o, { peak: 0.5, a: 0.03, d: 0.18, filter: { type: 'bandpass', f0: 500, f1: 1400, q: 0.9 } });
-    bell(o, 1046.5, 0.06, 0.45, CHIME);
-    bell(o, 1568, 0.18, 0.38, CHIME);
+    bell(o, 1174.7, 0.06, 0.45, CHIME);
+    bell(o, 1760, 0.18, 0.38, CHIME);
     for (let i = 0; i < 4; i++) tone(o, { f: 2600 + o.rand() * 1600, at: 0.22 + i * 0.07, peak: 0.05, a: 0.003, d: 0.09 });
     return 1.2;
   },
@@ -381,9 +382,12 @@ export const RECIPES: Record<CueId, Recipe> = {
     return Math.max(end, 0.5);
   },
   charmFade: (o) => {
-    // A paper puff and a falling sigh as it dims out.
+    // A paper puff and a falling sigh as it dims out, with a soft falling chime (A6 to D6) above
+    // the melody, where the music doesn't cover it (the sigh alone was masked in Dinner Rush).
     noise(o, { peak: 0.55, a: 0.01, d: 0.3, filter: { type: 'lowpass', f0: 1800, f1: 400 } });
-    return tone(o, { f: 880, f1: 520, glide: 0.4, peak: 0.18, a: 0.01, d: 0.45 });
+    tone(o, { f: 880, f1: 520, glide: 0.4, peak: 0.18, a: 0.01, d: 0.45 });
+    bell(o, 1760, 0.02, 0.22, CHIME);
+    return Math.max(0.5, bell(o, 1174.7, 0.16, 0.2, CHIME));
   },
   heatDown: (o) => {
     tone(o, { f: 330, f1: 160, peak: 0.3, a: 0.01, d: 0.4 });
