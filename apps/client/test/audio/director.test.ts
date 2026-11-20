@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { NO_INPUT, step, type MatchInputs, type MatchState } from '@line-war/sim';
+import { createBots } from '@line-war/bots';
+import { NO_INPUT, step, type MatchInputs, type MatchState, type PlayerId } from '@line-war/sim';
 import { AudioDirector, localTeamFor } from '../../src/audio';
 import { P1_KEYS } from '../../src/settings/types';
 import { busGains } from '../../src/audio/mix';
@@ -137,14 +138,20 @@ describe('AudioDirector with a fake AudioContext', () => {
     expect(created(fake, () => d.scheduleMusic(4)).some((n) => n.kind === 'oscillator')).toBe(true);
   });
 
-  it('runs a real match tick by tick without errors and closes on dispose', () => {
-    const { d, fake } = withFake();
+  it('plays a full bot round tick by tick without errors and closes on dispose', () => {
+    const fake = fakeAudioContext();
+    const d = new AudioDirector({ createContext: () => fake.ctx, realtime: false, onError: (e) => { throw e; } });
+    d.resume();
     const s = match();
+    const bots = createBots([{ difficulty: 'hard' }, { difficulty: 'hard' }, { difficulty: 'hard' }, { difficulty: 'hard' }]);
     const close = vi.spyOn(fake.raw, 'close');
-    for (let i = 0; i < 30 * 30; i++) {
-      step(s, idle);
-      d.onTick(s);
+    let sources = 0;
+    while (s.round.index === 0 && s.round.phase !== 'matchOver') {
+      step(s, bots.map((b, i) => b!.decide(s, i as PlayerId)) as MatchInputs);
+      fake.raw.currentTime = s.tick / s.config.tuning.tickRate;
+      sources += created(fake, () => d.onTick(s)).filter((n) => n.kind === 'oscillator' || n.kind === 'bufferSource').length;
     }
+    expect(sources).toBeGreaterThan(500);
     d.dispose();
     expect(close).toHaveBeenCalled();
     expect(d.active).toBe(false);

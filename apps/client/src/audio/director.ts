@@ -28,6 +28,8 @@ export interface AudioDirectorOptions {
   createContext?: () => BaseAudioContext | null;
   /** Run the music's real-time scheduler (off in tests, which call scheduleMusic directly). */
   realtime?: boolean;
+  /** Errors inside onTick are swallowed so audio can't stop the game; this sees them (tests rethrow). */
+  onError?: (err: unknown) => void;
 }
 
 interface Graph {
@@ -59,6 +61,7 @@ export class AudioDirector implements Renderer {
   private localTeam: TeamId | null;
   private readonly createContext: () => BaseAudioContext | null;
   private readonly realtime: boolean;
+  private readonly onError: (err: unknown) => void;
   private readonly limiter = new VoiceLimiter<CueId>(MAX_VOICES);
   private readonly voiceGains = new Map<number, GainNode>();
   private readonly rand = mulberry(99);
@@ -76,6 +79,7 @@ export class AudioDirector implements Renderer {
     this.volumes = opts.volumes ?? { master: 0.8, music: 0.8, effects: 0.8 };
     this.createContext = opts.createContext ?? defaultContext;
     this.realtime = opts.realtime ?? true;
+    this.onError = opts.onError ?? (() => undefined);
   }
 
   /** True once a working AudioContext exists. */
@@ -126,8 +130,9 @@ export class AudioDirector implements Renderer {
     }
     try {
       this.tick(g, state);
-    } catch {
+    } catch (err) {
       // Audio must never take the game down.
+      this.onError(err);
     }
     this.remember(state);
   }
