@@ -1,0 +1,399 @@
+{
+  "meta": {
+    "commit": "7bb74a5"
+  },
+  "options": {
+    "arena": "rooftop-garden",
+    "matches": 600,
+    "seed": 31,
+    "scenarios": [
+      {
+        "name": "even-1v1",
+        "description": "One normal bot per crew; the other slot is empty (stands still).",
+        "slots": [
+          {
+            "difficulty": "normal"
+          },
+          null,
+          {
+            "difficulty": "normal"
+          },
+          null
+        ],
+        "even": true
+      },
+      {
+        "name": "mixed",
+        "description": "One normal bot per crew in the second slot, next to an idle 'human' teammate in the first slot.",
+        "slots": [
+          null,
+          {
+            "difficulty": "normal"
+          },
+          null,
+          {
+            "difficulty": "normal"
+          }
+        ],
+        "even": true
+      }
+    ],
+    "base": {
+      "config": {},
+      "tuning": {}
+    },
+    "sweep": [],
+    "workers": 7,
+    "stuckSeconds": 10,
+    "calibration": {
+      "matches": 40,
+      "skills": [
+        0.5,
+        0.55,
+        0.6,
+        0.65,
+        0.7,
+        0.75,
+        0.8,
+        0.85,
+        0.9,
+        0.95,
+        1
+      ],
+      "target": 1.1
+    }
+  },
+  "points": [
+    {
+      "label": "baseline",
+      "values": {},
+      "overrides": {
+        "config": {},
+        "tuning": {}
+      },
+      "calibration": null,
+      "scenarios": [
+        {
+          "scenario": "even-1v1",
+          "matches": 600,
+          "rounds": 1497,
+          "runaways": 0,
+          "roundWins": [
+            732,
+            761
+          ],
+          "roundDraws": 4,
+          "aRoundWinRate": 0.4902880107166778,
+          "aRoundWinCI": {
+            "lo": 0.4649875300052894,
+            "hi": 0.5156383424985211
+          },
+          "matchWins": [
+            289,
+            311
+          ],
+          "matchDraws": 0,
+          "pointsPerRound": [
+            845.0240480961924,
+            847.684034736139
+          ],
+          "servedPerRound": [
+            9.03941215764863,
+            9.008016032064129
+          ],
+          "meanMargin": 0.21479034139934694,
+          "scoredRounds": 1497,
+          "closeRoundShare": 0.2732130928523714,
+          "comeback": {
+            "eligible": 1495,
+            "comebacks": 330,
+            "rate": 0.22073578595317725
+          },
+          "leadChangesPerRound": 6.659318637274549,
+          "knocksPerRound": 1.7929191716766868,
+          "steals": 2171,
+          "stealRate": 0.8088673621460507,
+          "burnsPerRound": 1.5190380761523046,
+          "firesPerRound": 1.4101536406145625,
+          "served": 27017,
+          "contested": 10436,
+          "contestedShare": 0.3862753081393197,
+          "wastedPerRound": {
+            "cold": 3.447561790247161,
+            "trashed": 0,
+            "leftover": 0.9372077488309953,
+            "total": 4.384769539078157
+          },
+          "ticketsPerRound": {
+            "spawned": 30.587842351369407,
+            "served": 17.322645290581164,
+            "expired": 9.12558450233801,
+            "leftover": 4.139612558450234
+          },
+          "recipes": {
+            "salad": {
+              "spawned": 13624,
+              "served": 2988,
+              "expired": 7854,
+              "leftover": 2782,
+              "servedRate": 0.21931884908984145
+            },
+            "burger": {
+              "spawned": 13890,
+              "served": 9735,
+              "expired": 2847,
+              "leftover": 1308,
+              "servedRate": 0.7008639308855291
+            },
+            "steak": {
+              "spawned": 9173,
+              "served": 6996,
+              "expired": 1199,
+              "leftover": 978,
+              "servedRate": 0.7626730622479014
+            },
+            "fish": {
+              "spawned": 9103,
+              "served": 6213,
+              "expired": 1761,
+              "leftover": 1129,
+              "servedRate": 0.6825222454136
+            }
+          },
+          "heatShare": [
+            [
+              0.48262054974145824,
+              0.2901658131076969,
+              0.21646681016353694,
+              0.01074682698730795
+            ],
+            [
+              0.48339810485167867,
+              0.29626175808406935,
+              0.20918211732106187,
+              0.011158019743190084
+            ]
+          ],
+          "topHeatShare": 0.010952423365249016,
+          "heatDropsPerCrewRound": 0.24181696726786908,
+          "coldCausePerRound": {
+            "sniped": 0.3667334669338677,
+            "slow": 0.17635270541082165,
+            "partialSniped": 0.6459585838343354,
+            "partialSlow": 2.258517034068136
+          },
+          "pointsShare": {
+            "base": 0.6093847124177227,
+            "critic": 0.04687315398290688,
+            "heat": 0.1278810330557204,
+            "rush": 0.18669753834278363,
+            "charm": 0.02916356220086632
+          },
+          "critic": {
+            "spawned": 1497,
+            "wonA": 515,
+            "wonB": 570,
+            "unserved": 412,
+            "trailingFirst": 1494,
+            "trailingWon": 580
+          },
+          "stuck": 0,
+          "stuckSamples": [],
+          "charmsPerRound": {
+            "spawned": 1,
+            "banked": [
+              0.48563794255177023,
+              0.5016700066800267
+            ],
+            "faded": 0.012692050768203072,
+            "knocks": 0.4649298597194389
+          }
+        },
+        {
+          "scenario": "mixed",
+          "matches": 600,
+          "rounds": 1503,
+          "runaways": 0,
+          "roundWins": [
+            756,
+            743
+          ],
+          "roundDraws": 4,
+          "aRoundWinRate": 0.5043362241494329,
+          "aRoundWinCI": {
+            "lo": 0.479046530303498,
+            "hi": 0.5296037492735378
+          },
+          "matchWins": [
+            307,
+            293
+          ],
+          "matchDraws": 0,
+          "pointsPerRound": [
+            849.0133067198935,
+            852.6866267465069
+          ],
+          "servedPerRound": [
+            9.087159015302728,
+            9.111776447105788
+          ],
+          "meanMargin": 0.21814991796615227,
+          "scoredRounds": 1503,
+          "closeRoundShare": 0.25815036593479707,
+          "comeback": {
+            "eligible": 1500,
+            "comebacks": 323,
+            "rate": 0.21533333333333332
+          },
+          "leadChangesPerRound": 6.747172322022622,
+          "knocksPerRound": 1.8769128409846974,
+          "steals": 2281,
+          "stealRate": 0.8085785182559376,
+          "burnsPerRound": 1.4424484364604124,
+          "firesPerRound": 1.532934131736527,
+          "served": 27353,
+          "contested": 10515,
+          "contestedShare": 0.38441852813219757,
+          "wastedPerRound": {
+            "cold": 3.2954091816367264,
+            "trashed": 0,
+            "leftover": 0.9414504324683965,
+            "total": 4.236859614105123
+          },
+          "ticketsPerRound": {
+            "spawned": 30.558216899534266,
+            "served": 17.458416500332667,
+            "expired": 8.977378576180971,
+            "leftover": 4.122421823020625
+          },
+          "recipes": {
+            "salad": {
+              "spawned": 13786,
+              "served": 3142,
+              "expired": 7878,
+              "leftover": 2766,
+              "servedRate": 0.22791237487305963
+            },
+            "burger": {
+              "spawned": 13912,
+              "served": 9951,
+              "expired": 2655,
+              "leftover": 1306,
+              "servedRate": 0.715281771132835
+            },
+            "steak": {
+              "spawned": 9158,
+              "served": 6980,
+              "expired": 1231,
+              "leftover": 947,
+              "servedRate": 0.7621751474120987
+            },
+            "fish": {
+              "spawned": 9073,
+              "served": 6167,
+              "expired": 1729,
+              "leftover": 1177,
+              "servedRate": 0.679709026782762
+            }
+          },
+          "heatShare": [
+            [
+              0.4819800399201597,
+              0.29131396466326603,
+              0.2166281757472709,
+              0.010077819669303368
+            ],
+            [
+              0.472228481308987,
+              0.2895846824868781,
+              0.22681629333924744,
+              0.01137054286488751
+            ]
+          ],
+          "topHeatShare": 0.010724181267095439,
+          "heatDropsPerCrewRound": 0.25116433799068527,
+          "coldCausePerRound": {
+            "sniped": 0.3872255489021956,
+            "slow": 0.1543579507651364,
+            "partialSniped": 0.626746506986028,
+            "partialSlow": 2.1270791749833666
+          },
+          "pointsShare": {
+            "base": 0.6067800504216208,
+            "critic": 0.048612976426540055,
+            "heat": 0.12990744777279722,
+            "rush": 0.1857081250533529,
+            "charm": 0.028991400325688987
+          },
+          "critic": {
+            "spawned": 1503,
+            "wonA": 551,
+            "wonB": 562,
+            "unserved": 390,
+            "trailingFirst": 1493,
+            "trailingWon": 630
+          },
+          "stuck": 0,
+          "stuckSamples": [],
+          "charmsPerRound": {
+            "spawned": 1,
+            "banked": [
+              0.4810379241516966,
+              0.5056553559547572
+            ],
+            "faded": 0.01330671989354624,
+            "knocks": 0.4564204923486361
+          }
+        }
+      ],
+      "bars": [
+        {
+          "id": "stuck",
+          "name": "Bots never get stuck",
+          "target": "0 stuck events (all scenarios)",
+          "value": "0",
+          "status": "PASS"
+        },
+        {
+          "id": "knocks",
+          "name": "Knocks per round",
+          "target": "2–6 (even-2v2)",
+          "value": "not run",
+          "status": "N/A"
+        },
+        {
+          "id": "recipes",
+          "name": "No recipe skipped twice as often as another",
+          "target": "lowest served rate ≥ 0.5 × highest (even-2v2)",
+          "value": "not run",
+          "status": "N/A"
+        },
+        {
+          "id": "gap",
+          "name": "A 10% faster crew wins 65–80% of rounds",
+          "target": "65–80% (gap-2v2)",
+          "value": "not run",
+          "status": "N/A"
+        }
+      ],
+      "sideBias": [
+        {
+          "id": "side-even-1v1",
+          "name": "Side bias, even-1v1",
+          "target": "50% inside the 95% CI",
+          "value": "49.0% [46.5%, 51.6%] (1493 decisive)",
+          "status": "PASS"
+        },
+        {
+          "id": "side-mixed",
+          "name": "Side bias, mixed",
+          "target": "50% inside the 95% CI",
+          "value": "50.4% [47.9%, 53.0%] (1499 decisive)",
+          "status": "PASS"
+        }
+      ]
+    }
+  ],
+  "matchesRun": 1200,
+  "elapsedMs": 75735.969958
+}
