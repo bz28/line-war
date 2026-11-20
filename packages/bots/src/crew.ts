@@ -641,7 +641,10 @@ export class Crew {
       const stock = this.stockNeed(ctx);
       if (stock) offer(new StockTask(stock), S.stock, k.pantry.get(stock) ?? null);
       const premiumUp = visibleTickets(state, this.team).some((t) => state.recipes.find((r) => r.id === t.recipe)?.premium);
-      if (this.watchers.has(me.id) && premiumUp && k.watchTile >= 0) offer(new WatchTask(k.watchTile), S.watch, null);
+      if (this.watchers.has(me.id) && premiumUp && k.watchTiles.length > 0) {
+        const spot = k.watchTiles[Math.floor(state.tick / T.watchTicks) % k.watchTiles.length]!;
+        offer(new WatchTask(spot), S.watch, null);
+      }
     }
     return best ?? new IdleTask(k.idleTile);
   }

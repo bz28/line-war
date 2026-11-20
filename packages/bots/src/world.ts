@@ -38,8 +38,11 @@ export interface Kitchen {
   owned: number[];
   /** Market tiles right in front of the rival kitchen's doorways (where carriers can be cut off). */
   rivalDoorFront: number[];
-  /** Market tile between the crates and the rival doorway: where to watch for carriers. */
-  watchTile: number;
+  /**
+   * Market tiles between the crates and the rival doorway where an idle bot watches for carriers
+   * (it paces between them, like a person would, rather than standing frozen).
+   */
+  watchTiles: number[];
 }
 
 const kitchenCache = new WeakMap<object, Map<string, Kitchen>>();
@@ -78,7 +81,7 @@ function buildKitchen(state: MatchState, team: TeamId): Kitchen {
     idleTile: -1,
     owned: [],
     rivalDoorFront: [],
-    watchTile: -1,
+    watchTiles: [],
   };
   for (let i = 0; i < state.arena.tiles.length; i++) {
     const def = state.arena.tiles[i]!;
@@ -146,7 +149,19 @@ function buildKitchen(state: MatchState, team: TeamId): Kitchen {
   const door = mid(k.rivalDoorFront);
   if (crates && door) {
     const w = nav.openTileNear({ x: (crates.x + door.x) / 2, y: (crates.y + door.y) / 2 });
-    k.watchTile = w >= 0 && nav.market[w] ? w : -1;
+    if (w >= 0 && nav.market[w]) {
+      k.watchTiles.push(w);
+      const [x, y] = nav.xy(w);
+      for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]] as const) {
+        const nx = x + dx;
+        const ny = y + dy;
+        const j = ny * nav.w + nx;
+        if (nx >= 0 && ny >= 0 && nx < nav.w && ny < nav.h && nav.open[j] && nav.market[j]) {
+          k.watchTiles.push(j);
+          break;
+        }
+      }
+    }
   }
   const accessTile = (t: number): number => nav.access.get(t)?.[0]?.tile ?? -1;
   const near = (from: number, targets: number[]): number => {
