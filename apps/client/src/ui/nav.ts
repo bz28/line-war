@@ -10,6 +10,8 @@ export interface NavHandlers {
   getRoot(): HTMLElement | null;
   onBack(): void;
   onStart(): void;
+  /** Any new gamepad button press (menus or match): a chance to unlock audio. */
+  onPadButton?(): void;
 }
 
 const FOCUSABLE = 'button:not([disabled]), select:not([disabled]), input:not([disabled])';
@@ -47,6 +49,11 @@ export class MenuNav {
 
   private onKey = (ev: Event): void => {
     const e = ev as KeyboardEvent;
+    // Held Esc / Enter auto-repeat: one press is one action, never a pause/resume flutter.
+    if (e.repeat && (e.code === 'Escape' || e.code === 'Enter' || e.code === 'NumpadEnter')) {
+      if (this.handlers.getRoot() || e.code === 'Escape') e.preventDefault();
+      return;
+    }
     if (e.code === 'Escape') {
       e.preventDefault();
       // Esc means "back" in menus and "pause" in a match; the app decides via onBack/onStart.
@@ -66,6 +73,11 @@ export class MenuNav {
     }
   };
 
+  /** Treat every pad button as already held, so only a fresh press after this counts. */
+  rebaseline(): void {
+    for (const i of [...this.prevButtons.keys()]) this.prevButtons.set(i, { a: true, b: true, start: true });
+  }
+
   /** Call once per animation frame. */
   poll(now: number): void {
     const pads = this.getGamepads();
@@ -79,6 +91,7 @@ export class MenuNav {
       const prev = this.prevButtons.get(i) ?? { a: true, b: true, start: true }; // ignore buttons already held on connect
       const cur = { a: isPressed(pad, PAD.A), b: isPressed(pad, PAD.B), start: isPressed(pad, PAD.START) };
       this.prevButtons.set(i, cur);
+      if ((cur.a && !prev.a) || (cur.b && !prev.b) || (cur.start && !prev.start)) this.handlers.onPadButton?.();
       const root = this.handlers.getRoot();
       if (cur.start && !prev.start) this.handlers.onStart();
       else if (root && cur.b && !prev.b) this.handlers.onBack();

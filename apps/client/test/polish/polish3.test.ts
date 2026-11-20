@@ -143,3 +143,45 @@ describe('match over: points per round and the total', () => {
     expect(ledger({ winner: null, roundsWon: [0, 0] })).toBeNull();
   });
 });
+
+describe('audio mix pass', () => {
+  it('the hit-stop ducks the rest of the mix, while the knock itself skips the dip', async () => {
+    const { AudioDirector } = await import('../../src/audio');
+    const { fakeAudioContext } = await import('../audio/fakeAudio');
+    const { HIT_STOP_DUCK_DB, dbToGain } = await import('../../src/audio/mix');
+    const fake = fakeAudioContext();
+    const d = new AudioDirector({ createContext: () => fake.ctx, realtime: false });
+    d.resume();
+    const comp = fake.nodes.find((n) => n.kind === 'compressor')!;
+    const lowpass = fake.nodes.find((n) => n.kind === 'biquad' && n.connections.includes(comp))!;
+    const freeze = fake.nodes.find((n) => n.kind === 'gain' && n.connections.includes(lowpass))!;
+    const directTrim = fake.nodes.find((n) => n.kind === 'gain' && n.connections.includes(comp))!;
+    const direct = fake.nodes.find((n) => n.kind === 'gain' && n.connections.includes(directTrim))!;
+    const mark = fake.nodes.length;
+    d.hitStop(0, 0.085);
+    const g = freeze.gain as { events: { fn: string; args: number[] }[] };
+    expect(g.events.filter((e) => e.fn === 'setTargetAtTime').map((e) => e.args[0])).toEqual([dbToGain(HIT_STOP_DUCK_DB), 1]);
+    // The thud voice feeds the direct bus, not the ducked one.
+    expect(fake.nodes.slice(mark).some((n) => n.connections.includes(direct))).toBe(true);
+    d.dispose();
+  });
+
+  it('a charm appearing ducks the music, and its chime is in the music key (D major pentatonic)', async () => {
+    const { DUCKING_CUES, IMPACT_CUES } = await import('../../src/audio/cues');
+    const { RECIPES } = await import('../../src/audio/synth');
+    const { fakeAudioContext } = await import('../audio/fakeAudio');
+    expect(DUCKING_CUES.has('charmSpawn')).toBe(true);
+    expect([...IMPACT_CUES].sort()).toEqual(['knock', 'knockThud']);
+    const fake = fakeAudioContext();
+    const dest = fake.ctx.createGain();
+    RECIPES.charmSpawn({ ctx: fake.ctx, dest, t: 0, rand: () => 0.5 }, 0);
+    const freqs = fake.nodes
+      .filter((n) => n.kind === 'oscillator')
+      .map((n) => (n.frequency as { value: number; events: { args: number[] }[] }).events[0]?.args[0] ?? (n.frequency as { value: number }).value)
+      .filter((f) => f < 2500); // the bell fundamentals (sparkles above)
+    const pc = (f: number) => ((Math.round(12 * Math.log2(f / 440)) % 12) + 12 + 9) % 12; // 0 = C
+    const PENTA_D = [2, 4, 6, 9, 11];
+    expect(freqs.length).toBeGreaterThan(0);
+    for (const f of freqs) expect(PENTA_D).toContain(pc(f));
+  });
+});

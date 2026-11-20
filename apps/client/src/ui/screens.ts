@@ -93,6 +93,7 @@ export function titleScreen(
   settings: Settings,
   actions: { play(): void; howTo(): void; settings(): void; pickLevel(id: string): void; charms?(): void },
   charms?: { unlocked: number; total: number; display: string | null },
+  error?: string,
 ): HTMLElement {
   const conflicts = findKeyConflicts(settings.slots).size;
   return h(
@@ -104,6 +105,7 @@ export function titleScreen(
     levelPicker(settings.level, actions.pickLevel),
     h('p', { class: 'lw-level-blurb lw-center' }, levelById(settings.level).blurb),
     h('p', { class: 'lw-muted lw-center' }, rulesSentence(settings.match)),
+    error ? h('p', { class: 'lw-warning lw-center', role: 'alert', 'data-error': '' }, error) : null,
     conflicts ? h('p', { class: 'lw-warning lw-center', role: 'alert' }, 'Some keys are bound twice. Open Settings, then Controls, to fix them.') : null,
     menu([
       { label: 'Play', onSelect: actions.play, primary: true },

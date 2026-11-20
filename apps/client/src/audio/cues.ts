@@ -63,10 +63,10 @@ export const CUES: Record<CueId, CueSpec> = {
   ticketExpired: spec('alert', -5, 1, 0.2),
   heatUp: spec('alert', -15, 2, 0.2),
   // Charms: a soft chime when one appears, a bright music-box run when your crew banks one.
-  charmSpawn: spec('alert', -13, 1, 0.3),
+  charmSpawn: spec('alert', -11, 1, 0.3),
   charmBank: spec('alert', -9, 1, 0.2),
-  charmBankRival: spec('alert', -14, 1, 0.2),
-  charmFade: spec('feedback', -19, 1, 0.2),
+  charmBankRival: spec('alert', -12, 1, 0.2),
+  charmFade: spec('feedback', -15, 1, 0.2),
   heatDown: spec('alert', -14, 2, 0.2),
   fireOut: spec('alert', -16, 2, 0.15),
   burnt: spec('alert', -12, 2, 0.15),
@@ -75,7 +75,7 @@ export const CUES: Record<CueId, CueSpec> = {
   deliver: spec('alert', -10, 2, 0.08),
   deliverRival: spec('alert', -11, 2, 0.08),
   clockTick: spec('stinger', -20, 1, 0.1),
-  critic: spec('stinger', -7, 1, 1),
+  critic: spec('stinger', -11, 1, 1),
   prepBell: spec('stinger', -10, 1, 1),
   serviceBell: spec('stinger', -11, 1, 1),
   rushFanfare: spec('stinger', -8, 1, 1),
@@ -87,9 +87,14 @@ export const CUES: Record<CueId, CueSpec> = {
 
 export const CATEGORY_PRIORITY: Record<CueCategory, number> = { frequent: 0, feedback: 1, alert: 2, stinger: 3 };
 
+/** The knock itself: routed around the hit-stop dip so the hit punches through the hush. */
+export const IMPACT_CUES: ReadonlySet<CueId> = new Set<CueId>(['knock', 'knockThud']);
+
 /** Cues that duck the music so they read. */
 export const DUCKING_CUES: ReadonlySet<CueId> = new Set<CueId>([
   'critic', 'rushFanfare', 'lastCallBell', 'prepBell', 'roundWhistle', 'matchWin', 'matchEnd', 'deliverRival',
+  // A charm appearing is news for both crews; its chime sits in the melody's register.
+  'charmSpawn',
 ]);
 
 export interface Cue {

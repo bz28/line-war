@@ -15,16 +15,22 @@ import type { Renderer } from './render/types';
 import type { Settings } from './settings/types';
 import { Coach, coachKeysFor, type CoachKeys } from './hud/coach';
 import { HIT_STOP_MS } from './render/feel';
-import { browserStorage } from './settings/store';
+import { browserStorage, changedSlots } from './settings/store';
+import { AudioUnlock } from './audio/unlock';
 import { App, type MatchSession, type StartSession } from './ui/app';
 import { addUnlocks, displayTeam, humanTeams, loadCollection, saveCollection, unlocksFromEvents } from './collection/store';
 import { recordRoundEnds, type RoundResult } from './ui/results';
 
-/** One InputSource per player slot, built from settings. */
-function createInputSources(settings: Settings, keyboard: KeyboardState, getState: () => MatchState): InputSource[] {
+/**
+ * One InputSource per player slot, built from settings. With `only`, just those slots are built
+ * (the rest are left undefined for the caller to keep): a mid-match settings change must not
+ * reset the bots and inputs that did not change.
+ */
+function createInputSources(settings: Settings, keyboard: KeyboardState, getState: () => MatchState, only?: readonly number[]): (InputSource | undefined)[] {
   // All bots of a match are created together so crewmates can share a plan.
-  const bots = createBots(settings.slots.map((s) => (s.kind === 'bot' ? { difficulty: s.difficulty } : null)));
-  return settings.slots.map((slot, i): InputSource => {
+  const bots = createBots(settings.slots.map((s, i) => (s.kind === 'bot' && (!only || only.includes(i)) ? { difficulty: s.difficulty } : null)));
+  return settings.slots.map((slot, i): InputSource | undefined => {
+    if (only && !only.includes(i)) return undefined;
     switch (slot.kind) {
       case 'keyboard':
         return new KeyboardInput(keyboard, slot.bindings);
@@ -53,6 +59,13 @@ function coachFor(settings: Settings): { player: PlayerId; keys: CoachKeys } | n
 
 const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
 
+/** One AudioContext for the app's lifetime, woken by every real gesture (see audio/unlock.ts). */
+const audioUnlock = new AudioUnlock(() => {
+  const g = globalThis as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext };
+  const Ctor = g.AudioContext ?? g.webkitAudioContext;
+  return Ctor ? new Ctor({ latencyHint: 'interactive' }) : null;
+});
+
 const boundKeys = (settings: Settings) => settings.slots.flatMap((s) => (s.kind === 'keyboard' ? Object.values(s.bindings) : []));
 
 /** Let the match-over stamp play on the HUD before the result menu covers it. */
@@ -73,7 +86,7 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
         config: makeConfig({ ...settings.match, seed: (Math.random() * 2 ** 31) | 0 }),
       });
   const keyboard = new KeyboardState();
-  let sources = createInputSources(settings, keyboard, () => state);
+  let sources = createInputSources(settings, keyboard, () => state) as InputSource[];
   let paused = false;
   let overNotified = false;
 
@@ -83,8 +96,14 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
   const reducedMotion = () => motion?.matches ?? false;
   const storage = browserStorage();
   const coach = !DEMO && Coach.wanted(storage) ? coachFor(settings) : null;
-  const audio = new AudioDirector({ localTeam: localTeamFor(settings.slots), volumes: settings.audio });
+  const audio = new AudioDirector({
+    localTeam: localTeamFor(settings.slots),
+    volumes: settings.audio,
+    createContext: () => audioUnlock.context() as AudioContext | null,
+    ownsContext: false,
+  });
   audio.resume(); // startSession runs from a menu gesture, so this usually unlocks at once
+  audioUnlock.wake();
   // The world canvas is built first so the HUD can map world positions (score tokens, coach pointer).
   let worldRenderer: GreyboxRenderer | null = null;
   // Charm collection: banks by a crew with a local human unlock that variant on this machine.
@@ -111,9 +130,6 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
   // Dev only: expose the live state so scripted playtests can steer and inspect.
   if (import.meta.env.DEV) (window as unknown as { __lw?: unknown }).__lw = { state, newCharms, rounds, locate: (pos: { x: number; y: number }) => worldRenderer?.toClient(pos) ?? null };
 
-  const unlockAudio = () => audio.resume();
-  window.addEventListener('pointerdown', unlockAudio, { once: true });
-  window.addEventListener('keydown', unlockAudio, { once: true });
 
   const applyDisplay = (s: Settings) => {
     fps.hidden = !s.display.showFps;
@@ -191,10 +207,17 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
       applyDisplay(current);
     },
     applySettings(s) {
+      const changed = changedSlots(current.slots, s.slots);
       current = s;
-      for (const src of sources) src.dispose?.();
-      sources = createInputSources(s, keyboard, () => state);
-      primeHumans();
+      if (changed.length) {
+        const fresh = createInputSources(s, keyboard, () => state, changed);
+        sources = sources.map((src, i) => {
+          if (!changed.includes(i)) return src;
+          src.dispose?.();
+          return fresh[i]!;
+        });
+        primeHumans();
+      }
       applyDisplay(s);
       audio.setVolumes(s.audio);
       audio.setLocalTeam(localTeamFor(s.slots));
@@ -206,12 +229,10 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
       for (const src of sources) src.dispose?.();
       keyboard.dispose();
       for (const r of renderers) r.dispose?.();
-      window.removeEventListener('pointerdown', unlockAudio);
-      window.removeEventListener('keydown', unlockAudio);
       audio.dispose();
       host.replaceChildren();
     },
   };
 };
 
-new App({ root: document.getElementById('app')!, startSession });
+new App({ root: document.getElementById('app')!, startSession, onGesture: audioUnlock.wake });

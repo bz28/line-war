@@ -557,3 +557,26 @@
   .lw-winner { font-size: 40px !important; }
 }
 @keyframes lw-page-in { from { opacity: 0; transform: translateY(6px); } }
+
+/* Sound is waiting on a gesture: a small paper note in the corner (audio/unlock.ts). */
+.lw-sound-hint {
+  position: fixed;
+  right: 14px;
+  bottom: 12px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px 6px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--night-deep) 82%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--lantern) 45%, transparent);
+  color: var(--paper);
+  font: 700 12.5px/1.2 var(--font-ui);
+  pointer-events: none;
+  animation: lw-hint-in 0.4s ease-out 1.2s backwards;
+}
+.lw-sound-hint::before { content: ''; width: 14px; height: 12px; background: var(--lantern); clip-path: polygon(0 30%, 30% 30%, 70% 0, 70% 100%, 30% 70%, 0 70%); }
+.lw-sound-hint[hidden] { display: none; }
+@keyframes lw-hint-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .lw-sound-hint { animation: none; } }

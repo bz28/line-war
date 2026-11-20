@@ -34,7 +34,14 @@ export interface AppOptions {
   startSession: StartSession;
   storage?: StorageLike | null;
   getGamepads?: GetGamepads;
+  /** Clock for the result screen's input guard (tests inject one). */
+  now?: () => number;
+  /** A real user gesture in a menu (pad button): the place to unlock audio. */
+  onGesture?: () => void;
 }
+
+/** The result screen ignores presses this long after it opens, so grab held or tapped at the buzzer can't restart. */
+export const RESULT_GUARD_MS = 600;
 
 type Screen = 'title' | 'howto' | 'charms' | 'playing' | 'paused' | 'over';
 
@@ -53,19 +60,26 @@ export class App {
   private getGamepads: GetGamepads;
   private raf = 0;
   private storage: StorageLike | null | undefined;
+  private now: () => number;
+  /** Clicks in the overlay are swallowed until this time (the match-over guard). */
+  private guardUntil = 0;
 
   constructor(private opts: AppOptions) {
     this.storage = opts.storage;
     this.settings = loadSettings(opts.storage);
     this.getGamepads = opts.getGamepads ?? browserGamepads;
+    this.now = opts.now ?? (() => performance.now());
     this.stage = h('div', { class: 'lw-stage' });
     this.overlay = h('div', { class: 'lw-overlay' });
     opts.root.replaceChildren(this.stage, this.overlay);
+    // Capture phase: a guarded click never reaches the button (keyboard Enter/Space, pad A, mouse).
+    this.overlay.addEventListener('click', this.guardClick, true);
     this.nav = new MenuNav(
       {
         getRoot: () => (this.overlay.hidden ? null : this.overlay),
         onBack: () => this.back(),
         onStart: () => this.togglePause(),
+        onPadButton: () => opts.onGesture?.(),
       },
       this.getGamepads,
     );
@@ -87,6 +101,7 @@ export class App {
   dispose(): void {
     cancelAnimationFrame(this.raf);
     this.nav.dispose();
+    this.overlay.removeEventListener('click', this.guardClick, true);
     this.closeSettings();
     this.endSession();
     window.removeEventListener('gamepadconnected', this.onPadsChanged);
@@ -100,7 +115,15 @@ export class App {
     this.endSession();
     this.screen = 'playing';
     this.hideOverlay();
-    this.session = this.opts.startSession(this.settings, this.stage, { onMatchOver: () => this.showMatchOver() });
+    try {
+      this.session = this.opts.startSession(this.settings, this.stage, { onMatchOver: () => this.showMatchOver() });
+    } catch (err) {
+      // A match that fails to start must not leave a blank, input-dead screen.
+      console.error('LINE WAR: could not start the match', err);
+      this.session = null;
+      this.stage.replaceChildren();
+      this.showTitle('The match could not start. Try again, or pick another level.');
+    }
   }
 
   pause(): void {
@@ -129,7 +152,7 @@ export class App {
     this.session.setPaused(false);
   }
 
-  showTitle(): void {
+  showTitle(error?: string): void {
     this.endSession();
     this.closeSettings();
     this.screen = 'title';
@@ -140,7 +163,7 @@ export class App {
         settings: () => this.openSettings(),
         pickLevel: (id) => this.pickLevel(id),
         charms: () => this.showCharms(),
-      }, this.charmSummary()),
+      }, this.charmSummary(), error),
     );
   }
 
@@ -204,7 +227,16 @@ export class App {
         this.session.newCharms ?? [],
       ),
     );
+    // Grab held or tapped through the match-over stamp must not restart the match.
+    this.guardUntil = this.now() + RESULT_GUARD_MS;
+    this.nav.rebaseline();
   }
+
+  private guardClick = (e: Event): void => {
+    if (this.screen !== 'over' || this.now() >= this.guardUntil) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  };
 
   private togglePause(): void {
     if (this.settingsMenu || this.screen === 'howto' || this.screen === 'charms') return this.back();

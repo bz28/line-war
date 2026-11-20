@@ -199,3 +199,12 @@ export function layoutOf(bindings: KeyBindings): 'p1' | 'p2' | 'custom' {
   const same = (preset: KeyBindings) => ACTIONS.every((a) => bindings[a] === preset[a]);
   return same(P1_KEYS) ? 'p1' : same(P2_KEYS) ? 'p2' : 'custom';
 }
+
+/** Player slots whose controller (kind, keys, pad index or bot difficulty) differs between two settings. */
+export function changedSlots(prev: Settings['slots'], next: Settings['slots']): number[] {
+  const out: number[] = [];
+  next.forEach((slot, i) => {
+    if (JSON.stringify(slot) !== JSON.stringify(prev[i])) out.push(i);
+  });
+  return out;
+}
