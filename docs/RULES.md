@@ -1,4 +1,4 @@
-# LINE WAR — rules spec (first version, Night Market)
+# LINE WAR — rules spec (all levels: Night Market, Harbor Pier, Rooftop Garden)
 
 This is the implementation spec. It turns the design doc's **Rules reference** into exact behaviour.
 All numbers come from `packages/sim/src/tuning.ts` (names in `code`). If something is not covered here,

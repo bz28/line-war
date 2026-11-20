@@ -24,7 +24,7 @@ export interface StorageLike {
 
 /** Allowed ranges for numeric settings. The menu reads these too. */
 export const LIMITS = {
-  roundSeconds: { min: 60, max: 600, step: 10 },
+  roundSeconds: { min: 90, max: 600, step: 10 },
   prepSeconds: { min: 0, max: 30, step: 1 },
   bestOf: [1, 3, 5] as const,
   volume: { min: 0, max: 1, step: 0.05 },

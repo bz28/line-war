@@ -17,7 +17,7 @@
 - `packages/sim` — deterministic rules (pure TS, no DOM, no `Date`, no `Math.random`). `step(state, inputs)` mutates state one 30 Hz tick.
 - `packages/content` — arenas (ASCII maps), recipes, ingredients. Data only.
 - `packages/bots` — scripted bot players. `tools/botsim` — headless bot matches + balance report. `tools/design-sim` — pre-build Python design simulator.
-- `apps/client` — browser client: loop, greybox renderer, input, settings, menus.
+- `apps/client` — browser client: loop, canvas world renderer ("Lantern Night Market" art, `docs/ART.md`), DOM HUD, input, settings, menus.
 - `docs/BUILD_PLAN.md` — PR waves and file ownership for parallel agents.
 
 ## Commands

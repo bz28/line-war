@@ -206,6 +206,11 @@ export class Coach {
     return !this.finished && !this.root.hidden && !this.away;
   }
 
+  /** The note's bottom edge in viewport px (for HUD pieces that stack below it). */
+  noteBottom(): number {
+    return this.note.getBoundingClientRect().bottom;
+  }
+
   get currentStep(): CoachStep | null {
     return this.finished ? null : this.step;
   }

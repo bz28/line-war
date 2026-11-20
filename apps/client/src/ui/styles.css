@@ -284,8 +284,8 @@
 .lw-over-crew.lw-won { background: color-mix(in srgb, var(--crew-c) 16%, transparent); box-shadow: inset 0 0 0 2px var(--crew-c); }
 .lw-over-mark svg { display: block; width: 30px; height: auto; }
 .lw-over-name { font-weight: 800; font-size: 15px; }
-.lw-crew-a .lw-over-name { color: var(--jade-dark); }
-.lw-crew-b .lw-over-name { color: var(--ember-dark); }
+.lw-over-crew.lw-crew-a .lw-over-name { color: var(--jade-dark); }
+.lw-over-crew.lw-crew-b .lw-over-name { color: var(--ember-dark); }
 .lw-over-rounds { font: 400 40px/1 var(--font-display); color: var(--ink); }
 .lw-over .lw-btn:not(.lw-btn-primary) { background: color-mix(in srgb, var(--paper), var(--bamboo) 25%); }
 
@@ -336,7 +336,7 @@
   perspective: 1400px;
 }
 .lw-howto-head { display: grid; justify-items: start; gap: 2px; padding-bottom: 14px; border-bottom: 2px dashed var(--lw-line); }
-.lw-howto-head .lw-eyebrow { color: var(--lantern); letter-spacing: 0.12em; text-transform: uppercase; font-size: 12px; }
+.lw-howto-head .lw-eyebrow { color: var(--lantern); letter-spacing: 0.12em; font-size: 12px; }
 .lw-howto h2 { margin: 0; font-size: 34px; }
 .lw-howto-lede { margin: 2px 0 0; font-size: 16px; font-weight: 700; color: var(--lw-muted); }
 .lw-howto-section { margin-top: 22px; }
@@ -432,7 +432,7 @@
 .lw-howto-dots { display: flex; gap: 7px; }
 .lw-howto-dot { width: 8px; height: 8px; border-radius: 50%; background: color-mix(in srgb, var(--paper) 22%, transparent); transition: background-color 0.2s, transform 0.2s; }
 .lw-howto-dot.lw-on { background: var(--lantern); transform: scale(1.3); box-shadow: 0 0 8px color-mix(in srgb, var(--lantern) 60%, transparent); }
-.lw-howto-folio { font: 800 11px/1 var(--font-ui); letter-spacing: 0.1em; text-transform: uppercase; color: var(--lw-muted); }
+.lw-howto-folio { font: 800 11px/1 var(--font-ui); letter-spacing: 0.1em; color: var(--lw-muted); }
 .lw-howto-foot .lw-btn, .lw-panel-foot .lw-btn { min-width: 140px; }
 .lw-howto-recipes, .lw-howto-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .lw-howto-recipe {

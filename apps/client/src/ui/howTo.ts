@@ -59,6 +59,7 @@ function controls(settings: Settings): HTMLElement {
         h('h4', {}, `${slotName(i)} keyboard`),
         h('div', {}, h('kbd', {}, keysFor(b)), ' Move'),
         ACTIONS.map((a) => h('div', {}, h('kbd', {}, keyLabel(b[a.key])), ` ${a.label}`)),
+        h('div', {}, h('kbd', {}, 'Esc'), ' Pause'),
       ),
     );
   });
@@ -69,6 +70,7 @@ function controls(settings: Settings): HTMLElement {
       h('h4', {}, 'Gamepad'),
       h('div', {}, h('kbd', {}, 'Stick'), ' Move'),
       ACTIONS.map((a) => h('div', {}, h('kbd', {}, padActionLabel(a.key)), ` ${a.label}`)),
+      h('div', {}, h('kbd', {}, 'Start'), ' Pause'),
     ),
   );
   return h('div', { class: 'lw-howto-controls' }, cols);

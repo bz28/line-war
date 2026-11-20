@@ -47,6 +47,7 @@ export class HudRenderer implements Renderer {
   private moments: Moments;
   private flyers: ScoreFlyers;
   private callout: CharmCallout;
+  private band: HTMLElement;
   private prevHeat: [number, number] = [0, 0];
   readonly coach: Coach | null;
   private now: () => number;
@@ -79,7 +80,7 @@ export class HudRenderer implements Renderer {
       if (d) this.signs[team].setDisplay(d);
     }
 
-    const band = document.createElement('div');
+    const band = (this.band = document.createElement('div'));
     band.className = 'lw-hud-band';
     const lights = document.createElement('div');
     lights.className = 'lw-lights';
@@ -186,6 +187,10 @@ export class HudRenderer implements Renderer {
         this.coaching = coaching;
         this.root.classList.toggle('lw-hud--coaching', coaching);
       }
+      // Both hang under the clock: while a coach note is up, the charm callout drops below it.
+      this.callout.stackBelow(
+        coaching && this.callout.showing ? this.coach.noteBottom() - this.band.getBoundingClientRect().top : null,
+      );
     }
   }
 
