@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { timerTicks } from '../../src';
+import { createMatch, makeConfig, timerTicks, type ArenaDef } from '../../src';
+import { TEST_INGREDIENTS } from '../fixtures';
 import { plateFits } from '../../src/systems/kitchen/plate';
-import { DOWN, food, ingredient, kitchenMatch, KITCHEN_RECIPES, LEFT, only, plate, put, RIGHT, run, stationXY, tileAtXY, UP } from './helpers';
+import { DOWN, food, ingredient, KITCHEN_ARENA, kitchenMatch, KITCHEN_RECIPES, LEFT, only, plate, put, RIGHT, run, stationXY, tileAtXY, UP } from './helpers';
 
 const GRAB = only(0, { grab: true });
 const WORK = only(0, { work: true });
@@ -411,5 +412,67 @@ describe('Work', () => {
     expect(s.fires).toHaveLength(0);
     expect(ev).toContainEqual({ type: 'fireOut', tile: pan.tile });
     expect(pan.vessel).toEqual({ kind: 'pan', contents: [], cookTicks: 0, status: 'empty' });
+  });
+});
+
+describe('the rival kitchen is off limits from the doorway (RULES §1, §2, §3)', () => {
+  it("a floor item resting on a rival-kitchen tile can't be picked up from the doorway; its owners can", () => {
+    const s = kitchenMatch();
+    const it = ingredient(s, 'bun');
+    // (13,2) is kitchen1's first tile; (12,2) is the doorway. 0.9 apart: inside interactReach.
+    s.floorItems.push({ item: it, pos: { x: 13.4, y: 2.5 }, vel: { x: 0, y: 0 }, thrownBy: null, thrownAtTick: null, travelled: 0 });
+    put(s, 0, 12.5, 2.5, RIGHT);
+    run(s, 1, GRAB);
+    expect(s.players[0].holding).toBeNull();
+    expect(s.floorItems.map((f) => f.item.id)).toEqual([it.id]);
+    put(s, 0, 10.5, 3.5);
+    put(s, 2, 14.2, 2.5, LEFT);
+    run(s, 1, only(2, { grab: true }));
+    expect(s.players[2].holding?.id).toBe(it.id);
+  });
+
+  it('Work on a rival station does nothing: no chop, no wash, no extinguish', () => {
+    // Doorways (columns 3 and 5) open straight onto each kitchen's board, sink and counter.
+    const arena: ArenaDef = {
+      id: 'door-work',
+      name: 'Door work',
+      rows: ['#########', '#.K...K.#', '#.W...W.#', '#.C.S.C.#', '#########'],
+      legend: KITCHEN_ARENA.legend,
+      zones: { kitchen0: [0, 2], market: [4, 4], kitchen1: [6, 8] },
+      spawns: [
+        { x: 1.5, y: 1.5 },
+        { x: 1.5, y: 3.5 },
+        { x: 7.5, y: 1.5 },
+        { x: 7.5, y: 3.5 },
+      ],
+    };
+    const s = createMatch({ arena, recipes: KITCHEN_RECIPES, ingredients: TEST_INGREDIENTS, config: makeConfig() });
+    const board = stationXY(s, 2, 1);
+    const sink = stationXY(s, 2, 2);
+    const counter = stationXY(s, 2, 3);
+    board.item = ingredient(s, 'lettuce');
+    sink.dirtyPlates = 1;
+    s.fires.push({ tile: counter.tile, spreadAtTick: 1_000_000, extinguishTicks: 0 });
+    const WORK2 = only(2, { work: true });
+    for (const [y, check] of [
+      [1.5, () => board.workTicks],
+      [2.5, () => sink.workTicks],
+      [3.5, () => s.fires[0]!.extinguishTicks],
+    ] as const) {
+      put(s, 0, 1.5, 1.5);
+      put(s, 1, 1.5, 3.5);
+      put(s, 2, 3.5, y, LEFT); // rival, in the doorway, facing team 0's station
+      run(s, 20, WORK2);
+      expect(check(), `y ${y}`).toBe(0);
+      expect(s.players[2].working).toBe(false);
+    }
+    expect(board.item).toMatchObject({ state: 'raw' });
+    expect(sink.dirtyPlates).toBe(1);
+    expect(s.fires).toHaveLength(1);
+    // Control: the owners can work the same stations.
+    put(s, 2, 7.5, 2.5);
+    put(s, 0, 1.5, 1.5, RIGHT);
+    run(s, 5, WORK);
+    expect(board.workTicks).toBe(5);
   });
 });
