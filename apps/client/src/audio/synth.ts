@@ -243,6 +243,18 @@ export const RECIPES: Record<CueId, Recipe> = {
     for (let i = 0; i < 3; i++) end = Math.max(end, tone(o, { f: 1200 + o.rand() * 800, at: 0.07 + o.rand() * 0.12, peak: 0.1, a: 0.002, d: 0.04 }));
     return end;
   },
+  knockThud: (o) => {
+    // Body blow under the freeze: a sub drop, a chesty mid thump and a short muffled crunch.
+    tone(o, { f: 96, f1: 40, glide: 0.2, peak: 1, a: 0.002, d: 0.38 });
+    tone(o, { type: 'triangle', f: 170, f1: 75, glide: 0.09, peak: 0.45, a: 0.001, d: 0.14 });
+    return noise(o, { peak: 0.55, a: 0.001, d: 0.07, filter: { type: 'lowpass', f0: 420, f1: 160 } }) + 0.04;
+  },
+  scoreLand: (o, pitch) => {
+    // Coin onto the sign: a wooden tick and a small bright chime.
+    const r = st(pitch);
+    tone(o, { type: 'triangle', f: 1400 * r, peak: 0.45, a: 0.001, d: 0.025 });
+    return Math.max(0.3, bell(o, 1568 * r, 0.012, 0.42, [[1, 0.6, 0.28], [2.4, 0.14, 0.12], [4.1, 0.04, 0.06]]));
+  },
   chopKnock: (o, pitch) => {
     const f = 300 * st(pitch - 1.5 + o.rand() * 1.5);
     tone(o, { type: 'triangle', f, f1: f * 0.9, glide: 0.03, peak: 0.85, a: 0.001, d: 0.07 });

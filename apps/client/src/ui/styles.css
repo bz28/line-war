@@ -278,13 +278,96 @@
 
 .lw-fps { position: fixed; top: 8px; right: 10px; z-index: 5; font: 700 12px var(--font-ui); color: var(--lantern); background: color-mix(in srgb, var(--night-deep) 70%, transparent); padding: 2px 8px; border-radius: 6px; }
 
-/* ---------- how to play ---------- */
-.lw-howto { max-width: 900px; max-height: 92vh; overflow-y: auto; text-align: left; }
-.lw-howto h2 { margin: 0 0 12px; }
-.lw-howto h3 { margin: 22px 0 10px; font: 800 17px/1.2 var(--font-ui); color: var(--lantern); }
-.lw-howto-rules { margin: 0; padding-left: 22px; line-height: 1.55; font-size: 15px; }
-.lw-howto-rules li { margin-bottom: 8px; padding-left: 4px; }
-.lw-howto-rules li::marker { font-family: var(--font-display); color: var(--lantern); }
+/* ---------- how to play: a game-manual page ---------- */
+.lw-howto { max-width: 960px; max-height: calc(100vh - 48px); overflow-y: auto; padding-bottom: 0; text-align: left; scrollbar-color: var(--bamboo-dark) transparent; }
+.lw-howto-head { display: grid; justify-items: start; gap: 2px; padding-bottom: 14px; border-bottom: 2px dashed var(--lw-line); }
+.lw-howto-head .lw-eyebrow { color: var(--lantern); letter-spacing: 0.12em; text-transform: uppercase; font-size: 12px; }
+.lw-howto h2 { margin: 0; font-size: 34px; }
+.lw-howto-lede { margin: 2px 0 0; font-size: 16px; font-weight: 700; color: var(--lw-muted); }
+.lw-howto-section { margin-top: 22px; }
+.lw-howto h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font: 400 19px/1.2 var(--font-display); color: var(--paper); }
+.lw-howto-sec-n {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--lantern);
+  color: var(--ink);
+  font: 400 14px/1 var(--font-display);
+  box-shadow: 0 2px 0 var(--bamboo-dark);
+}
+.lw-howto h4 { margin: 0 0 4px; font: 800 16px/1.2 var(--font-ui); color: var(--paper); }
+.lw-howto p { margin: 0; }
+
+/* The loop: four steps joined by arrows. */
+.lw-howto-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; margin: 0; padding: 0; list-style: none; }
+.lw-howto-step {
+  position: relative;
+  padding: 14px 14px 16px;
+  border-radius: var(--lw-radius);
+  background: var(--lw-row);
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--paper) 82%, transparent);
+}
+.lw-howto-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 34px;
+  right: -15px;
+  width: 12px;
+  height: 14px;
+  background: var(--lantern);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+.lw-howto-step-n { position: absolute; top: 10px; right: 12px; font: 400 26px/1 var(--font-display); color: color-mix(in srgb, var(--paper) 18%, transparent); }
+.lw-howto-step-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 10px;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: 0 3px 0 var(--bamboo), 0 0 0 3px color-mix(in srgb, var(--lantern) 30%, transparent);
+}
+.lw-howto-step-icon svg { width: 30px; height: 30px; }
+
+/* How you win: one big stamp per rule. */
+.lw-howto-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.lw-howto-tile { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border-radius: var(--lw-radius); background: var(--lw-row); font-size: 13.5px; line-height: 1.45; color: color-mix(in srgb, var(--paper) 82%, transparent); }
+.lw-howto-chip {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 52px;
+  height: 52px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: 10px;
+  font: 400 20px/1 var(--font-display);
+  color: var(--ink);
+  background: var(--paper);
+  box-shadow: 0 3px 0 var(--bamboo);
+  transform: rotate(-3deg);
+}
+.lw-howto-chip svg { width: 34px; height: 34px; }
+.lw-howto-chip-icon { background: var(--slate-light); box-shadow: 0 3px 0 var(--night-deep); }
+.lw-howto-chip-heat { background: var(--lantern-hot); }
+.lw-howto-chip-critic { background: var(--lantern); transform: rotate(3deg); }
+
+/* Back stays in reach while the page scrolls. */
+.lw-howto-foot {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  margin: 18px -32px 0;
+  padding: 14px 32px 20px;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--night) 96%, transparent) 30%);
+}
+.lw-howto-foot .lw-btn, .lw-panel-foot .lw-btn { min-width: 140px; }
 .lw-howto-recipes, .lw-howto-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .lw-howto-recipe {
   --tooth: 5px;
@@ -304,7 +387,7 @@
 .lw-howto-icons { display: flex; gap: 4px; margin: 6px 0 6px; }
 .lw-howto-icons .lw-food { width: 34px; height: 34px; flex: none; }
 .lw-howto-keys { padding: 12px 14px; background: var(--lw-row); border-radius: var(--lw-radius); font-size: 13px; line-height: 1.9; color: color-mix(in srgb, var(--paper) 85%, transparent); }
-.lw-howto-keys h3 { margin: 0 0 4px; color: var(--paper); }
+.lw-howto-keys h4 { margin: 0 0 4px; }
 .lw-howto kbd {
   display: inline-block;
   min-width: 18px;
@@ -316,8 +399,12 @@
   text-align: center;
   box-shadow: 0 2px 0 var(--bamboo);
 }
-.lw-howto .lw-menu { margin-top: 22px; }
 
+@media (max-width: 900px) {
+  .lw-howto-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lw-howto-step:nth-child(2)::after { display: none; }
+  .lw-howto-tiles { grid-template-columns: 1fr; }
+}
 @media (max-width: 640px) {
   .lw-settings-grid { grid-template-columns: 1fr; }
   .lw-tabs { flex-direction: row; flex-wrap: wrap; }

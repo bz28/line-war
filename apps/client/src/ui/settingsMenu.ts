@@ -100,7 +100,7 @@ export class SettingsMenu {
       { class: 'lw-panel lw-settings', role: 'dialog', 'aria-label': 'Settings' },
       h('header', { class: 'lw-panel-head' }, h('h2', {}, 'Settings'), opts.note ? h('p', { class: 'lw-note' }, opts.note) : null),
       h('div', { class: 'lw-settings-grid' }, this.tabs, this.body),
-      h('footer', { class: 'lw-panel-foot' }, button('Back', () => this.opts.onClose(), { 'data-key': 'back', class: 'lw-btn' })),
+      h('footer', { class: 'lw-panel-foot' }, button('Back', () => this.opts.onClose(), { 'data-key': 'back', class: 'lw-btn lw-btn-primary' })),
     );
     this.keyTarget.addEventListener('keydown', this.onRebindKey, { capture: true });
     this.render();

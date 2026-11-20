@@ -6,7 +6,7 @@
  * Without Web Audio (jsdom, old browsers) every method is a silent no-op.
  *
  * Graph:  voices -> effects bus --\
- *         loops  -> effects bus ---> compressor -> limiter -> output -> destination
+ *         loops  -> effects bus ---> impact low-pass -> compressor -> limiter -> output -> destination
  *         music  -> duck -> muffle -> music bus --/
  */
 import { teamOf, type MatchState, type PlayerId, type TeamId } from '@line-war/sim';
@@ -15,7 +15,23 @@ import type { Settings } from '../settings/types';
 import { CATEGORY_PRIORITY, CUES, cuesForEvents, DUCKING_CUES, type Cue, type CueId } from './cues';
 import { burnBeepInterval, burnWarnings, criticAnnouncements, inFlightIds, loopTargets, workHits } from './derive';
 import { LoopChannel, type LoopId } from './loops';
-import { busGains, COMPRESSOR, dbToGain, INPUT_TRIM, LIMITER, MAX_VOICES, MUSIC_DUCK_DB, OUTPUT_GAIN, type Volumes } from './mix';
+import {
+  busGains,
+  COMPRESSOR,
+  dbToGain,
+  HIT_STOP_CLOSE,
+  HIT_STOP_DIP_HZ,
+  HIT_STOP_OPEN,
+  IMPACT_OPEN_HZ,
+  INPUT_TRIM,
+  LIMITER,
+  MAX_VOICES,
+  MUSIC_DUCK_DB,
+  OUTPUT_GAIN,
+  SCORE_LAND_RIVAL_PITCH,
+  SIGN_PAN,
+  type Volumes,
+} from './mix';
 import { MusicSequencer, musicModeForPhase } from './music';
 import { mulberry, RECIPES } from './synth';
 import { VoiceLimiter, type Voice } from './voices';
@@ -38,6 +54,8 @@ interface Graph {
   music: GainNode;
   duck: GainNode;
   muffle: BiquadFilterNode;
+  /** Whole-mix low-pass, closed briefly during a knock hit-stop. */
+  impact: BiquadFilterNode;
   loops: Record<LoopId, LoopChannel>;
   seq: MusicSequencer;
 }
@@ -197,7 +215,11 @@ export class AudioDirector implements Renderer {
     const effects = ctx.createGain();
     const trim = ctx.createGain();
     trim.gain.value = INPUT_TRIM;
-    trim.connect(comp);
+    const impact = ctx.createBiquadFilter();
+    impact.type = 'lowpass';
+    impact.frequency.value = IMPACT_OPEN_HZ;
+    trim.connect(impact);
+    impact.connect(comp);
     effects.connect(trim);
     const music = ctx.createGain();
     music.connect(trim);
@@ -217,7 +239,7 @@ export class AudioDirector implements Renderer {
       if (mode !== 'lastCall') return;
       this.play({ id: 'clockTick', pan: 0, pitch: this.clockBeat++ % 2 === 0 ? 0 : -5 }, time);
     });
-    return { ctx, effects, music, duck, muffle, loops, seq };
+    return { ctx, effects, music, duck, muffle, impact, loops, seq };
   }
 
   private applyVolumes(): void {
@@ -267,6 +289,29 @@ export class AudioDirector implements Renderer {
       cues.push({ id: 'burnWarn', pan: w.pan, pitch: Math.round(w.urgency * 12) });
     }
     for (const tile of [...this.nextBeep.keys()]) if (!live.has(tile)) this.nextBeep.delete(tile);
+  }
+
+  /**
+   * A knock's hit-stop: a weighty thud at the victim, and the whole mix dips behind a low-pass
+   * for the `seconds` the match is frozen, then opens back up.
+   */
+  hitStop(pan: number, seconds: number): void {
+    const g = this.graph;
+    if (!g || this.disposed || this.paused) return;
+    const now = g.ctx.currentTime + LEAD;
+    const f = g.impact.frequency;
+    f.cancelScheduledValues(now);
+    f.setTargetAtTime(HIT_STOP_DIP_HZ, now, HIT_STOP_CLOSE);
+    f.setTargetAtTime(IMPACT_OPEN_HZ, now + Math.max(0, seconds), HIT_STOP_OPEN);
+    // Booked after the dip starts, so the thud's attack is the one thing that cuts through.
+    this.play({ id: 'knockThud', pan, pitch: 0 }, now);
+  }
+
+  /** A score token landed on a crew sign: a tick-chime from that side of the band. */
+  scoreLand(team: TeamId): void {
+    if (!this.graph || this.disposed) return;
+    const rival = this.localTeam !== null && this.localTeam !== team;
+    this.play({ id: 'scoreLand', pan: team === 0 ? -SIGN_PAN : SIGN_PAN, pitch: rival ? SCORE_LAND_RIVAL_PITCH : 0 });
   }
 
   /** Book one cue at ctx time `at` if the voice budget allows. Returns the voice, or null. */

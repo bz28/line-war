@@ -8,6 +8,7 @@ const HEAT_TIERS = 3;
 export const COUNT_MS = 650;
 const POP_MS = 1100;
 const FLARE_MS = 900;
+const THUMP_MS = 420;
 
 const el = (tag: string, cls: string, text?: string): HTMLElement => {
   const e = document.createElement(tag);
@@ -24,7 +25,8 @@ const easeOut = (x: number) => 1 - (1 - x) ** 3;
  */
 export class CrewSign {
   readonly root: HTMLElement;
-  private score: HTMLElement;
+  /** The score number (score tokens fly into it). */
+  readonly score: HTMLElement;
   private mult: HTMLElement;
   private flames: HTMLElement[] = [];
   private lanterns: HTMLElement;
@@ -35,6 +37,9 @@ export class CrewSign {
   private from = 0;
   private shownScore = -1;
   private tweenStart = 0;
+  /** A score token is in flight: hold the count-up until it lands. */
+  private holdUntil = 0;
+  private thumpUntil = 0;
   private heat = -1;
   private mulShown = '';
   private rounds = '';
@@ -73,10 +78,19 @@ export class CrewSign {
     this.root.append(el('span', 'lw-sign-rope lw-sign-rope--l'), el('span', 'lw-sign-rope lw-sign-rope--r'), board);
   }
 
-  onTick(s: MatchState): void {
-    for (const e of s.events) {
-      if (e.type === 'delivered' && e.team === this.team) this.pop(`+${formatScore(e.points)}`);
-    }
+  /** Hold the next count-up until `until` (renderer ms): a score token is flying in. */
+  deferCount(until: number): void {
+    this.holdUntil = until;
+  }
+
+  /** Points arrive: pop the amount under the plaque and thump the board. */
+  land(points: number): void {
+    this.pop(`+${formatScore(points)}`);
+    if (this.reducedMotion()) return;
+    this.root.classList.remove('lw-sign--thump');
+    void this.root.offsetWidth; // restart the CSS animation
+    this.root.classList.add('lw-sign--thump');
+    this.thumpUntil = this.now() + THUMP_MS;
   }
 
   render(s: MatchState): void {
@@ -95,6 +109,10 @@ export class CrewSign {
     }
     this.pops = this.pops.filter((p) => (now < p.until ? true : (p.el.remove(), false)));
     this.flares = this.flares.filter((f) => (now < f.until ? true : (f.el.classList.remove(f.cls), false)));
+    if (this.thumpUntil && now >= this.thumpUntil) {
+      this.thumpUntil = 0;
+      this.root.classList.remove('lw-sign--thump');
+    }
   }
 
   /** The number currently displayed (mid count-up it trails the real score). */
@@ -108,9 +126,9 @@ export class CrewSign {
       const snap = score < this.target || this.reducedMotion();
       this.from = snap ? score : Math.max(this.shownScore, 0);
       this.target = score;
-      this.tweenStart = now;
+      this.tweenStart = snap ? now : Math.max(now, this.holdUntil);
     }
-    const k = Math.min(1, (now - this.tweenStart) / COUNT_MS);
+    const k = Math.max(0, Math.min(1, (now - this.tweenStart) / COUNT_MS));
     const v = Math.round(this.from + (this.target - this.from) * easeOut(k));
     if (v !== this.shownScore) {
       this.shownScore = v;

@@ -18,7 +18,9 @@ export type CueId =
   | 'deliver' | 'deliverRival' | 'serveRefused' | 'plateCold'
   | 'heatUp' | 'heatDown'
   | 'prepBell' | 'serviceBell' | 'rushFanfare' | 'lastCallBell' | 'roundWhistle' | 'matchWin' | 'matchEnd'
-  | 'clockTick';
+  | 'clockTick'
+  // Feel cues, triggered by the client (hit-stop, score token landing), not by a SimEvent.
+  | 'knockThud' | 'scoreLand';
 
 export interface CueSpec {
   category: CueCategory;
@@ -52,6 +54,10 @@ export const CUES: Record<CueId, CueSpec> = {
   ticketSpawn: spec('feedback', -11, 1, 0.15),
   serveRefused: spec('feedback', -21, 1, 0.25),
   knock: spec('feedback', -13, 2, 0.1),
+  // A sign ticking up is confirmation, not news: it sits under the serve's own ka-ching.
+  scoreLand: spec('feedback', -20, 2, 0.06),
+  // The hit-stop thud is felt more than heard (sub energy); one at a time, the freeze is shared.
+  knockThud: spec('alert', -9, 1, 0.12),
   cookDone: spec('alert', -15, 2, 0.1),
   ticketExpired: spec('alert', -5, 1, 0.2),
   heatUp: spec('alert', -15, 2, 0.2),

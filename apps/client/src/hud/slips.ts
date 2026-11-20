@@ -3,14 +3,29 @@ import { criticExclusiveSeconds, sortTickets, ticketTimeLeft, ticketValue } from
 import { foodIcon, LOCK } from './icons';
 import { crewName, formatMult, formatScore } from './text';
 
-/** Why a slip left the line. 'cleared' = removed without an event (new round). */
+/** Why a slip left the line. 'cleared' = removed without an event (round or match over, new round). */
 export type SlipExit = 'served' | 'expired' | 'cleared';
 
 /** Slot positions along the string: four left of the clock lantern, four right of it. */
 export const SLOTS_PER_SIDE = 4;
 
 /** How long a leaving slip stays in the DOM to finish its animation (ms). */
-export const EXIT_MS: Record<SlipExit, number> = { served: 1300, expired: 1400, cleared: 450 };
+export const EXIT_MS: Record<SlipExit, number> = { served: 1300, expired: 1400, cleared: 1100 };
+/** Cleared slips roll up into the string one after another, from the clock outwards (ms apart). */
+export const FOLD_STAGGER_MS = 70;
+
+/**
+ * Empty-line placeholder: while no slip hangs (prep, or a lull in service), a dashed ghost slip
+ * waits where the first ticket will clip on, counting down to it. Null when it should not show.
+ */
+export function ghostSeconds(s: MatchState, slipsShowing: number): number | null {
+  if (slipsShowing > 0 || lineClosed(s)) return null;
+  const left = (s.nextTicketTick - s.tick) / s.config.tuning.tickRate;
+  return Number.isFinite(left) ? Math.max(0, Math.ceil(left)) : null;
+}
+
+/** True when the line should be empty: the round is over, so every slip folds away. */
+export const lineClosed = (s: MatchState): boolean => s.round.phase === 'roundOver' || s.round.phase === 'matchOver';
 const REDUCED_EXIT_MS = 300;
 
 interface SlipView {
@@ -49,6 +64,9 @@ export class TicketLine {
   private views = new Map<number, SlipView>();
   private served = new Map<number, { team: TeamId; points: number }>();
   private expired = new Set<number>();
+  private ghost: HTMLElement;
+  private ghostSecs: HTMLElement;
+  private ghostShown: number | null = null;
 
   constructor(
     private now: () => number,
@@ -56,6 +74,14 @@ export class TicketLine {
   ) {
     this.root = el('div', 'lw-line');
     this.root.setAttribute('aria-label', 'Tickets');
+    this.ghost = el('div', 'lw-slip-ghost');
+    this.ghost.setAttribute('aria-hidden', 'true');
+    this.ghost.style.setProperty('--off', String(slotOffset(0).off));
+    this.ghost.style.setProperty('--side', String(slotOffset(0).side));
+    this.ghostSecs = el('span', 'lw-slip-ghost-secs');
+    this.ghost.append(el('span', 'lw-slip-ghost-label', 'Next ticket'), this.ghostSecs);
+    this.ghost.hidden = true;
+    this.root.append(this.ghost);
   }
 
   /** Remember why tickets left this tick (events are cleared by the next step). */
@@ -68,7 +94,7 @@ export class TicketLine {
 
   render(s: MatchState): void {
     const now = this.now();
-    const tickets = sortTickets(s.tickets);
+    const tickets = lineClosed(s) ? [] : sortTickets(s.tickets);
     const live = new Set<number>();
     tickets.forEach((t, i) => {
       live.add(t.id);
@@ -89,11 +115,18 @@ export class TicketLine {
         this.views.delete(id);
       }
     }
+    const ghost = ghostSeconds(s, this.views.size);
+    if (ghost !== this.ghostShown) {
+      if ((ghost === null) !== (this.ghostShown === null)) this.ghost.hidden = ghost === null;
+      this.ghostShown = ghost;
+      if (ghost !== null) this.ghostSecs.textContent = `${ghost}s`;
+    }
   }
 
   dispose(): void {
     this.views.clear();
     this.root.replaceChildren();
+    this.ghostShown = null;
   }
 
   // ---------- slips ----------
@@ -227,6 +260,12 @@ export class TicketLine {
     v.el.classList.add(`lw-slip--${reason}`);
     v.el.classList.remove('lw-slip--locked');
     v.el.setAttribute('aria-hidden', 'true');
+    if (reason === 'cleared') {
+      // Nearest the clock first, so the line rolls up from the middle out.
+      const { off } = slotOffset(Math.max(0, v.slot));
+      const rank = off < 0 ? -off - 1 : off;
+      v.el.style.setProperty('--fold-delay', `${rank * FOLD_STAGGER_MS}ms`);
+    }
     if (served) {
       v.el.dataset.team = String(served.team);
       v.el.classList.add(served.team === 0 ? 'lw-jade' : 'lw-ember');

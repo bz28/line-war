@@ -2,7 +2,7 @@ import type { PlayerState } from '@line-war/sim';
 import { FONTS, PALETTE, TEAMS, WORLD } from '../../art/tokens';
 import { withAlpha } from '../palette';
 import type { Ctx, SpriteCache } from '../sprites';
-import { circle, ellipse, fill, rrect, starPath, stroke, TAU } from './draw';
+import { circle, ellipse, fill, glow, rrect, starPath, stroke, TAU } from './draw';
 import { drawItem } from './food';
 
 /**
@@ -23,9 +23,19 @@ export interface ChefAnim {
   /** Renderer time the player was last knocked (impact squash). */
   hitAt: number;
   dazed: boolean;
+  /** Renderer time this chef last served a plate (serve hop). */
+  hopAt: number;
 }
 
-export const newChefAnim = (): ChefAnim => ({ walk: 0, x: NaN, y: NaN, speed: 0, landAt: -1e9, dashing: false, hitAt: -1e9, dazed: false });
+/**
+ * Screen y of a point drawn at body-space `py` once the chef is lifted (hop) and squashed about
+ * the feet, so overlays (dizzy stars, refusal badge) ride the hop instead of floating behind.
+ */
+export function riderY(py: number, feetY: number, lift: number, squash: number): number {
+  return feetY + (py - feetY) * (1 - squash) - lift;
+}
+
+export const newChefAnim = (): ChefAnim => ({ walk: 0, x: NaN, y: NaN, speed: 0, landAt: -1e9, dashing: false, hitAt: -1e9, dazed: false, hopAt: -1e9 });
 
 export interface ChefCtx {
   T: number;
@@ -37,6 +47,42 @@ export interface ChefCtx {
   cooldown: number;
   /** ms since a serve was refused, or Infinity. */
   refusedAge: number;
+  /** Hop lift in px (serve hop, victory bounce); the shadow stays on the ground. */
+  lift?: number;
+  /** Extra squash (+) / stretch (-) about the feet. */
+  squash?: number;
+  /** A local human player: gets the lantern ring under their feet. */
+  you?: boolean;
+  /** 0..1 opacity of the bobbing arrow over a local human's head. */
+  youArrow?: number;
+  /** Colour-blind shapes: crew glyphs (Jade circle, Ember diamond) on the tag and the ring. */
+  shapes?: boolean;
+}
+
+/** Crew glyph path: Jade = circle, Ember = diamond. Shapes carry crew identity without colour. */
+export function crewGlyph(ctx: Ctx, team: number, x: number, y: number, r: number): void {
+  ctx.beginPath();
+  if (team === 0) ctx.arc(x, y, r, 0, TAU);
+  else {
+    ctx.moveTo(x, y - r * 1.2);
+    ctx.lineTo(x + r * 1.05, y);
+    ctx.lineTo(x, y + r * 1.2);
+    ctx.lineTo(x - r * 1.05, y);
+    ctx.closePath();
+  }
+}
+
+/** Ground marker path under a chef: an ellipse for Jade, a flat diamond for Ember (with shapes on). */
+function groundMark(ctx: Ctx, team: number, shapes: boolean, x: number, y: number, rx: number, ry: number): void {
+  ctx.beginPath();
+  if (!shapes || team === 0) ctx.ellipse(x, y, rx, ry, 0, 0, TAU);
+  else {
+    ctx.moveTo(x, y - ry * 1.15);
+    ctx.lineTo(x + rx * 1.1, y);
+    ctx.lineTo(x, y + ry * 1.15);
+    ctx.lineTo(x - rx * 1.1, y);
+    ctx.closePath();
+  }
 }
 
 function unit(v: { x: number; y: number }): { x: number; y: number } {
@@ -64,6 +110,8 @@ function hand(ctx: Ctx, x: number, y: number, R: number): void {
  * after the whole world. 'all' does both.
  */
 export type ChefPass = 'all' | 'body' | 'front';
+
+const TAG_TEXT = ['P1', 'P2', 'P3', 'P4'];
 
 export function drawChef(ctx: Ctx, c: ChefCtx, p: PlayerState, x: number, y: number, anim: ChefAnim, pass: ChefPass = 'all'): void {
   const bodyPass = pass !== 'front';
@@ -101,6 +149,16 @@ export function drawChef(ctx: Ctx, c: ChefCtx, p: PlayerState, x: number, y: num
     ctx.lineCap = 'butt';
   }
 
+  // "You" marker: a warm lantern pool and ring under a local human's feet.
+  if (bodyPass && c.you) {
+    const pulse = reduced ? 0.5 : 0.5 + 0.5 * Math.sin(now / 260);
+    glow(ctx, x, feetY, R * 1.7, PALETTE.lantern, 0.22 + 0.08 * pulse, 0.45);
+    groundMark(ctx, p.team, !!c.shapes, x, feetY, R * (1.22 + 0.05 * pulse), R * (0.54 + 0.02 * pulse));
+    stroke(ctx, withAlpha(PALETTE.nightDeep, 0.55), 4.5);
+    groundMark(ctx, p.team, !!c.shapes, x, feetY, R * (1.22 + 0.05 * pulse), R * (0.54 + 0.02 * pulse));
+    stroke(ctx, PALETTE.lantern, 2.4);
+  }
+
   // Ground shadow + dash cooldown arc traced round it.
   if (bodyPass) {
       ellipse(ctx, x + R * 0.12, feetY, R * 0.95 * (1 - bob / R), R * 0.38);
@@ -113,6 +171,12 @@ export function drawChef(ctx: Ctx, c: ChefCtx, p: PlayerState, x: number, y: num
     }
 
     ctx.save();
+    const lift = c.lift ?? 0;
+    // Squash about the feet (landing, knock impact, serve hop); overlays reuse it via riderY.
+    const land = Math.max(0, 1 - (now - anim.landAt) / 160);
+    const hit = Math.max(0, 1 - (now - anim.hitAt) / 260);
+    const squash = dashing || reduced ? 0 : Math.max(land * 0.16, hit * 0.24) + (c.squash ?? 0);
+    if (lift > 0) ctx.translate(0, -lift);
     if (p.knockImmuneTicks > 0 && !dazed) ctx.globalAlpha = reduced ? 0.75 : 0.6 + 0.4 * (Math.floor(now / 90) % 2);
     // Squash & stretch about the feet.
     ctx.translate(x, feetY);
@@ -123,10 +187,7 @@ export function drawChef(ctx: Ctx, c: ChefCtx, p: PlayerState, x: number, y: num
       ctx.scale(1.24, 0.82);
       ctx.rotate(-a);
     } else {
-      const land = Math.max(0, 1 - (now - anim.landAt) / 160);
-      const hit = Math.max(0, 1 - (now - anim.hitAt) / 260);
-      const k = reduced ? 0 : Math.max(land * 0.16, hit * 0.24);
-      if (k > 0) ctx.scale(1 + k, 1 - k);
+      if (squash !== 0) ctx.scale(1 + squash, 1 - squash);
       if (moving && !reduced) ctx.rotate(f.x * 0.07);
     }
     ctx.translate(-x, -feetY);
@@ -292,12 +353,32 @@ export function drawChef(ctx: Ctx, c: ChefCtx, p: PlayerState, x: number, y: num
   ctx.restore();
   if (!frontPass) return;
 
+  // "You" arrow: a lantern-gold chevron bobbing over a local human's head.
+  const arrow = c.youArrow ?? 0;
+  if (arrow > 0.01) {
+    const bobA = reduced ? 0 : Math.sin(now / 170) * R * 0.18;
+    const ay = y - R * 2.55 - lift + bobA;
+    const aw = R * 0.5;
+    ctx.save();
+    ctx.globalAlpha = arrow;
+    ctx.beginPath();
+    ctx.moveTo(x - aw, ay - aw * 0.75);
+    ctx.lineTo(x + aw, ay - aw * 0.75);
+    ctx.lineTo(x, ay + aw * 0.55);
+    ctx.closePath();
+    ctx.lineJoin = 'round';
+    stroke(ctx, PALETTE.ink, 5);
+    fill(ctx, PALETTE.lantern);
+    ctx.lineJoin = 'miter';
+    ctx.restore();
+  }
+
   // Dizzy stars.
   if (dazed) {
     for (let k = 0; k < 3; k++) {
       const a = (reduced ? 0 : now / 220) + (k * TAU) / 3;
       const sx = x + Math.cos(a) * R * 0.8;
-      const sy = headY - R * 0.75 + Math.sin(a) * R * 0.28;
+      const sy = riderY(headY - R * 0.75, feetY, lift, squash) + Math.sin(a) * R * 0.28;
       starPath(ctx, sx, sy, R * 0.24, R * 0.1, a);
       fill(ctx, PALETTE.lantern);
       stroke(ctx, PALETTE.ink, 1);
@@ -308,7 +389,7 @@ export function drawChef(ctx: Ctx, c: ChefCtx, p: PlayerState, x: number, y: num
   if (c.refusedAge < 600) {
     const k = Math.min(1, c.refusedAge / 90);
     const bx = x;
-    const by = headY - R * 1.05;
+    const by = riderY(headY - R * 1.05, feetY, lift, squash);
     const r = R * 0.38 * (0.6 + 0.4 * k);
     circle(ctx, bx, by, r);
     fill(ctx, PALETTE.danger);
@@ -329,7 +410,8 @@ export function drawChef(ctx: Ctx, c: ChefCtx, p: PlayerState, x: number, y: num
   // Player tag at the feet: Jade = rounded pill, Ember = pointed tag.
   const tx = x;
   const ty = feetY + R * 0.62;
-  const tw = R * 1.15;
+  const glyph = !!c.shapes;
+  const tw = R * (glyph ? 1.6 : 1.15);
   const th = R * 0.62;
   ctx.beginPath();
   if (p.team === 0) {
@@ -344,9 +426,15 @@ export function drawChef(ctx: Ctx, c: ChefCtx, p: PlayerState, x: number, y: num
     ctx.closePath();
   }
   fill(ctx, withAlpha(team.dark, 0.88));
+  if (c.you) stroke(ctx, PALETTE.lantern, 1.6);
   ctx.font = `800 ${Math.round(R * 0.52)}px ${FONTS.ui}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = PALETTE.paper;
-  ctx.fillText(`P${p.id + 1}`, tx, ty + 0.5);
+  ctx.fillStyle = c.you ? PALETTE.lantern : PALETTE.paper;
+  const textX = glyph ? tx + R * 0.2 : tx;
+  ctx.fillText(TAG_TEXT[p.id] ?? '', textX, ty + 0.5);
+  if (glyph) {
+    crewGlyph(ctx, p.team, tx - tw / 2 + R * 0.34, ty, R * 0.15);
+    fill(ctx, PALETTE.paper);
+  }
 }

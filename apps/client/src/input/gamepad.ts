@@ -18,6 +18,19 @@ export const PAD = {
   RIGHT: 15,
 } as const;
 
+/** Which standard-mapping button does each action. The single source for input and prompts. */
+export const PAD_ACTIONS = { grab: PAD.A, work: PAD.X, dash: PAD.B, throw: PAD.Y } as const;
+export type PadAction = keyof typeof PAD_ACTIONS;
+
+/** Face-button names as printed on an Xbox-layout pad (the standard mapping's labels). */
+const BUTTON_NAMES: Partial<Record<number, string>> = { [PAD.A]: 'A', [PAD.B]: 'B', [PAD.X]: 'X', [PAD.Y]: 'Y', [PAD.START]: 'Start', [PAD.SELECT]: 'Select' };
+
+/** Prompt label for a standard-mapping button index, e.g. 0 -> "A". */
+export const padButtonLabel = (button: number): string => BUTTON_NAMES[button] ?? `Button ${button + 1}`;
+
+/** Prompt label for an action, from the live mapping (never hardcoded at call sites). */
+export const padActionLabel = (action: PadAction): string => padButtonLabel(PAD_ACTIONS[action]);
+
 export const DEFAULT_DEAD_ZONE = 0.25;
 
 export const browserGamepads: GetGamepads = () => {
@@ -90,13 +103,13 @@ export class GamepadInput implements InputSource {
       this.prev = { grab: false, dash: false, throw: false };
       return neutral();
     }
-    const grab = isPressed(pad, PAD.A);
-    const dash = isPressed(pad, PAD.B);
-    const thr = isPressed(pad, PAD.Y);
+    const grab = isPressed(pad, PAD_ACTIONS.grab);
+    const dash = isPressed(pad, PAD_ACTIONS.dash);
+    const thr = isPressed(pad, PAD_ACTIONS.throw);
     const input: PlayerInput = {
       move: padMove(pad, this.deadZone),
       grab: grab && !this.prev.grab,
-      work: isPressed(pad, PAD.X),
+      work: isPressed(pad, PAD_ACTIONS.work),
       dash: dash && !this.prev.dash,
       throw: thr && !this.prev.throw,
     };
