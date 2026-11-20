@@ -30,6 +30,8 @@ export interface Effect {
   team?: TeamId;
   ticketId?: number;
   burst?: BurstKind;
+  /** Knock direction (unit, tiles): the camera kicks along it. */
+  dir?: Vec2;
 }
 
 export const EFFECT_MS: Record<EffectKind, number> = {
@@ -67,7 +69,8 @@ export function eventsToEffects(s: MatchState, events: readonly SimEvent[], now:
     switch (ev.type) {
       case 'knock': {
         const v = s.players[ev.victim].pos;
-        add({ kind: 'flash', pos: { x: v.x, y: v.y }, color: PALETTE.lantern, player: ev.victim, burst: 'knock' });
+        const d = s.players[ev.by].dashDir;
+        add({ kind: 'flash', pos: { x: v.x, y: v.y }, color: PALETTE.lantern, player: ev.victim, burst: 'knock', dir: { x: d.x, y: d.y } });
         add({ kind: 'popup', pos: { x: v.x, y: v.y - 0.6 }, text: 'Knock!', color: PALETTE.lantern });
         break;
       }
@@ -130,7 +133,10 @@ export class EffectQueue {
 
   /** Live effects at `now` (finished ones are removed). */
   active(now: number): readonly Effect[] {
-    this.items = this.items.filter((e) => now - e.start < e.duration);
+    // Compact in place: no per-frame array.
+    let n = 0;
+    for (const e of this.items) if (now - e.start < e.duration) this.items[n++] = e;
+    this.items.length = n;
     return this.items;
   }
 

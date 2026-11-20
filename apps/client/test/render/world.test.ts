@@ -267,3 +267,48 @@ describe('WorldRenderer', () => {
     expect(ms).toBeLessThan(12);
   });
 });
+
+describe('WorldRenderer game feel', () => {
+  it('marks local humans with the lantern ring and arrow, and draws colour-blind glyphs, without NaN', () => {
+    const s = buildDemoState();
+    s.round.phase = 'prep';
+    s.round.tick = 30;
+    const { canvas, calls } = fakeCanvas();
+    const r = new WorldRenderer(canvas, s, { now: () => 1000, autoResize: false, createCanvas: null });
+    calls.length = 0;
+    r.render(s, 0.5);
+    const plain = calls.length;
+    r.setDisplay({ humans: [true, false, false, false], colorblindShapes: true });
+    calls.length = 0;
+    r.render(s, 0.5);
+    expect(calls.length).toBeGreaterThan(plain);
+    expect(badNumbers(calls)).toEqual([]);
+  });
+
+  it('lets the HUD carry serve points when score tokens are on', () => {
+    const s = buildDemoState();
+    expect(texts(renderOnce(s).calls)).toContain('+72');
+    expect(texts(renderOnce(s, {}).calls)).toContain('Knock!');
+    const { canvas, calls } = fakeCanvas();
+    const r = new WorldRenderer(canvas, s, { now: () => 1000, autoResize: false, createCanvas: null });
+    r.setDisplay({ scoreTokens: true });
+    calls.length = 0;
+    r.render(s, 0.5);
+    expect(texts(calls)).not.toContain('+72');
+    expect(texts(calls)).toContain('Knock!');
+  });
+
+  it('celebrates the winners at match over without NaN', () => {
+    const s = buildDemoState();
+    s.round.phase = 'matchOver';
+    s.winner = 1;
+    let now = 1000;
+    const { canvas, calls } = fakeCanvas();
+    const r = new WorldRenderer(canvas, s, { now: () => now, autoResize: false, createCanvas: null });
+    for (let i = 0; i < 30; i++) {
+      now += 16;
+      r.render(s, 0);
+    }
+    expect(badNumbers(calls)).toEqual([]);
+  });
+});

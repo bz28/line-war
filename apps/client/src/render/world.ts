@@ -1,7 +1,7 @@
 import { interactTarget, tileOwner } from '@line-war/sim';
-import type { FireState, FloorItem, MatchState, PlayerState, TeamId, Vec2 } from '@line-war/sim';
+import type { FireState, FloorItem, MatchState, PlayerId, PlayerState, TeamId, Vec2 } from '@line-war/sim';
 import { PALETTE } from '../art/tokens';
-import { drawChef, newChefAnim, type ChefAnim, type ChefPass } from './art/chef';
+import { drawChef, newChefAnim, type ChefAnim, type ChefCtx, type ChefPass } from './art/chef';
 import { ellipse, fill } from './art/draw';
 import { drawItem, itemShadow } from './art/food';
 import { drawEffect, Particles } from './art/fx';
@@ -9,6 +9,7 @@ import { makeScene, rowRuns, topCenter, type Scene } from './art/scene';
 import { lightRects, paintBase, paintLights, paintRow } from './art/static';
 import { drawFire, drawStation, type FrameCtx } from './art/stations';
 import { EffectQueue, effectAge, eventsToEffects, type Effect } from './effects';
+import { celebratingTeam, CHEER_PERIOD_MS, hopAt, knockKick, nearestOfTeam, SERVE_HOP_MS, youArrowAlpha, type Hop } from './feel';
 import { dashCooldownFraction } from './format';
 import { PositionTracker } from './interp';
 import { computeLayout, fitToBox, worldToScreen, type Layout, type Viewport } from './layout';
@@ -38,12 +39,25 @@ export interface WorldOptions {
 export interface WorldDisplay {
   reducedMotion?: boolean;
   screenShake?: boolean;
+  /** Colour-blind shapes: crew glyphs on chef tags and ground rings. */
+  colorblindShapes?: boolean;
+  /** Per PlayerId: true for players controlled on this machine (they get the "you" ring). */
+  humans?: readonly boolean[];
+  /** The HUD flies serve points to the crew signs, so the world skips its own "+points" text. */
+  scoreTokens?: boolean;
 }
 
+/** Something depth-sorted within a tile row: a resting floor item or a chef body. */
 interface Entity {
   y: number;
-  draw: () => void;
+  /** Index into s.floorItems, or -1 - playerId for a chef. */
+  ref: number;
+  x: number;
+  sx: number;
+  sy: number;
 }
+
+const byY = (a: Entity, b: Entity): number => a.y - b.y;
 
 const REDUCED_QUERY = '(prefers-reduced-motion: reduce)';
 
@@ -81,9 +95,26 @@ export class WorldRenderer implements Renderer {
   private stationRows: number[][] = [];
   private reducedMotion: boolean;
   private screenShake: boolean;
+  private shapes = false;
+  private clientRect: DOMRect | null = null;
+  private scoreTokens = false;
+  private humans: boolean[] = [false, false, false, false];
+  /** Per-frame scratch, reused so a frame allocates as little as possible. */
+  private rowBuckets: Entity[][] = [];
+  private entityPool: Entity[] = [];
+  private fireByTile = new Map<number, FireState>();
+  private worked = new Set<number>();
+  private shakeOut: Vec2 = { x: 0, y: 0 };
+  private hop: Hop = { lift: 0, squash: 0 };
+  private playerPos: Vec2[] = [
+    { x: 0, y: 0 },
+    { x: 0, y: 0 },
+    { x: 0, y: 0 },
+    { x: 0, y: 0 },
+  ];
+  private chefCtx: ChefCtx = { T: 0, now: 0, radius: 0, reducedMotion: false, sprites: null as unknown as SpriteCache, cooldown: 0, refusedAge: Infinity };
+  private frame: FrameCtx | null = null;
   private cleanup: (() => void)[] = [];
-  /** Chef parts drawn after the whole world (held items, tags), filled per frame. */
-  private front: (() => void)[] = [];
 
   constructor(
     private canvas: CanvasLike,
@@ -119,6 +150,7 @@ export class WorldRenderer implements Renderer {
     }
     this.sprites.setScale(this.vp.scale);
     this.staticKey = '';
+    this.clientRect = null;
   }
 
   /** Current fit (for tests and the HUD: where the arena sits inside the canvas). */
@@ -129,6 +161,20 @@ export class WorldRenderer implements Renderer {
   setDisplay(d: WorldDisplay): void {
     if (d.reducedMotion !== undefined) this.reducedMotion = d.reducedMotion;
     if (d.screenShake !== undefined) this.screenShake = d.screenShake;
+    if (d.colorblindShapes !== undefined) this.shapes = d.colorblindShapes;
+    if (d.scoreTokens !== undefined) this.scoreTokens = d.scoreTokens;
+    if (d.humans) for (let i = 0; i < 4; i++) this.humans[i] = !!d.humans[i];
+  }
+
+  /** Where a world position (tiles) currently sits on screen, in client CSS px (for DOM effects). */
+  toClient(pos: Vec2): Vec2 | null {
+    const el = this.canvas as unknown as { getBoundingClientRect?: () => DOMRect };
+    if (typeof el.getBoundingClientRect !== 'function') return null;
+    // The canvas only moves on resize: read its rect once, not every frame (no forced layouts).
+    const r = (this.clientRect ??= el.getBoundingClientRect());
+    const p = worldToScreen(this.layout, pos);
+    const k = this.vp.cssWidth / this.vp.pixelWidth;
+    return { x: r.left + (this.vp.offsetX + p.x * this.vp.scale) * k, y: r.top + (this.vp.offsetY + p.y * this.vp.scale) * k };
   }
 
   private watchReducedMotion(listen: boolean): boolean {
@@ -215,7 +261,12 @@ export class WorldRenderer implements Renderer {
     this.effects.push(fresh);
     const T = this.layout.tile;
     for (const e of fresh) {
-      if (e.kind === 'popup' && e.team !== undefined && e.burst === 'serve') this.bellAt[e.team] = now;
+      if (e.kind === 'popup' && e.team !== undefined && e.burst === 'serve') {
+        this.bellAt[e.team] = now;
+        // The chef at the window hops for joy.
+        const server = e.pos ? nearestOfTeam(s.players, e.team, e.pos) : null;
+        if (server) this.anims[server.id]!.hopAt = now;
+      }
       if (e.kind === 'shake' && e.player !== undefined) this.refusedAt[e.player] = now;
       if (e.burst && e.pos) {
         const p = worldToScreen(this.layout, e.pos);
@@ -278,16 +329,12 @@ export class WorldRenderer implements Renderer {
     if (this.base) drawLayer(ctx, this.base);
     else paintBase(ctx, sc);
 
-    const frame: FrameCtx = {
-      sc,
-      sprites: this.sprites,
-      now,
-      worked: this.workedTiles(s),
-      bellAge: { 0: now - this.bellAt[0], 1: now - this.bellAt[1] },
-      reducedMotion: this.reducedMotion,
-    };
-    const fires = new Map<number, FireState>(s.fires.map((f) => [f.tile, f]));
+    const frame = this.frameCtx(s, sc, now);
+    const fires = this.fireByTile;
+    fires.clear();
+    for (const f of s.fires) fires.set(f.tile, f);
     const byRow = this.entitiesByRow(s, sc, alpha, now, dt);
+    const celebrating = celebratingTeam(s);
 
     for (let r = 0; r < sc.H; r++) {
       if (this.rows) for (const l of this.rows[r] ?? []) drawLayer(ctx, l);
@@ -299,25 +346,26 @@ export class WorldRenderer implements Renderer {
         if (fire) drawFire(ctx, frame, s, fire);
       }
       const ents = byRow[r];
-      if (ents) {
-        ents.sort((a, b) => a.y - b.y);
-        for (const e of ents) e.draw();
+      if (ents && ents.length) {
+        if (ents.length > 1) ents.sort(byY);
+        for (const e of ents) this.drawEntity(s, e, now, celebrating, 'body');
       }
     }
 
-    for (const f of this.front) f();
-    this.front = [];
+    // Hands, held items, tags and markers go over the whole world.
+    for (const row of byRow) for (const e of row) if (e.ref < 0) this.drawEntity(s, e, now, celebrating, 'front');
     for (const fi of s.floorItems) if (fi.vel.x !== 0 || fi.vel.y !== 0) this.drawFlying(s, fi, alpha);
 
     if (this.lights) for (const l of this.lights) drawLayer(ctx, l);
     else paintLights(ctx, sc);
 
-    this.emitAmbient(s, sc, dt);
+    this.emitAmbient(s, sc, dt, celebrating);
     this.particles.update(dt);
     this.particles.draw(ctx);
 
     for (const e of fx) {
       if (!e.pos) continue;
+      if (this.scoreTokens && e.burst === 'serve') continue; // the HUD token carries the number
       const p = worldToScreen(layout, e.pos);
       drawEffect(ctx, e, p.x, p.y, T, now);
     }
@@ -331,54 +379,107 @@ export class WorldRenderer implements Renderer {
   }
 
 
+  /**
+   * Camera shake: a knock kicks the camera along the dash (a hard directional punch that springs
+   * back), then rattles out; fires rattle without the kick.
+   */
   private cameraShake(fx: readonly Effect[], now: number): Vec2 {
-    if (!this.screenShake || this.reducedMotion) return { x: 0, y: 0 };
+    const out = this.shakeOut;
+    out.x = 0;
+    out.y = 0;
+    if (!this.screenShake || this.reducedMotion) return out;
     let amp = 0;
     for (const e of fx) {
       if (e.kind !== 'flash') continue;
-      const k = 1 - effectAge(e, now);
-      amp = Math.max(amp, (e.burst === 'knock' ? 5 : 3.5) * k * k);
+      const age = effectAge(e, now);
+      const k = 1 - age;
+      amp = Math.max(amp, (e.burst === 'knock' ? 6 : 3.5) * k * k);
+      if (e.dir) {
+        const kick = knockKick(age) * 9;
+        out.x += e.dir.x * kick;
+        out.y += e.dir.y * kick;
+      }
     }
-    if (amp < 0.05) return { x: 0, y: 0 };
-    return { x: Math.sin(now * 0.09) * amp, y: Math.cos(now * 0.113) * amp * 0.7 };
-  }
-
-  private workedTiles(s: MatchState): Set<number> {
-    const out = new Set<number>();
-    for (const p of s.players) {
-      if (!p.working) continue;
-      const t = interactTarget(s, p).tile;
-      if (t !== null) out.add(t);
+    if (amp >= 0.05) {
+      out.x += Math.sin(now * 0.09) * amp;
+      out.y += Math.cos(now * 0.113) * amp * 0.7;
     }
     return out;
   }
 
+  private frameCtx(s: MatchState, sc: Scene, now: number): FrameCtx {
+    const worked = this.worked;
+    worked.clear();
+    for (const p of s.players) {
+      if (!p.working) continue;
+      const t = interactTarget(s, p).tile;
+      if (t !== null) worked.add(t);
+    }
+    const f = (this.frame ??= { sc, sprites: this.sprites, now, worked, bellAge: { 0: 0, 1: 0 }, reducedMotion: false });
+    f.sc = sc;
+    f.sprites = this.sprites;
+    f.now = now;
+    f.bellAge[0] = now - this.bellAt[0];
+    f.bellAge[1] = now - this.bellAt[1];
+    f.reducedMotion = this.reducedMotion;
+    return f;
+  }
+
+
   private entitiesByRow(s: MatchState, sc: Scene, alpha: number, now: number, dt: number): Entity[][] {
-    const rows: Entity[][] = Array.from({ length: sc.H }, () => []);
-    const put = (yTiles: number, e: Entity) => rows[Math.max(0, Math.min(sc.H - 1, Math.floor(yTiles)))]!.push(e);
-    const T = this.layout.tile;
-    for (const fi of s.floorItems) {
+    const rows = this.rowBuckets;
+    while (rows.length < sc.H) rows.push([]);
+    rows.length = sc.H;
+    for (const r of rows) r.length = 0;
+    let used = 0;
+    const pool = this.entityPool;
+    const take = (): Entity => {
+      const e = (pool[used] ??= { y: 0, ref: 0, x: 0, sx: 0, sy: 0 });
+      used++;
+      return e;
+    };
+    const put = (e: Entity) => rows[Math.max(0, Math.min(sc.H - 1, Math.floor(e.y)))]!.push(e);
+    for (let i = 0; i < s.floorItems.length; i++) {
+      const fi = s.floorItems[i]!;
       if (fi.vel.x !== 0 || fi.vel.y !== 0) continue;
       const pos = this.floor.get(fi.item.id, alpha, fi.pos);
       const p = worldToScreen(this.layout, pos);
-      put(pos.y, {
-        y: pos.y,
-        draw: () => {
-          itemShadow(this.ctx, p.x, p.y, T * 0.22, fi.item.type === 'plate');
-          drawItem(this.ctx, this.sprites, fi.item, p.x, p.y - 2, T * 0.22);
-        },
-      });
+      const e = take();
+      e.y = pos.y;
+      e.ref = i;
+      e.sx = p.x;
+      e.sy = p.y;
+      put(e);
     }
     for (const pl of s.players) {
       const pos = this.players.get(pl.id, alpha, pl.pos);
-      const anim = this.animate(pl, pos, now, dt);
-      put(pos.y, { y: pos.y, draw: () => this.drawPlayer(s, pl, pos, anim, now, 'body') });
-      this.front.push(() => this.drawPlayer(s, pl, pos, anim, now, 'front'));
+      this.animate(pl, pos, now, dt);
+      const keep = this.playerPos[pl.id]!;
+      keep.x = pos.x;
+      keep.y = pos.y;
+      const e = take();
+      e.y = pos.y;
+      e.ref = -1 - pl.id;
+      put(e);
     }
     return rows;
   }
 
-  private animate(p: PlayerState, pos: Vec2, now: number, dt: number): ChefAnim {
+  private drawEntity(s: MatchState, e: Entity, now: number, celebrating: TeamId | null, pass: ChefPass): void {
+    if (e.ref >= 0) {
+      const fi = s.floorItems[e.ref];
+      if (!fi) return;
+      const T = this.layout.tile;
+      itemShadow(this.ctx, e.sx, e.sy, T * 0.22, fi.item.type === 'plate');
+      drawItem(this.ctx, this.sprites, fi.item, e.sx, e.sy - 2, T * 0.22);
+      return;
+    }
+    const id = -1 - e.ref;
+    const pl = s.players[id as PlayerId];
+    this.drawPlayer(s, pl, this.playerPos[id]!, this.anims[id]!, now, pass, celebrating);
+  }
+
+  private animate(p: PlayerState, pos: Vec2, now: number, dt: number): void {
     const a = this.anims[p.id]!;
     const T = this.layout.tile;
     if (Number.isFinite(a.x)) {
@@ -397,10 +498,9 @@ export class WorldRenderer implements Renderer {
     const dazed = p.dazedTicks > 0;
     if (dazed && !a.dazed) a.hitAt = now;
     a.dazed = dazed;
-    return a;
   }
 
-  private drawPlayer(s: MatchState, p: PlayerState, pos: Vec2, anim: ChefAnim, now: number, pass: ChefPass): void {
+  private drawPlayer(s: MatchState, p: PlayerState, pos: Vec2, anim: ChefAnim, now: number, pass: ChefPass, celebrating: TeamId | null): void {
     const T = this.layout.tile;
     let { x, y } = worldToScreen(this.layout, pos);
     const refusedAge = now - this.refusedAt[p.id]!;
@@ -409,23 +509,29 @@ export class WorldRenderer implements Renderer {
       x += Math.sin(now / 70) * 1.8;
       y += Math.cos(now / 90) * 1.2;
     }
-    drawChef(
-      this.ctx,
-      {
-        T,
-        now,
-        radius: s.config.tuning.playerRadius * T * CHEF_SCALE,
-        reducedMotion: this.reducedMotion,
-        sprites: this.sprites,
-        cooldown: dashCooldownFraction(s, p.dashCooldown),
-        refusedAge,
-      },
-      p,
-      x,
-      y,
-      anim,
-      pass,
-    );
+    const radius = s.config.tuning.playerRadius * T * CHEF_SCALE;
+    // Serve hop, or the winners' victory bounce (staggered per chef).
+    const hop = this.hop;
+    hop.lift = 0;
+    hop.squash = 0;
+    if (!this.reducedMotion) {
+      if (celebrating !== null && p.team === celebrating) hopAt(((now + p.id * 170) % CHEER_PERIOD_MS) / CHEER_PERIOD_MS, hop, 0.7);
+      else hopAt((now - anim.hopAt) / SERVE_HOP_MS, hop);
+    }
+    const c = this.chefCtx;
+    c.T = T;
+    c.now = now;
+    c.radius = radius;
+    c.reducedMotion = this.reducedMotion;
+    c.sprites = this.sprites;
+    c.cooldown = dashCooldownFraction(s, p.dashCooldown);
+    c.refusedAge = refusedAge;
+    c.lift = hop.lift * radius;
+    c.squash = hop.squash;
+    c.you = this.humans[p.id] ?? false;
+    c.youArrow = c.you ? youArrowAlpha(s) : 0;
+    c.shapes = this.shapes;
+    drawChef(this.ctx, c, p, x, y, anim, pass);
   }
 
   /** A thrown item: parabolic arc above its ground shadow, spinning, with a speed streak. */
@@ -462,11 +568,17 @@ export class WorldRenderer implements Renderer {
     ctx.restore();
   }
 
-  private emitAmbient(s: MatchState, sc: Scene, dt: number): void {
+  private emitAmbient(s: MatchState, sc: Scene, dt: number, celebrating: TeamId | null): void {
     if (dt <= 0) return;
     const T = this.layout.tile;
     const calm = this.reducedMotion ? 0.35 : 1;
     const ps = this.particles;
+    if (celebrating !== null) {
+      // Confetti in the winners' colours rains over the whole market.
+      const w = this.layout.world;
+      const rate = (s.round.phase === 'matchOver' ? 70 : 32) * calm;
+      ps.emit('celebrate', rate, dt, () => ps.celebrate(w.x, w.y - T, w.w, celebrating));
+    }
     for (const st of Object.values(s.stations)) {
       const v = st.vessel;
       if (!v) continue;

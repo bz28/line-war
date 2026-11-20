@@ -108,6 +108,11 @@ export class Moments {
   private current: { key: string; el: HTMLElement; footer: HTMLElement | null } | null = null;
   private outgoing: { el: HTMLElement; until: number }[] = [];
 
+  /** True while a banner, stamp or card is showing. */
+  get showing(): boolean {
+    return this.current !== null;
+  }
+
   constructor(private now: () => number) {
     this.root = el('div', 'lw-moments');
     this.root.setAttribute('aria-live', 'polite');

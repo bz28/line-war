@@ -68,8 +68,10 @@ export class Particles {
   }
 
   update(dt: number): void {
-    const out: Particle[] = [];
-    for (const p of this.list) {
+    // Compact in place so a frame allocates nothing.
+    const list = this.list;
+    let n = 0;
+    for (const p of list) {
       p.age += dt;
       if (p.age >= p.life) continue;
       const d = Math.max(0, 1 - p.drag * dt);
@@ -78,9 +80,17 @@ export class Particles {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.rot += p.vr * dt;
-      out.push(p);
+      list[n++] = p;
     }
-    this.list = out;
+    list.length = n;
+  }
+
+  /** Victory confetti raining from the top edge across [x0, x0 + w] in the crew's colours. */
+  celebrate(x0: number, y: number, w: number, team: TeamId): void {
+    const c = TEAMS[team];
+    const r = this.rand();
+    const color = r < 0.4 ? c.main : r < 0.65 ? c.light : r < 0.85 ? PALETTE.lantern : PALETTE.paper;
+    this.add({ k: 'confetti', x: x0 + this.rand() * w, y, vx: this.range(-30, 30), vy: this.range(20, 70), g: 70, drag: 0.6, life: this.range(2.4, 3.4), size: this.range(3.5, 6), color, rot: this.range(0, TAU), vr: this.range(-9, 9) });
   }
 
   // ---- emitters (positions in logical px; T = tile size) ----

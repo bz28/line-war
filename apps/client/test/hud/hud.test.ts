@@ -338,3 +338,41 @@ describe('HUD DOM updates', () => {
     observer.disconnect();
   });
 });
+
+describe('HUD score tokens', () => {
+  it('flies serve points from the pass into the sign and holds the count-up until they land', () => {
+    const s = at(match(), 40);
+    const clock = { ms: 0 };
+    const host = document.createElement('div');
+    document.body.append(host);
+    const anims: { onfinish: (() => void) | null; cancel(): void }[] = [];
+    const proto = HTMLElement.prototype as unknown as { animate?: unknown };
+    const had = proto.animate;
+    proto.animate = function () {
+      const a = { onfinish: null as (() => void) | null, cancel() {} };
+      anims.push(a);
+      return a;
+    };
+    try {
+      hud = new HudRenderer(host, { now: () => clock.ms, reducedMotion: false, locate: (p) => ({ x: p.x * 10, y: p.y * 10 }) });
+      hud.render(s);
+      s.teams[1].score = 90;
+      s.events = [{ type: 'delivered', team: 1, ticketId: 1, recipe: 'burger', points: 90 }];
+      hud.onTick(s);
+      expect(host.querySelector('.lw-fly.lw-ember')!.textContent).toBe('+90');
+      expect(host.querySelector('.lw-ember .lw-sign-pop')).toBeNull();
+      clock.ms += COUNT_MS / 2;
+      hud.render(s);
+      const score = host.querySelector('.lw-ember .lw-sign-score')!;
+      expect(score.textContent).toBe('0'); // still in flight
+      anims[0]!.onfinish!();
+      expect(host.querySelector('.lw-fly')).toBeNull();
+      expect(host.querySelector('.lw-ember .lw-sign-pop')!.textContent).toBe('+90');
+      clock.ms += 2000;
+      hud.render(s);
+      expect(score.textContent).toBe('90');
+    } finally {
+      proto.animate = had;
+    }
+  });
+});
