@@ -76,7 +76,7 @@ describe('how to play follows the chosen level', () => {
     for (const r of RECIPES) expect(nightText).toContain(r.name);
   });
 
-  it('page tabs switch the visible section (used on short screens)', () => {
+  it('page tabs switch the visible section', () => {
     const el = howToScreen(DEFAULT_SETTINGS, { back: noop });
     expect(el.dataset.page).toBe('1');
     const tabs = [...el.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
