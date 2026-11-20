@@ -48,11 +48,16 @@ describe('Grab: empty hands', () => {
     expect(s.players[0].holding!.id).not.toBe(first);
   });
 
-  it('crate: takeFromCrate returning null does nothing (stub on main)', () => {
+  it('crate: takes a raw ingredient while stocked, nothing when empty', () => {
     const s = kitchenMatch();
     put(s, 0, 10.5, 2.5, UP);
+    const crate = stationXY(s, 10, 1);
+    crate.stock = 0;
     run(s, 1, GRAB);
     expect(s.players[0].holding).toBeNull();
+    crate.stock = 1;
+    run(s, 1, GRAB);
+    expect(s.players[0].holding).toMatchObject({ type: 'ingredient', state: 'raw' });
   });
 
   it('takes a clean empty plate from a rack with stock, none when empty', () => {
