@@ -20,6 +20,8 @@ export interface HudOptions {
   locate?: (pos: Vec2) => Vec2 | null;
   /** First-match coach for this local player (omit for no coach, e.g. all bots or already seen). */
   coach?: { player: PlayerId; keys: CoachKeys; storage: CoachStorage | null };
+  /** A flying score token reached its crew sign (audio's tick-chime). */
+  onScoreLand?: (team: 0 | 1) => void;
 }
 
 /**
@@ -39,8 +41,10 @@ export class HudRenderer implements Renderer {
   private now: () => number;
   private reduced: () => boolean;
   private locate: ((pos: Vec2) => Vec2 | null) | null;
+  private onScoreLand: ((team: 0 | 1) => void) | null;
   private lastTick = -1;
   private phase = '';
+  private coaching = false;
 
   constructor(host: HTMLElement, opts: HudOptions = {}) {
     const now = opts.now ?? (() => performance.now());
@@ -49,6 +53,7 @@ export class HudRenderer implements Renderer {
     this.now = now;
     this.reduced = reduced;
     this.locate = opts.locate ?? null;
+    this.onScoreLand = opts.onScoreLand ?? null;
 
     this.root = document.createElement('div');
     this.root.className = 'lw-hud';
@@ -94,7 +99,12 @@ export class HudRenderer implements Renderer {
     if (from) {
       const r = sign.score.getBoundingClientRect();
       const to = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-      if (this.flyers.launch(team, `+${formatScore(points)}`, from, to, () => sign.land(points))) {
+      if (
+        this.flyers.launch(team, `+${formatScore(points)}`, from, to, () => {
+          sign.land(points);
+          this.onScoreLand?.(team);
+        })
+      ) {
         sign.deferCount(this.now() + FLY_MS);
         return;
       }
@@ -112,7 +122,17 @@ export class HudRenderer implements Renderer {
     this.line.render(s);
     this.clock.render(s);
     this.moments.render(s);
-    this.coach?.render(s, this.moments.showing);
+    if (this.coach) {
+      // The 3-2-1 stamps share the stage with the coach (prep is its best window); banners and
+      // cards still get it to step aside.
+      const kind = this.moments.kind;
+      this.coach.render(s, this.moments.onStage && kind !== 'count');
+      const coaching = this.coach.noteShowing;
+      if (coaching !== this.coaching) {
+        this.coaching = coaching;
+        this.root.classList.toggle('lw-hud--coaching', coaching);
+      }
+    }
   }
 
   dispose(): void {

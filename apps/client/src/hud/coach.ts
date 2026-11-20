@@ -1,5 +1,8 @@
 import { tileCenter, tileOwner } from '@line-war/sim';
 import type { IngredientKind, MatchState, PlayerId, TeamId, Vec2 } from '@line-war/sim';
+import { padActionLabel } from '../input/gamepad';
+import type { SlotController } from '../settings/types';
+import { keyLabel } from '../ui/keyNames';
 
 /**
  * First-match coach: a short, skippable run of paper notes that teaches the loop (grab, prep,
@@ -18,6 +21,13 @@ export interface CoachKeys {
   grab: string;
   work: string;
   dash: string;
+}
+
+/** Prompt labels for a local slot: its own key bindings, or the gamepad mapping's buttons. */
+export function coachKeysFor(slot: SlotController): CoachKeys | null {
+  if (slot.kind === 'keyboard') return { grab: keyLabel(slot.bindings.grab), work: keyLabel(slot.bindings.work), dash: keyLabel(slot.bindings.dash) };
+  if (slot.kind === 'gamepad') return { grab: padActionLabel('grab'), work: padActionLabel('work'), dash: padActionLabel('dash') };
+  return null;
 }
 
 export interface CoachProgress {
@@ -153,6 +163,7 @@ export class Coach {
   private step: CoachStep | null = null;
   private doneAt = 0;
   private finished = false;
+  private away = false;
   private target: number | null = null;
   private px = NaN;
   private py = NaN;
@@ -187,6 +198,11 @@ export class Coach {
     } catch {
       return false;
     }
+  }
+
+  /** True while the note is on screen (not finished, hidden for a card, or stepped aside). */
+  get noteShowing(): boolean {
+    return !this.finished && !this.root.hidden && !this.away;
   }
 
   get currentStep(): CoachStep | null {
@@ -225,7 +241,10 @@ export class Coach {
       return;
     }
     this.root.hidden = false;
-    this.note.classList.toggle('lw-coach-note--away', busy);
+    if (busy !== this.away) {
+      this.away = busy;
+      this.note.classList.toggle('lw-coach-note--away', busy);
+    }
     this.placePointer(s, step);
   }
 

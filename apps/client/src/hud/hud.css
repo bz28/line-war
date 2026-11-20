@@ -429,7 +429,39 @@
   25% { transform: rotate(14deg); }
   100% { transform: translateY(160%) rotate(75deg); opacity: 0; }
 }
-.lw-slip--cleared { opacity: 0; transition: opacity 0.4s; }
+/* Empty line: a dashed ghost slip where the first ticket will clip on, counting down to it. */
+.lw-slip-ghost {
+  position: absolute;
+  top: calc(var(--s) * 1.6);
+  left: 50%;
+  width: var(--slip-w);
+  height: calc(var(--s) * 7.6);
+  margin-left: calc((var(--pitch) - var(--slip-w)) / 2);
+  transform: translateX(calc(var(--side, 1) * var(--gap) + var(--off, 0) * var(--pitch)));
+  box-sizing: border-box;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: calc(var(--s) * 0.3);
+  border: calc(var(--s) * 0.16) dashed color-mix(in srgb, var(--paper) 38%, transparent);
+  border-radius: calc(var(--s) * 0.3);
+  color: color-mix(in srgb, var(--paper) 70%, transparent);
+  text-align: center;
+  animation: lw-ghost-in 0.5s ease-out both;
+}
+.lw-slip-ghost[hidden] { display: none; }
+.lw-slip-ghost-label { font-weight: 800; font-size: calc(var(--s) * 0.78); line-height: 1.1; }
+.lw-slip-ghost-secs { font-family: var(--font-display); font-size: calc(var(--s) * 1.7); line-height: 1; color: var(--lantern); font-variant-numeric: tabular-nums; }
+@keyframes lw-ghost-in { from { opacity: 0; } }
+
+/* Round over: each slip lifts, then rolls up into the string like a blind and is gone. */
+.lw-slip--cleared .lw-slip-swing { animation: lw-slip-fold 0.62s cubic-bezier(0.55, 0, 0.75, 0.2) var(--fold-delay, 0ms) both; }
+.lw-slip--cleared .lw-slip-lock { opacity: 0; transition: opacity 0.15s; }
+@keyframes lw-slip-fold {
+  0% { transform: rotate(-1.6deg); opacity: 1; }
+  28% { transform: translateY(calc(var(--s) * 0.35)) rotate(3deg) scaleY(1.04); opacity: 1; }
+  100% { transform: translateY(calc(var(--s) * -0.6)) rotate(0) scaleY(0.04); opacity: 0; }
+}
 
 /* ---------- lantern clock ---------- */
 .lw-clock {
@@ -577,6 +609,9 @@
   paint-order: stroke fill;
   text-shadow: calc(var(--s) * 0.3) calc(var(--s) * 0.5) 0 var(--night-deep), 0 0 calc(var(--s) * 3) color-mix(in srgb, var(--lantern) 60%, transparent);
 }
+/* With the coach note up, the count drops just below it so both read during prep. */
+.lw-hud--coaching .lw-moment--count { margin-top: calc(var(--s) * 6.6); }
+.lw-hud--coaching .lw-moment--count .lw-moment-title { font-size: calc(var(--s) * 7); }
 @keyframes lw-count { 0% { opacity: 0; transform: scale(2.2); } 30% { opacity: 1; transform: scale(1); } 100% { opacity: 0.85; transform: scale(0.94); } }
 
 /* Round / match result card */
@@ -753,11 +788,14 @@
   100% { transform: scale(1.06) rotate(-1deg); }
 }
 
+/* The result menu repeats the result: the HUD's card bows out so the two never stack. */
+.lw-stage[data-menu='over'] .lw-moments > * { opacity: 0; transform: scale(0.94); transition: opacity 0.3s, transform 0.3s; }
+
 /* ---------- reduced motion: keep every state change, drop the movement ---------- */
 @media (prefers-reduced-motion: reduce) {
   .lw-hud *, .lw-hud *::before, .lw-hud *::after { animation: none !important; }
   .lw-slip { transition: none; }
   .lw-slip-card { transition: none; }
-  .lw-slip--served, .lw-slip--expired { opacity: 0; transition: opacity 0.3s; }
+  .lw-slip--served, .lw-slip--expired, .lw-slip--cleared { opacity: 0; transition: opacity 0.3s; }
   .lw-moment--out { opacity: 0; transition: opacity 0.3s; }
 }

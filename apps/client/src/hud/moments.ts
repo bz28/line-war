@@ -97,7 +97,15 @@ const el = (tag: string, cls: string, text?: string): HTMLElement => {
   return e;
 };
 
-const OUT_MS = 380;
+export const OUT_MS = 380;
+
+interface Built {
+  key: string;
+  kind: MomentKind;
+  card: boolean;
+  el: HTMLElement;
+  footer: HTMLElement | null;
+}
 
 /**
  * Centred paper banners and stamps for phase changes, plus the round / match result card.
@@ -105,12 +113,20 @@ const OUT_MS = 380;
  */
 export class Moments {
   readonly root: HTMLElement;
-  private current: { key: string; el: HTMLElement; footer: HTMLElement | null } | null = null;
-  private outgoing: { el: HTMLElement; until: number }[] = [];
+  private current: Built | null = null;
+  private outgoing: { el: HTMLElement; until: number; card: boolean }[] = [];
+  /** A card waits off-stage until the card it replaces has finished leaving. */
+  private enterAt = 0;
+  private entered = true;
 
   /** True while a banner, stamp or card is showing. */
   get showing(): boolean {
     return this.current !== null;
+  }
+
+  /** Kind of the moment showing now (null when none). */
+  get kind(): MomentKind | null {
+    return this.current?.kind ?? null;
   }
 
   constructor(private now: () => number) {
@@ -122,26 +138,42 @@ export class Moments {
     const now = this.now();
     const m = currentMoment(s);
     if ((m?.key ?? null) !== (this.current?.key ?? null)) {
-      if (this.current) {
-        this.current.el.classList.add('lw-moment--out');
-        this.outgoing.push({ el: this.current.el, until: now + OUT_MS });
+      const prev = this.current;
+      if (prev) {
+        if (this.entered) {
+          prev.el.classList.add('lw-moment--out');
+          this.outgoing.push({ el: prev.el, until: now + OUT_MS, card: prev.card });
+        } else prev.el.remove(); // never shown: drop it quietly
       }
       this.current = m ? this.build(m) : null;
-      if (this.current) this.root.append(this.current.el);
+      // Cards never share the stage: a card waits for the one before it (round -> match over),
+      // and anything after a card waits for it to clear, so two cards are never on screen at once.
+      const lastOut = this.outgoing.reduce((t, o) => (o.card || this.current?.card ? Math.max(t, o.until) : t), 0);
+      this.enterAt = lastOut;
+      this.entered = false;
       this.root.classList.toggle('lw-moments--card', !!m?.card);
     } else if (m?.card && this.current?.footer && this.current.footer.textContent !== m.card.footer) {
       this.current.footer.textContent = m.card.footer;
     }
     this.outgoing = this.outgoing.filter((o) => (now < o.until ? true : (o.el.remove(), false)));
+    if (this.current && !this.entered && now >= this.enterAt) {
+      this.entered = true;
+      this.root.append(this.current.el);
+    }
   }
 
-  private build(m: Moment): { key: string; el: HTMLElement; footer: HTMLElement | null } {
+  /** True once the current moment is on stage (false while it waits for a card to leave). */
+  get onStage(): boolean {
+    return this.current !== null && this.entered;
+  }
+
+  private build(m: Moment): Built {
     const root = el('div', `lw-moment lw-moment--${m.kind}`);
     root.dataset.moment = m.kind;
     if (!m.card) {
       root.append(el('div', 'lw-moment-title', m.title));
       if (m.subtitle) root.append(el('div', 'lw-moment-sub', m.subtitle));
-      return { key: m.key, el: root, footer: null };
+      return { key: m.key, kind: m.kind, card: false, el: root, footer: null };
     }
     const c = m.card;
     if (c.winner !== null) root.classList.add(c.winner === 0 ? 'lw-jade' : 'lw-ember');
@@ -159,7 +191,7 @@ export class Moments {
     });
     const footer = el('div', 'lw-moment-sub', c.footer);
     root.append(row, footer);
-    return { key: m.key, el: root, footer };
+    return { key: m.key, kind: m.kind, card: true, el: root, footer };
   }
 
   dispose(): void {
