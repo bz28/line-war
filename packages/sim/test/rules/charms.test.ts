@@ -30,9 +30,9 @@ const BOARD0 = 1 * 9 + 2; // team 0 board at (2,1)
 const CRATE = 3 * 9 + 4;
 
 /** Short rounds so the single charm is due quickly: prep 1 s, round 60 s, one charm. */
-const FAST: ConfigOverrides = { prepSeconds: 1, roundSeconds: 60, tuning: { charmsPerRound: 1 } };
+const FAST: NonNullable<ConfigOverrides> = { prepSeconds: 1, roundSeconds: 60, tuning: { charmsPerRound: 1 } };
 
-function newCharmMatch(overrides: ConfigOverrides = FAST, charms: CharmVariantDef[] = CHARMS, arena: ArenaDef = TEST_ARENA): MatchState {
+function newCharmMatch(overrides: NonNullable<ConfigOverrides> = FAST, charms: CharmVariantDef[] = CHARMS, arena: ArenaDef = TEST_ARENA): MatchState {
   const config = makeConfig({ ...FAST, ...overrides, tuning: { ...FAST.tuning, ...overrides.tuning } });
   return createMatch({ arena, recipes: RULE_RECIPES, ingredients: TEST_INGREDIENTS, charms, config });
 }
@@ -61,7 +61,7 @@ function park(state: MatchState): void {
 }
 
 /** Advance to service (past prep) with the charm schedule pushed out of the way. */
-function inService(overrides: ConfigOverrides = {}): MatchState {
+function inService(overrides: NonNullable<ConfigOverrides> = {}): MatchState {
   const s = newCharmMatch({ ...FAST, ...overrides, tuning: { charmsPerRound: 0, ...overrides.tuning } });
   stepToRoundTick(s, 31);
   park(s);

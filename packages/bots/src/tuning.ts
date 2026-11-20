@@ -49,9 +49,9 @@ export const BOT_TUNING = {
 
   // ---------- charms (RULES §10) ----------
   /** Farthest (path tiles) a resting charm can be for a crewmate to go and fetch it. */
-  charmRange: 16,
+  charmRange: 26,
   /** Knock / hunt appetite multiplier against a rival carrying a charm (they are worth points and Heat). */
-  charmAppetite: 1.6,
+  charmAppetite: 2,
 
   // ---------- crew planning (crew.ts) ----------
   /** A task that failed is not offered again for this long. */
