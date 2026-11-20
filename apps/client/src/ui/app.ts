@@ -5,7 +5,7 @@ import type { Settings } from '../settings/types';
 import { h } from './dom';
 import { focusables, MenuNav } from './nav';
 import { howToScreen } from './howTo';
-import { matchOverScreen, pauseScreen, titleScreen } from './screens';
+import { matchOverScreen, pauseScreen, pauseSummary, titleScreen } from './screens';
 import { SettingsMenu } from './settingsMenu';
 import { charmShelfScreen } from './charmShelf';
 import { CHARM_IDS, loadCollection, saveCollection, setDisplay } from '../collection/store';
@@ -42,6 +42,7 @@ export interface AppOptions {
 
 /** The result screen ignores presses this long after it opens, so grab held or tapped at the buzzer can't restart. */
 export const RESULT_GUARD_MS = 600;
+const ACTIVATE_KEYS = new Set(['Space', 'Enter', 'NumpadEnter']);
 
 type Screen = 'title' | 'howto' | 'charms' | 'playing' | 'paused' | 'over';
 
@@ -63,6 +64,8 @@ export class App {
   private now: () => number;
   /** Clicks in the overlay are swallowed until this time (the match-over guard). */
   private guardUntil = 0;
+  /** Activation keys pressed during the guard: their release must not click either. */
+  private guardKeys = new Set<string>();
 
   constructor(private opts: AppOptions) {
     this.storage = opts.storage;
@@ -74,6 +77,8 @@ export class App {
     opts.root.replaceChildren(this.stage, this.overlay);
     // Capture phase: a guarded click never reaches the button (keyboard Enter/Space, pad A, mouse).
     this.overlay.addEventListener('click', this.guardClick, true);
+    window.addEventListener('keydown', this.guardKeyDown, true);
+    window.addEventListener('keyup', this.guardKeyUp, true);
     this.nav = new MenuNav(
       {
         getRoot: () => (this.overlay.hidden ? null : this.overlay),
@@ -102,6 +107,8 @@ export class App {
     cancelAnimationFrame(this.raf);
     this.nav.dispose();
     this.overlay.removeEventListener('click', this.guardClick, true);
+    window.removeEventListener('keydown', this.guardKeyDown, true);
+    window.removeEventListener('keyup', this.guardKeyUp, true);
     this.closeSettings();
     this.endSession();
     window.removeEventListener('gamepadconnected', this.onPadsChanged);
@@ -140,7 +147,7 @@ export class App {
         restart: () => this.play(),
         settings: () => this.openSettings('Player, control and display changes apply now; match rules on restart.'),
         quit: () => this.showTitle(),
-      }),
+      }, this.session?.state.round ? pauseSummary(this.session.state) : undefined),
     );
   }
 
@@ -232,10 +239,26 @@ export class App {
     this.nav.rebaseline();
   }
 
+  private guarding(): boolean {
+    return this.screen === 'over' && this.now() < this.guardUntil;
+  }
+
   private guardClick = (e: Event): void => {
-    if (this.screen !== 'over' || this.now() >= this.guardUntil) return;
+    if (!this.guarding() && !this.guardKeys.size) return;
     e.preventDefault();
     e.stopImmediatePropagation();
+  };
+
+  private guardKeyDown = (e: KeyboardEvent): void => {
+    if (!ACTIVATE_KEYS.has(e.code) || !this.guarding()) return;
+    this.guardKeys.add(e.code);
+    e.preventDefault();
+  };
+
+  /** A press that began inside the guard is swallowed on release too (Space clicks on keyup). */
+  private guardKeyUp = (e: KeyboardEvent): void => {
+    if (!this.guardKeys.delete(e.code)) return;
+    e.preventDefault();
   };
 
   private togglePause(): void {

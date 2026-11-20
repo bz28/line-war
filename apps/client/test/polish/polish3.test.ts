@@ -185,3 +185,28 @@ describe('audio mix pass', () => {
     for (const f of freqs) expect(PENTA_D).toContain(pc(f));
   });
 });
+
+describe('playtest fixes', () => {
+  it('the pause card says where the match stands', async () => {
+    const { createMatch, makeConfig } = await import('@line-war/sim');
+    const { pauseScreen, pauseSummary } = await import('../../src/ui/screens');
+    const lv = levelById('night-market');
+    const s = createMatch({ arena: lv.arena, recipes: lv.recipes, ingredients: lv.ingredients, config: makeConfig({ seed: 1, roundSeconds: 120, bestOf: 3 }) });
+    s.round.phase = 'service';
+    s.round.tick = 30 * (s.config.prepSeconds + 0) + 30 * 36; // 36 s into service
+    s.round.index = 1;
+    s.teams[0].score = 240;
+    s.teams[1].score = 1180;
+    s.teams[1].roundsWon = 1;
+    const sum = pauseSummary(s);
+    expect(sum.where).toMatch(/^Round 2 of 3, \d:\d\d left$/);
+    const el = pauseScreen({ resume: noop, restart: noop, settings: noop, quit: noop }, sum);
+    expect(el.querySelector('.lw-pause-board')?.textContent).toContain('1,180');
+    expect(el.textContent).toContain('1 round won');
+  });
+
+  it('the audio settings no longer say sound is coming later', async () => {
+    const { AUDIO_NOTE } = await import('../../src/ui/settingsMenu');
+    expect(AUDIO_NOTE).not.toMatch(/later build/);
+  });
+});

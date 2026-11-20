@@ -213,3 +213,20 @@ describe('audit 6: a match that fails to start returns to the title', () => {
     err.mockRestore();
   });
 });
+
+describe('audit 1b: a key pressed inside the guard does not click when released after it', () => {
+  it('swallows the release click of a Space held across the guard', () => {
+    const { app, over, started, button, advance } = setup();
+    button('Play').click();
+    over[0]!();
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', cancelable: true }));
+    advance(RESULT_GUARD_MS + 300);
+    const up = new KeyboardEvent('keyup', { code: 'Space', cancelable: true });
+    window.dispatchEvent(up);
+    expect(up.defaultPrevented).toBe(true);
+    expect(app.currentScreen).toBe('over');
+    expect(started).toHaveLength(1);
+    button('Play again').click();
+    expect(app.currentScreen).toBe('playing');
+  });
+});
