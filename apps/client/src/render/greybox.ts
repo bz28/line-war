@@ -135,6 +135,10 @@ export class GreyboxRenderer implements Renderer {
 
   // ---------- state tracking ----------
 
+  onTick(s: MatchState) {
+    this.ingest(s, this.now());
+  }
+
   /** Once per new sim tick: remember positions and turn this tick's events into effects. */
   private ingest(s: MatchState, now: number) {
     if (s.tick === this.lastTick) return;

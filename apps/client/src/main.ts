@@ -72,6 +72,7 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
     () => {
       if (paused) return;
       step(state, sources.map((s) => s.poll()) as MatchInputs);
+      renderer.onTick?.(state);
       if (state.round.phase === 'matchOver' && !overNotified) {
         overNotified = true;
         hooks.onMatchOver();
