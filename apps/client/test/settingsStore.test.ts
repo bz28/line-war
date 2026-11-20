@@ -4,6 +4,7 @@ import {
   isConflicted,
   layoutOf,
   loadSettings,
+  sanitizeSettings,
   saveSettings,
   STORAGE_KEY,
   type StorageLike,
@@ -119,6 +120,12 @@ describe('loadSettings', () => {
     expect(s.audio).toEqual(DEFAULT_SETTINGS.audio);
     expect(s.display).toEqual(DEFAULT_SETTINGS.display);
   });
+
+  it('keeps a known level and falls back to Night Market for an unknown one', () => {
+    expect(sanitizeSettings({ level: 'rooftop-garden' }).level).toBe('rooftop-garden');
+    expect(sanitizeSettings({ level: 'moon-base' }).level).toBe('night-market');
+    expect(sanitizeSettings({}).level).toBe('night-market');
+  });
 });
 
 describe('saveSettings', () => {
@@ -133,6 +140,7 @@ describe('saveSettings', () => {
         { kind: 'none' },
       ],
       match: { roundSeconds: 180, prepSeconds: 5, bestOf: 1, rushEnabled: false, criticEnabled: true, brunchSpeed: true },
+      level: 'harbor-pier',
       audio: { master: 0.5, music: 0, effects: 1 },
       display: { screenShake: false, colorblindShapes: true, showFps: true },
     };

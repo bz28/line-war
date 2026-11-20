@@ -4,6 +4,8 @@ import { crewMark, lanternIcon } from '../hud/icons';
 import { findKeyConflicts, layoutOf } from '../settings/store';
 import type { Settings, SlotController } from '../settings/types';
 import { button, h } from './dom';
+import { levelPicker } from './levelPicker';
+import { levelById } from '@line-war/content';
 import { slotName } from './settingsMenu';
 
 export interface MenuItem {
@@ -75,7 +77,10 @@ export function logo(): HTMLElement {
   );
 }
 
-export function titleScreen(settings: Settings, actions: { play(): void; howTo(): void; settings(): void }): HTMLElement {
+export function titleScreen(
+  settings: Settings,
+  actions: { play(): void; howTo(): void; settings(): void; pickLevel(id: string): void },
+): HTMLElement {
   const conflicts = findKeyConflicts(settings.slots).size;
   return h(
     'div',
@@ -83,6 +88,8 @@ export function titleScreen(settings: Settings, actions: { play(): void; howTo()
     logo(),
     h('p', { class: 'lw-tagline' }, 'Two crews. One market. Every plate is a fight.'),
     lineup(settings),
+    levelPicker(settings.level, actions.pickLevel),
+    h('p', { class: 'lw-level-blurb lw-center' }, levelById(settings.level).blurb),
     h('p', { class: 'lw-muted lw-center' }, rulesSentence(settings.match)),
     conflicts ? h('p', { class: 'lw-warning lw-center', role: 'alert' }, 'Some keys are bound twice. Open Settings, then Controls, to fix them.') : null,
     menu([
