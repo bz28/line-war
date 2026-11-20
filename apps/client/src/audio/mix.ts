@@ -37,6 +37,12 @@ export function busGains(v: Volumes): { music: number; effects: number } {
 export const MUSIC_BUS_GAIN = dbToGain(-14);
 /** Music ducks this far under important stingers (Critic, phase changes, rival serves). */
 export const MUSIC_DUCK_DB = -7;
+/** Music dip under core feedback cues (cues.ts MUSIC_DIPS): attack and release time constants, longest hold (s). */
+export const MUSIC_DIP_ATTACK = 0.005;
+/** The dip starts this far ahead of the cue (s), within the scheduling lead. */
+export const MUSIC_DIP_LEAD = 0.015;
+export const MUSIC_DIP_HOLD = 0.2;
+export const MUSIC_DIP_RELEASE = 0.12;
 
 /** Pan range used for world-x panning: never hard-left/right, which sounds unnatural on speakers. */
 export const PAN_WIDTH = 0.7;

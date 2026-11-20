@@ -256,3 +256,33 @@ describe('first paint: the splash waits for the title fonts, never for long', ()
     expect(() => liftSplash(null)).not.toThrow();
   });
 });
+
+describe('core feedback cues dip the music under them', () => {
+  it('serve, own charm bank, burn warning, grab and the rival serve each open a short music pocket', async () => {
+    const { MUSIC_DIPS, DUCKING_CUES } = await import('../../src/audio/cues');
+    for (const id of ['deliver', 'charmBank', 'burnWarn', 'grab', 'deliverRival'] as const) expect(MUSIC_DIPS[id]).toBeLessThanOrEqual(-8);
+    // The rival serve also keeps its longer stinger duck.
+    expect(DUCKING_CUES.has('deliverRival')).toBe(true);
+  });
+
+  it('the dip opens just ahead of the cue and comes straight back, on its own gain stage', async () => {
+    const { AudioDirector } = await import('../../src/audio');
+    const { fakeAudioContext } = await import('../audio/fakeAudio');
+    const { MUSIC_DIPS } = await import('../../src/audio/cues');
+    const { dbToGain, MUSIC_DIP_RELEASE } = await import('../../src/audio/mix');
+    const fake = fakeAudioContext();
+    const d = new AudioDirector({ createContext: () => fake.ctx, realtime: false });
+    d.resume();
+    const graph = (d as unknown as { graph: { dip: { gain: { events: { fn: string; args: number[] }[] } }; duck: { gain: { events: unknown[] } } } }).graph;
+    d.play({ id: 'deliver', pan: 0, pitch: 0 }, 1);
+    const ev = graph.dip.gain.events.filter((e) => e.fn === 'setTargetAtTime');
+    expect(ev.map((e) => e.args[0])).toEqual([dbToGain(MUSIC_DIPS.deliver!), 1]);
+    expect(ev[0]!.args[1]).toBeLessThan(1); // opens before the cue lands
+    expect(ev[1]!.args[2]).toBe(MUSIC_DIP_RELEASE);
+    expect(graph.duck.gain.events).toEqual([]); // the stinger duck is untouched
+    const n = graph.dip.gain.events.length;
+    d.play({ id: 'chopKnock', pan: 0, pitch: 0 }, 2);
+    expect(graph.dip.gain.events.length).toBe(n); // frequent work sounds never dip the music
+    d.dispose();
+  });
+});
