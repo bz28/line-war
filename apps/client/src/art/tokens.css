@@ -1,0 +1,19 @@
+/* Mirrors src/art/tokens.ts — keep in sync. */
+:root {
+  --night: #1B1F3A;
+  --night-deep: #12152B;
+  --slate: #2E3456;
+  --slate-light: #3B4370;
+  --lantern: #FFC857;
+  --lantern-hot: #FF9F1C;
+  --bamboo: #C98E5A;
+  --bamboo-dark: #8A5A3B;
+  --paper: #FFF3D6;
+  --ink: #2A2238;
+  --danger: #E5484D;
+  --steel: #8C93A8;
+  --jade: #2EC4A6; --jade-light: #8EF0DA; --jade-dark: #167A68;
+  --ember: #FF6B3D; --ember-light: #FFB199; --ember-dark: #B33A14;
+  --font-display: 'Dela Gothic One', system-ui, sans-serif;
+  --font-ui: 'M PLUS Rounded 1c', system-ui, sans-serif;
+}

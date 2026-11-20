@@ -1,3 +1,4 @@
+import './art/tokens.css';
 import { INGREDIENTS, NIGHT_MARKET, RECIPES } from '@line-war/content';
 import { createMatch, makeConfig, NO_INPUT, step, type MatchInputs, type MatchState, type PlayerId } from '@line-war/sim';
 import { createBots } from '@line-war/bots';
