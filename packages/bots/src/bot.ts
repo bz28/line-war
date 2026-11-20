@@ -46,6 +46,10 @@ const BODY_OFFSETS: readonly [number, number][] = [
   [0, -1],
 ];
 
+/** walk() result when there is no way to the goal (the caller decides what that means). */
+const NO_WAY = 'noWay' as const;
+type Walk = Vec2 | null | typeof NO_WAY;
+
 const actKey = (a: Act): string =>
   a.kind === 'pick' ? `pick:${a.item}` : a.kind === 'wait' ? 'wait' : `${a.kind}:${a.tile}`;
 
@@ -104,7 +108,7 @@ export class Bot {
     const me = state.players[this.id];
     const k = kitchenFor(state, me.team);
     this.crew.sync(state);
-    for (const ev of state.events) if (ev.type === 'knock' && ev.by === this.id) this.onKnock(ev.itemId, state);
+    for (const ev of state.events) if (ev.type === 'knock' && ev.by === this.id) this.onKnock(ev.itemId, state, !me.holding);
 
     const ctx: Ctx = {
       state,
@@ -228,9 +232,9 @@ export class Bot {
       case 'wait':
         return NO_INPUT;
       case 'goto':
-        return this.input(this.walk(ctx, [act.tile], key) ?? { x: 0, y: 0 });
+        return this.taskMove(ctx, this.walk(ctx, [act.tile], key));
       case 'pick':
-        return this.pick(ctx, act.item, key);
+        return this.pick(ctx, act.item, key, () => this.failTask(ctx));
       default:
         break;
     }
@@ -243,15 +247,23 @@ export class Bot {
     const here = acc.find((a) => a.tile === ctx.tile);
     if (!here || !this.reaches(ctx, me.pos, here.dir, tile)) {
       const goals = this.freeAccess(ctx, acc.map((a) => a.tile));
-      const mv = this.walk(ctx, goals, key);
-      return this.input(mv ?? { x: 0, y: 0 });
+      return this.taskMove(ctx, this.walk(ctx, goals, key));
     }
     this.stuck = 0;
     const facingOk = me.facing.x * here.dir.x + me.facing.y * here.dir.y > 0.999 && interactTarget(state, me).tile === tile;
     if (!facingOk) return { ...NO_INPUT, move: { x: here.dir.x * 0.01, y: here.dir.y * 0.01 } };
     if (act.kind === 'work') return { ...NO_INPUT, work: true };
     if (act.kind === 'face') return NO_INPUT;
-    return this.press(ctx);
+    return this.press(ctx, () => this.failTask(ctx));
+  }
+
+  /** A task's walk: no way there fails the task. */
+  private taskMove(ctx: Ctx, w: Walk): PlayerInput {
+    if (w === NO_WAY) {
+      this.failTask(ctx);
+      return NO_INPUT;
+    }
+    return this.input(w ?? { x: 0, y: 0 });
   }
 
   /**
@@ -268,11 +280,12 @@ export class Bot {
     return depth >= ARRIVE_MARGIN;
   }
 
-  private press(ctx: Ctx): PlayerInput {
+  /** Press Grab (rate-limited); `onFail` runs when repeated presses achieve nothing. */
+  private press(ctx: Ctx, onFail: () => void): PlayerInput {
     const tick = ctx.state.tick;
     if (ctx.me.dazedTicks > 0 || tick - this.lastGrab < GRAB_GAP_TICKS) return NO_INPUT;
     if (++this.presses > MAX_PRESSES) {
-      this.failTask(ctx);
+      onFail();
       return NO_INPUT;
     }
     this.lastGrab = tick;
@@ -281,7 +294,7 @@ export class Bot {
     return { ...NO_INPUT, grab: true };
   }
 
-  private pick(ctx: Ctx, item: number, key: string): PlayerInput {
+  private pick(ctx: Ctx, item: number, key: string, onFail: () => void): PlayerInput {
     const { me } = ctx;
     const loc = ctx.items.get(item);
     if (!loc || loc.at !== 'floor') return NO_INPUT;
@@ -292,11 +305,16 @@ export class Bot {
         const front = me.facing.x * (loc.pos.x - me.pos.x) + me.facing.y * (loc.pos.y - me.pos.y);
         if (front < 0) return { ...NO_INPUT, move: { x: ((loc.pos.x - me.pos.x) / d) * 0.01, y: ((loc.pos.y - me.pos.y) / d) * 0.01 } };
       }
-      return this.press(ctx);
+      return this.press(ctx, onFail);
     }
     const t = ctx.k.nav.tileAt(loc.pos);
     if (t === ctx.tile || d < 1.2) return this.input(this.toward(me.pos, loc.pos, ctx));
-    return this.input(this.walk(ctx, [t], key) ?? { x: 0, y: 0 });
+    const w = this.walk(ctx, [t], key);
+    if (w === NO_WAY) {
+      onFail();
+      return NO_INPUT;
+    }
+    return this.input(w ?? { x: 0, y: 0 });
   }
 
   private input(move: Vec2, extra: Partial<PlayerInput> = {}): PlayerInput {
@@ -337,8 +355,11 @@ export class Bot {
     return { x: (dx / d) * m, y: (dy / d) * m };
   }
 
-  /** Follow a path to any goal tile's centre. Returns the move, or null when there. */
-  private walk(ctx: Ctx, goals: number[], key: string): Vec2 | null {
+  /**
+   * Follow a path to any goal tile's centre. Returns the move, null when there, or NO_WAY when
+   * there is no path or we gave up after getting stuck repeatedly. Never touches the task.
+   */
+  private walk(ctx: Ctx, goals: number[], key: string): Walk {
     const { state, me, k } = ctx;
     const nav = k.nav;
     const cur = ctx.tile;
@@ -352,10 +373,7 @@ export class Bot {
     const onPath = this.path !== null && (cur === this.pathFrom || this.path.includes(cur));
     if (this.path === null || this.pathKey !== goalKey || !onPath || state.tick - this.pathTick > REPATH_TICKS) {
       this.repath(ctx, goals, goalKey, this.stuck > 0);
-      if (this.path === null) {
-        this.failTask(ctx);
-        return null;
-      }
+      if (this.path === null) return NO_WAY;
     }
     const path = this.path!;
     if (path.length === 0) return null;
@@ -378,8 +396,7 @@ export class Bot {
       if (this.stuck >= GIVE_UP_LEVEL) {
         this.stats.giveUps++;
         this.stuck = 0;
-        this.failTask(ctx);
-        return null;
+        return NO_WAY;
       }
       this.repath(ctx, goals, goalKey, true);
       const s = this.rng.chance(0.5) ? 1 : -1;
@@ -443,8 +460,10 @@ export class Bot {
 
   // ---------- market play ----------
 
-  private onKnock(itemId: number, state: MatchState): void {
+  private onKnock(itemId: number, state: MatchState, emptyHanded: boolean): void {
     this.knocks++;
+    if (!emptyHanded) return; // carrying: we only denied it
+    this.endTask();
     this.chase = itemId;
     this.chaseUntil = state.tick + 75;
   }
@@ -458,7 +477,7 @@ export class Bot {
     if (this.chase !== null) {
       const loc = ctx.items.get(this.chase);
       if (!loc || loc.at !== 'floor' || state.tick > this.chaseUntil || me.holding) this.chase = null;
-      else if (loc.resting) return this.pick(ctx, this.chase, `chase:${this.chase}`);
+      else if (loc.resting) return this.pick(ctx, this.chase, `chase:${this.chase}`, () => (this.chase = null));
       else return NO_INPUT;
     }
     if (me.dazedTicks > 0) return null;
@@ -508,6 +527,8 @@ export class Bot {
         if (this.considered.get(episode) === 1) {
           this.huntTarget = r.id;
           this.huntUntil = state.tick + HUNT_TICKS;
+          // Drop the kitchen job (and its claims) so a crewmate can pick it up meanwhile.
+          this.endTask();
           break;
         }
       }
@@ -522,6 +543,10 @@ export class Bot {
         if (cut !== null && dist(me.pos, r.pos) > t.dashDistance) {
           // Wait in their way, facing them.
           const mv = this.walk(ctx, [cut], 'cut');
+          if (mv === NO_WAY) {
+            this.huntTarget = null;
+            return null;
+          }
           if (mv) return this.input(mv);
           const dx = r.pos.x - me.pos.x;
           const dy = r.pos.y - me.pos.y;
@@ -537,7 +562,12 @@ export class Bot {
         const at = nav.tileAt(aim);
         if (at >= 0 && nav.open[at] && al > 1e-6 && this.dashLaneClear(nav, me.pos, ax / al, ay / al, al)) return this.input(this.toward(me.pos, aim, ctx));
         // Something (a crate, a wall) is in the way: go round it.
-        return this.input(this.walk(ctx, [at >= 0 && nav.open[at] ? at : rt], 'hunt') ?? this.toward(me.pos, r.pos, ctx));
+        const mv = this.walk(ctx, [at >= 0 && nav.open[at] ? at : rt], 'hunt');
+        if (mv === NO_WAY) {
+          this.huntTarget = null;
+          return null;
+        }
+        return this.input(mv ?? this.toward(me.pos, r.pos, ctx));
       }
     }
     // Evasion: carrying in the market with a rival closing in head-on, dash on along our way.
@@ -603,6 +633,11 @@ export class Bot {
   /** For tests: current act key. */
   get actKey(): string {
     return this.key;
+  }
+
+  /** For tests: the rival this bot is hunting, if any. */
+  get hunting(): PlayerId | null {
+    return this.huntTarget;
   }
 
   /** For tests: current task key. */

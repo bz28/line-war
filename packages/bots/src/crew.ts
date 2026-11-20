@@ -132,6 +132,10 @@ export class Crew {
     const c = this.claims.get(key);
     return c !== undefined && c !== me;
   }
+  /** Claims held by `who` (for tests). */
+  claimsOf(who: PlayerId): string[] {
+    return [...this.claims].filter(([, v]) => v === who).map(([k]) => k);
+  }
   releaseAll(who: PlayerId): void {
     for (const [k, v] of this.claims) if (v === who) this.claims.delete(k);
   }

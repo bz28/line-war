@@ -20,3 +20,25 @@ describe('reusing brains', () => {
     }
   }, T);
 });
+
+describe('market play', () => {
+  it('a hunting bot holds no kitchen claims (crewmates can take over its job)', () => {
+    let huntTicks = 0;
+    for (const seed of [1, 2, 3]) {
+      const slots: Slots = [bot('hard'), bot('hard'), bot('hard'), bot('hard')];
+      runMatch({
+        seed,
+        slots,
+        config: { bestOf: 1 },
+        onTick: (_state, _inputs, bots) => {
+          for (const b of bots) {
+            if (!b || b.hunting === null) continue;
+            huntTicks++;
+            expect(b.crew.claimsOf(b.id)).toEqual([]);
+          }
+        },
+      });
+    }
+    expect(huntTicks).toBeGreaterThan(0);
+  }, T);
+});
