@@ -55,6 +55,8 @@ export interface CreateMatchOptions {
   config: MatchConfig;
   /** The level's charm variants (RULES §10). Omitted or empty = no charms. */
   charms?: readonly CharmVariantDef[];
+  /** The level's charm count per round (RULES §10); overrides tuning.charmsPerRound when given. */
+  charmsPerRound?: number;
 }
 
 const freshTeam = (): TeamState => ({ score: 0, roundsWon: 0, heat: 0, cleanStreak: 0 });
@@ -103,7 +105,8 @@ export function spawnPlayers(arena: ArenaRuntime, swapped: boolean): MatchState[
 
 export function createMatch(opts: CreateMatchOptions): MatchState {
   const arena = buildArena(opts.arena);
-  const { config } = opts;
+  const config =
+    opts.charmsPerRound === undefined ? opts.config : { ...opts.config, tuning: { ...opts.config.tuning, charmsPerRound: opts.charmsPerRound } };
   return {
     tick: 0,
     config,

@@ -152,6 +152,15 @@ describe('charm spawning (RULES §10)', () => {
     expect(charmSpawnTiles(s)).toEqual([tileIndex(s.arena, 4, 1), tileIndex(s.arena, 5, 1), tileIndex(s.arena, 4, 2), tileIndex(s.arena, 5, 2)]);
   });
 
+  it('createMatch({ charmsPerRound }) sets the level count over tuning', () => {
+    const s = createMatch({ arena: TEST_ARENA, recipes: RULE_RECIPES, ingredients: TEST_INGREDIENTS, charms: CHARMS, charmsPerRound: 2, config: makeConfig(FAST) });
+    expect(s.config.tuning.charmsPerRound).toBe(2);
+    park(s);
+    const events: ReturnType<typeof stepN> = [];
+    while (s.round.phase !== 'roundOver') events.push(...stepN(s, 1));
+    expect(ofType(events, 'charmSpawned')).toHaveLength(2);
+  });
+
   it('picks variants by weight (the rare one is rarer)', () => {
     const counts = new Map<string, number>();
     for (let seed = 1; seed <= 200; seed++) {

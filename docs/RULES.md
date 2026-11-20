@@ -134,7 +134,7 @@ no rng is drawn, so the match plays exactly as without charms.
   nothing; facing floor drops it (§2). A charm can't be trashed. A flying charm treats counters and boards like
   any other non-floor tile: it stops on the last open tile instead of landing on them. Holding a charm fills
   your hands (you can't take food, catch, or grab anything else until it is gone).
-- **Spawning**: `charmsPerRound` charms per round. Charm *k* (0-based) is due at round tick
+- **Spawning**: `charmsPerRound` charms per round. The count is **per level**: each level sets it in content (`LevelDef.charmsPerRound`: Night Market 3, Harbor Pier 3, Rooftop Garden 1) and it is passed to `createMatch({ charmsPerRound })`, which overrides `tuning.charmsPerRound` (the default, 3, used when no count is given). Charm *k* (0-based) is due at round tick
   `prepEnd + floor((k + 1) × (lastCallStart − prepEnd) / (charmsPerRound + 1))` (§9 round times), so spawns
   are spread evenly over service and Dinner Rush and never fall in prep or Last Call. When a charm is due and the
   phase is `service` or `rush`, candidate tiles are the **floor tiles of the market's middle column** (the

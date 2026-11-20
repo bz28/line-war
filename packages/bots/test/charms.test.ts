@@ -18,7 +18,7 @@ interface CharmRun {
 
 function run(levelId: string, seed: number, slots: (BotOptions | null)[], bestOf = 1): CharmRun {
   const level = LEVELS.find((l) => l.id === levelId)!;
-  const state = createMatch({ arena: level.arena, recipes: level.recipes, ingredients: level.ingredients, charms: level.charms, config: makeConfig({ seed, bestOf }) });
+  const state = createMatch({ arena: level.arena, recipes: level.recipes, ingredients: level.ingredients, charms: level.charms, charmsPerRound: level.charmsPerRound, config: makeConfig({ seed, bestOf }) });
   const { brains, bots } = createBotsDebug(slots.map((s, i) => (s ? { ...s, seed: seed * 31 + i } : null)));
   const out: CharmRun = { state, spawned: 0, banked: [0, 0], charmKnocks: [0, 0], maxChasers: 0 };
   while (state.round.phase !== 'matchOver' && state.tick < 40_000) {
