@@ -6,6 +6,8 @@ import { browserGamepads, GamepadInput } from './input/gamepad';
 import { KeyboardInput, KeyboardState } from './input/keyboard';
 import type { InputSource } from './input/types';
 import { startLoop } from './loop';
+import { HudRenderer } from './hud/hud';
+import { buildDemoState } from './render/demo';
 import { GreyboxRenderer } from './render/greybox';
 import type { Renderer } from './render/types';
 import type { Settings } from './settings/types';
@@ -33,23 +35,38 @@ function createInputSources(settings: Settings, keyboard: KeyboardState, getStat
 
 const boundKeys = (settings: Settings) => settings.slots.flatMap((s) => (s.kind === 'keyboard' ? Object.values(s.bindings) : []));
 
+/** Let the match-over stamp play on the HUD before the result menu covers it. */
+const MATCH_OVER_DELAY_MS = 2600;
+
+/** Dev only: `?demo` freezes a hand-built mid-round state (every HUD feature at once) for design review. */
+const DEMO = import.meta.env.DEV && new URLSearchParams(location.search).has('demo');
+
 const startSession: StartSession = (settings, host, hooks): MatchSession => {
-  const state = createMatch({
-    arena: NIGHT_MARKET,
-    recipes: RECIPES,
-    ingredients: INGREDIENTS,
-    config: makeConfig({ ...settings.match, seed: (Math.random() * 2 ** 31) | 0 }),
-  });
+  const state = DEMO
+    ? buildDemoState()
+    : createMatch({
+        arena: NIGHT_MARKET,
+        recipes: RECIPES,
+        ingredients: INGREDIENTS,
+        config: makeConfig({ ...settings.match, seed: (Math.random() * 2 ** 31) | 0 }),
+      });
   const keyboard = new KeyboardState();
   let sources = createInputSources(settings, keyboard, () => state);
   let paused = false;
   let overNotified = false;
 
+  // Stage layout: the DOM HUD band on top, the world canvas filling the rest (.lw-world has a definite size).
+  host.replaceChildren();
+  const hud = new HudRenderer(host);
+  const world = document.createElement('div');
+  world.className = 'lw-world';
   const canvas = document.createElement('canvas');
   const fps = document.createElement('div');
   fps.className = 'lw-fps';
-  host.replaceChildren(canvas, fps);
-  const renderer: Renderer = new GreyboxRenderer(canvas, state);
+  world.append(canvas);
+  host.append(world, fps);
+  const renderers: Renderer[] = [new GreyboxRenderer(canvas, state), hud];
+  let overTimer: ReturnType<typeof setTimeout> | undefined;
 
   const applyDisplay = (s: Settings) => {
     fps.hidden = !s.display.showFps;
@@ -68,16 +85,16 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
   const stop = startLoop(
     state.config.tuning.tickRate,
     () => {
-      if (paused) return;
+      if (paused || DEMO) return;
       step(state, sources.map((s) => s.poll()) as MatchInputs);
-      renderer.onTick?.(state);
+      for (const r of renderers) r.onTick?.(state);
       if (state.round.phase === 'matchOver' && !overNotified) {
         overNotified = true;
-        hooks.onMatchOver();
+        overTimer = setTimeout(() => hooks.onMatchOver(), MATCH_OVER_DELAY_MS);
       }
     },
     (alpha) => {
-      renderer.render(state, alpha);
+      for (const r of renderers) r.render(state, alpha);
       frames++;
       const now = performance.now();
       if (now - fpsSince >= 500) {
@@ -105,9 +122,10 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
     },
     dispose() {
       stop();
+      clearTimeout(overTimer);
       for (const src of sources) src.dispose?.();
       keyboard.dispose();
-      renderer.dispose?.();
+      for (const r of renderers) r.dispose?.();
       host.replaceChildren();
     },
   };

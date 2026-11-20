@@ -4,7 +4,9 @@ import type { IngredientDef, IngredientKind, RecipeDef } from '@line-war/sim';
 type IngredientDefs = Readonly<Record<IngredientKind, IngredientDef>>;
 import type { KeyBindings, Settings } from '../settings/types';
 import { button, h } from './dom';
+import { foodIcon } from '../hud/icons';
 import { keyLabel } from './keyNames';
+import { svg } from './screens';
 import { slotName } from './settingsMenu';
 
 /** One short line per ingredient on a plate, e.g. "Tomato: chop, then cook in a pot". */
@@ -77,7 +79,7 @@ export function howToScreen(settings: Settings, actions: { back(): void }): HTML
     h(
       'ol',
       { class: 'lw-howto-rules' },
-      h('li', {}, h('b', {}, 'Race the other crew. '), 'Both crews cook from one ticket board. The first crew to serve a matching dish at its own pass (coloured squares) wins the ticket.'),
+      h('li', {}, h('b', {}, 'Race the other crew. '), 'Both crews cook from one ticket board. The first crew to serve a matching dish at its own pass (the serving window in its colour) wins the ticket.'),
       h('li', {}, h('b', {}, 'Cook. '), 'Take ingredients from your shelves, chop on a board, cook in a pan or pot, put them on a plate, serve. Food burns if you leave it, and plated food goes cold after 20 s.'),
       h('li', {}, h('b', {}, 'Fight for the market. '), 'Steak and fish only come from the crates in the middle. Dash into a rival who is carrying something there to knock it loose, then grab it.'),
       h('li', {}, h('b', {}, 'Build Heat. '), 'Clean serves in a row multiply your points (×1.25, ×1.5, ×2). Burning food drops you a tier.'),
@@ -88,7 +90,16 @@ export function howToScreen(settings: Settings, actions: { back(): void }): HTML
       'div',
       { class: 'lw-howto-recipes' },
       RECIPES.map((r) =>
-        h('div', { class: 'lw-howto-recipe' }, h('b', {}, `${r.name} · ${r.baseValue}`), recipeSteps(r, INGREDIENTS).map((s) => h('div', {}, s))),
+        h(
+          'div',
+          { class: `lw-howto-recipe${r.premium ? ' lw-premium' : ''}` },
+          h('div', { class: 'lw-howto-recipe-head' }, h('b', {}, r.name), h('span', { class: 'lw-howto-value' }, `${r.baseValue}`)),
+          svg(
+            r.ingredients.map((f) => foodIcon(f.kind, f.state, INGREDIENTS[f.kind].cook?.vessel ?? null, `${f.state} ${f.kind}`)).join(''),
+            'lw-howto-icons',
+          ),
+          recipeSteps(r, INGREDIENTS).map((s) => h('div', {}, s)),
+        ),
       ),
     ),
     h('h3', {}, 'Controls'),
