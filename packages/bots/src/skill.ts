@@ -35,8 +35,20 @@ export interface SkillParams {
 const clamp01 = (x: number): number => (x < 0 ? 0 : x > 1 ? 1 : x);
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
+/**
+ * Skill for a slot: an explicit finite `skill` (clamped to [0, 1]), else the difficulty's default.
+ * Anything malformed (unknown difficulty, NaN) falls back to normal rather than freezing a crew.
+ */
+export function resolveSkill(difficulty: unknown, skill?: unknown): number {
+  if (typeof skill === 'number' && Number.isFinite(skill)) return clamp01(skill);
+  if (typeof difficulty === 'string' && Object.prototype.hasOwnProperty.call(DIFFICULTY_SKILL, difficulty)) {
+    return DIFFICULTY_SKILL[difficulty as BotDifficultyName];
+  }
+  return DIFFICULTY_SKILL.normal;
+}
+
 export function skillParams(skillIn: number): SkillParams {
-  const s = clamp01(skillIn);
+  const s = Number.isFinite(skillIn) ? clamp01(skillIn) : DIFFICULTY_SKILL.normal;
   return {
     skill: s,
     // 0.3 → ~10 ticks (330 ms), 0.6 → ~7 (230 ms), 0.9 → ~4.5 (150 ms).

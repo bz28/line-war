@@ -11,9 +11,9 @@ import { NO_INPUT, teamOf, type MatchState, type PlayerId, type PlayerInput } fr
 import { Bot } from './bot';
 import { Crew } from './crew';
 import { BotRng, mixSeed } from './rng';
-import { DIFFICULTY_SKILL, skillParams } from './skill';
+import { resolveSkill, skillParams } from './skill';
 
-export { DIFFICULTY_SKILL, skillParams, type SkillParams } from './skill';
+export { DIFFICULTY_SKILL, resolveSkill, skillParams, type SkillParams } from './skill';
 export { navFor, Nav, type Access } from './nav';
 
 export type BotDifficulty = 'easy' | 'normal' | 'hard';
@@ -43,7 +43,7 @@ export function createBots(slots: readonly (BotOptions | null)[]): (BotBrain | n
   const bots = slots.map((s, i) => {
     if (!s) return null;
     const id = i as PlayerId;
-    const skill = s.skill ?? DIFFICULTY_SKILL[s.difficulty];
+    const skill = resolveSkill(s.difficulty, s.skill);
     const crew = crews[teamOf(id)]!;
     crew.addMember(id, skill);
     return new Bot(id, crew, skillParams(skill), new BotRng(mixSeed(seedOf(i), i)));

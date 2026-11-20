@@ -1,7 +1,7 @@
 /** Regression tests for review findings: reused brains, odd options, edge cases in the executor. */
 import { describe, expect, it } from 'vitest';
 import { NO_INPUT, newId, step, tileOwner, type FloorItem, type MatchInputs, type PlayerId } from '@line-war/sim';
-import { createBotsDebug, navFor } from '../src';
+import { createBotsDebug, navFor, resolveSkill, type BotOptions } from '../src';
 import { bot, newMatch, runMatch, type Slots } from './harness';
 
 const T = 120_000;
@@ -129,5 +129,23 @@ describe('nowhere to put things', () => {
     expect(fi).toBeDefined();
     const nav = navFor(state, 0);
     expect(tileOwner(state, nav.tileAt(fi!.pos))).toBe(0);
+  }, T);
+});
+
+describe('bad options', () => {
+  it('an unknown difficulty or a non-finite skill falls back to normal', () => {
+    expect(resolveSkill('insane')).toBe(0.6);
+    expect(resolveSkill('toString')).toBe(0.6);
+    expect(resolveSkill('hard', Number.NaN)).toBe(0.9);
+    expect(resolveSkill('easy', 2)).toBe(1);
+    const weird: BotOptions[] = [
+      { difficulty: 'insane' } as unknown as BotOptions,
+      { difficulty: 'normal', skill: Number.NaN },
+      { difficulty: undefined } as unknown as BotOptions,
+      { difficulty: 'hard', skill: Infinity },
+    ];
+    const s = runMatch({ seed: 4, slots: weird, config: { bestOf: 1 } });
+    expect(s.matchOver).toBe(true);
+    for (const team of [0, 1] as const) expect(s.rounds[0]!.delivered[team]).toBeGreaterThanOrEqual(10);
   }, T);
 });
