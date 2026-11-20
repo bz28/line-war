@@ -44,6 +44,16 @@ export class CharmCallout {
     this.outUntil = 0;
   }
 
+  /**
+   * Stack the callout below another note (the first-match coach), `top` px from the top of the
+   * band; null puts it back under the clock.
+   */
+  stackBelow(top: number | null): void {
+    this.root.classList.toggle('lw-charm-callout--stacked', top !== null);
+    if (top === null) this.root.style.removeProperty('top');
+    else this.root.style.top = `calc(${Math.round(top)}px + var(--s) * 0.9)`;
+  }
+
   get showing(): boolean {
     return !this.root.hidden;
   }
