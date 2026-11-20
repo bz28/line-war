@@ -272,7 +272,7 @@ export class WorldRenderer implements Renderer {
     const fx = this.effects.active(now);
 
     const shake = this.cameraShake(fx, now);
-    this.fillLetterbox(shake.x !== 0 || shake.y !== 0);
+    this.clearFrame();
     ctx.setTransform(vp.scale, 0, 0, vp.scale, vp.offsetX + shake.x * vp.scale, vp.offsetY + shake.y * vp.scale);
 
     if (this.base) drawLayer(ctx, this.base);
@@ -323,26 +323,13 @@ export class WorldRenderer implements Renderer {
     }
   }
 
-  /** Night backdrop around the diorama (only the strips the base layer does not cover). */
-  private fillLetterbox(all: boolean): void {
+  /** Clear last frame (the margins are transparent so the stage backdrop shows through). */
+  private clearFrame(): void {
     const { ctx, vp } = this;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = PALETTE.nightDeep;
-    if (all) {
-      ctx.fillRect(0, 0, vp.pixelWidth, vp.pixelHeight);
-      return;
-    }
-    const w = Math.ceil(this.layout.width * vp.scale);
-    const h = Math.ceil(this.layout.height * vp.scale);
-    if (vp.offsetX > 0) {
-      ctx.fillRect(0, 0, vp.offsetX, vp.pixelHeight);
-      ctx.fillRect(vp.offsetX + w - 1, 0, vp.pixelWidth - vp.offsetX - w + 1, vp.pixelHeight);
-    }
-    if (vp.offsetY > 0) {
-      ctx.fillRect(0, 0, vp.pixelWidth, vp.offsetY);
-      ctx.fillRect(0, vp.offsetY + h - 1, vp.pixelWidth, vp.pixelHeight - vp.offsetY - h + 1);
-    }
+    ctx.clearRect(0, 0, vp.pixelWidth, vp.pixelHeight);
   }
+
 
   private cameraShake(fx: readonly Effect[], now: number): Vec2 {
     if (!this.screenShake || this.reducedMotion) return { x: 0, y: 0 };

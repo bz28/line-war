@@ -40,13 +40,7 @@ export function trimPath(ctx: Ctx, team: TeamId, x0: number, x1: number, y: numb
 
 function sky(ctx: Ctx, sc: Scene): void {
   const { layout, T } = sc;
-  const g = ctx.createLinearGradient(0, 0, 0, layout.height);
-  g.addColorStop(0, PALETTE.nightDeep);
-  g.addColorStop(0.35, PALETTE.night);
-  g.addColorStop(1, PALETTE.nightDeep);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, layout.width, layout.height);
-  // Distant market bokeh above the back wall.
+  // The margins stay transparent (the stage backdrop shows through); only soft distant bokeh.
   const colors = [PALETTE.lantern, PALETTE.lanternHot, PALETTE.lantern, TEAMS[0].light, PALETTE.paper];
   for (let i = 0; i < 26; i++) {
     const x = hash(i, 11) * layout.width;
@@ -307,13 +301,18 @@ export function paintBase(ctx: Ctx, sc: Scene): void {
   lightPools(ctx, sc, market);
   doorMats(ctx, sc);
   blockShadows(ctx, sc);
-  // Vignette, baked into the floor so chefs and food stay at full contrast at the edges.
+  // Vignette over the arena floor, baked in so chefs and food stay at full contrast at the edges.
   const { layout } = sc;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(layout.world.x, layout.world.y, layout.world.w, layout.world.h);
+  ctx.clip();
   const g = ctx.createRadialGradient(layout.width / 2, layout.height / 2, layout.height * 0.42, layout.width / 2, layout.height / 2, Math.hypot(layout.width, layout.height) * 0.58);
   g.addColorStop(0, withAlpha(PALETTE.nightDeep, 0));
-  g.addColorStop(1, withAlpha(PALETTE.nightDeep, 0.62));
+  g.addColorStop(1, withAlpha(PALETTE.nightDeep, 0.55));
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, layout.width, layout.height);
+  ctx.restore();
 }
 
 // ---------------------------------------------------------------- row layers
