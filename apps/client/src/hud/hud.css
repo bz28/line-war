@@ -455,7 +455,7 @@
 @keyframes lw-ghost-in { from { opacity: 0; } }
 
 /* Round over: each slip lifts, then rolls up into the string like a blind and is gone. */
-.lw-slip--cleared .lw-slip-swing { animation: lw-slip-fold 0.62s cubic-bezier(0.55, 0, 0.75, 0.2) var(--fold-delay, 0ms) both; }
+.lw-slip--cleared .lw-slip-swing { animation: lw-slip-fold 0.55s cubic-bezier(0.45, 0, 0.55, 1) var(--fold-delay, 0ms) both; }
 .lw-slip--cleared .lw-slip-lock { opacity: 0; transition: opacity 0.15s; }
 @keyframes lw-slip-fold {
   0% { transform: rotate(-1.6deg); opacity: 1; }
