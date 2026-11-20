@@ -1,22 +1,19 @@
 import { INGREDIENTS, NIGHT_MARKET, RECIPES } from '@line-war/content';
 import { createMatch, makeConfig, NO_INPUT, step, type MatchInputs, type MatchState, type PlayerId } from '@line-war/sim';
-import { idleBot, type BotBrain } from './bots/types';
+import { createBots } from '@line-war/bots';
 import { browserGamepads, GamepadInput } from './input/gamepad';
 import { KeyboardInput, KeyboardState } from './input/keyboard';
 import type { InputSource } from './input/types';
 import { startLoop } from './loop';
 import { GreyboxRenderer } from './render/greybox';
 import type { Renderer } from './render/types';
-import type { BotDifficulty, Settings } from './settings/types';
+import type { Settings } from './settings/types';
 import { App, type MatchSession, type StartSession } from './ui/app';
-
-/** THE place bots are created. Swap in the bots package here when it lands. */
-function createBot(_difficulty: BotDifficulty): BotBrain {
-  return idleBot;
-}
 
 /** One InputSource per player slot, built from settings. */
 function createInputSources(settings: Settings, keyboard: KeyboardState, getState: () => MatchState): InputSource[] {
+  // All bots of a match are created together so crewmates can share a plan.
+  const bots = createBots(settings.slots.map((s) => (s.kind === 'bot' ? { difficulty: s.difficulty } : null)));
   return settings.slots.map((slot, i): InputSource => {
     switch (slot.kind) {
       case 'keyboard':
@@ -24,7 +21,7 @@ function createInputSources(settings: Settings, keyboard: KeyboardState, getStat
       case 'gamepad':
         return new GamepadInput(slot.index, browserGamepads);
       case 'bot': {
-        const brain = createBot(slot.difficulty);
+        const brain = bots[i]!;
         return { poll: () => brain.decide(getState(), i as PlayerId) };
       }
       case 'none':
