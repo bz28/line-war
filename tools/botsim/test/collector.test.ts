@@ -278,11 +278,16 @@ describe('scoring economy: points by source, Heat drops, cold causes', () => {
       { type: 'plateCold', itemId: partial.id },
     ]);
     const slow = plate(salad, { cold: true });
+    const partialSlow = plate([{ kind: 'tomato', state: 'chopped' }], { cold: true });
     station(state, 23, 3).item = slow;
+    station(state, 23, 4).item = partialSlow;
     state.tickets = [{ ...T, id: 7, baseValue: 40 }];
-    tick(state, c, [{ type: 'plateCold', itemId: slow.id }]);
+    tick(state, c, [
+      { type: 'plateCold', itemId: slow.id },
+      { type: 'plateCold', itemId: partialSlow.id },
+    ]);
     const r = endRound(state, c);
-    expect(r.wasted.cold).toEqual([2, 1]);
-    expect(r.coldCause).toEqual({ sniped: [1, 0], slow: [0, 1], partial: [1, 0] });
+    expect(r.wasted.cold).toEqual([2, 2]);
+    expect(r.coldCause).toEqual({ sniped: [1, 0], slow: [0, 1], partialSniped: [1, 0], partialSlow: [0, 1] });
   });
 });

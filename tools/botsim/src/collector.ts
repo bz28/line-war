@@ -110,12 +110,16 @@ function findPlate(state: MatchState, id: number): Item | null {
 }
 
 /** Why a plate went cold (see RoundRecord.coldCause). */
-export function coldCause(state: MatchState, team: TeamId, item: Item | null): 'sniped' | 'slow' | 'partial' {
-  if (!item || item.type !== 'plate') return 'partial';
-  const recipe = state.recipes.find((r) => matchesRecipe(item.contents, r));
-  if (!recipe) return 'partial';
-  const open = state.tickets.some((t) => t.recipe === recipe.id && isVisibleTo(t, team) && state.tick < t.expireTick);
-  return open ? 'slow' : 'sniped';
+export function coldCause(state: MatchState, team: TeamId, item: Item | null): keyof RoundRecord['coldCause'] {
+  if (!item || item.type !== 'plate') return 'partialSniped';
+  const finished = state.recipes.some((r) => matchesRecipe(item.contents, r));
+  // A ticket the plate could still fill (exactly, or by adding food).
+  const open = state.tickets.some((t) => {
+    const r = state.recipes.find((x) => x.id === t.recipe);
+    return r !== undefined && isVisibleTo(t, team) && state.tick < t.expireTick && isSubMultiset(item.contents, r.ingredients);
+  });
+  if (finished) return open ? 'slow' : 'sniped';
+  return open ? 'partialSlow' : 'partialSniped';
 }
 
 /** Tiles a player may drift (pushing against a wall or a player) and still count as not moving. */
@@ -151,7 +155,7 @@ class RoundBuilder {
       tickets,
       contested: 0,
       wasted: { cold: pair(), trashed: pair(), leftover: pair() },
-      coldCause: { sniped: pair(), slow: pair(), partial: pair() },
+      coldCause: { sniped: pair(), slow: pair(), partialSniped: pair(), partialSlow: pair() },
       points: { base: pair(), critic: pair(), heat: pair(), rush: pair(), charm: pair() },
       knocks: pair(),
       steals: pair(),

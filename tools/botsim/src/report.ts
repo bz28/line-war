@@ -127,7 +127,7 @@ function contextTable(scenarios: readonly ScenarioAggregate[]): string {
 
 function economyTable(scenarios: readonly ScenarioAggregate[]): string {
   return table(
-    ['Scenario', 'Top-Heat share', 'Heat drops/crew/round', 'Lead changes/round', 'Comeback %', 'Points: base · Critic · Heat · rush · charm', 'Waste/round: cold sniped · cold slow · cold partial · trashed · left · burns · expired tickets'],
+    ['Scenario', 'Top-Heat share', 'Heat drops/crew/round', 'Lead changes/round', 'Comeback %', 'Points: base · Critic · Heat · rush · charm', 'Waste/round: cold sniped · cold slow · cold partial (no ticket) · cold partial (ticket) · trashed · left · burns · expired tickets'],
     scenarios.map((s) => {
       const p = s.pointsShare;
       const c = s.coldCausePerRound;
@@ -139,7 +139,7 @@ function economyTable(scenarios: readonly ScenarioAggregate[]): string {
         f2(s.leadChangesPerRound),
         s.comeback.eligible ? pct(s.comeback.rate) : 'n/a',
         [p.base, p.critic, p.heat, p.rush, p.charm].map(pct).join(' · '),
-        [c.sniped, c.slow, c.partial, w.trashed, w.leftover, s.burnsPerRound, s.ticketsPerRound.expired].map(f2).join(' · '),
+        [c.sniped, c.slow, c.partialSniped, c.partialSlow, w.trashed, w.leftover, s.burnsPerRound, s.ticketsPerRound.expired].map(f2).join(' · '),
       ];
     }),
   );
@@ -281,7 +281,7 @@ export function renderMarkdown(r: SuiteResult, meta: ReportMeta = {}): string {
       `- **Stuck**: a bot whose position stayed within 0.25 tiles and who pressed no grab/work/throw for more than ${o.stuckSeconds} s of time with tickets on the board. Idle (non-bot) slots are not checked.`,
       '- **Heat**: share of service/rush/last-call time at each Heat tier. **Top-Heat share**: both crews at the top tier. **Heat drops**: tier lost to a burn, per crew per round.',
       '- **Points by source**: each delivery split in formula order — base (baseValue × freshness), Critic premium, Heat bonus, rush bonus — plus charmPoints per banked charm. Heat from charms shows up as Heat bonus.',
-      '- **Cold sniped / slow / partial**: a plate went cold holding a finished dish with no ticket left (rival served it or it expired) / a finished dish that still had a ticket / an unfinished dish.',
+      '- **Cold sniped / slow / partial**: a plate went cold holding a finished dish with no ticket left (rival served it or it expired) / a finished dish that still had a ticket / an unfinished dish, split by whether a ticket it could still fill was open.',
     ].join('\n'),
     '',
   );

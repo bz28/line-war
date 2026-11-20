@@ -52,7 +52,7 @@ export interface ScenarioAggregate {
   /** Heat drops per crew per round (both crews averaged). */
   heatDropsPerCrewRound: number;
   /** Why plates went cold, per round (both crews). */
-  coldCausePerRound: { sniped: number; slow: number; partial: number };
+  coldCausePerRound: { sniped: number; slow: number; partialSniped: number; partialSlow: number };
   /** Share of all points by source (both crews). */
   pointsShare: { base: number; critic: number; heat: number; rush: number; charm: number };
   critic: { spawned: number; wonA: number; wonB: number; unserved: number; trailingFirst: number; trailingWon: number };
@@ -161,7 +161,8 @@ export function aggregate(scenario: string, records: readonly MatchRecord[]): Sc
     coldCausePerRound: {
       sniped: perRound(rounds, (r) => both(r.coldCause.sniped)),
       slow: perRound(rounds, (r) => both(r.coldCause.slow)),
-      partial: perRound(rounds, (r) => both(r.coldCause.partial)),
+      partialSniped: perRound(rounds, (r) => both(r.coldCause.partialSniped)),
+      partialSlow: perRound(rounds, (r) => both(r.coldCause.partialSlow)),
     },
     pointsShare: {
       base: ratio(src('base'), pointsTotal),

@@ -53,10 +53,10 @@ export interface RoundRecord {
   wasted: { cold: Pair; trashed: Pair; leftover: Pair };
   /**
    * Why plates went cold, by crew (sums to wasted.cold): `sniped` = a finished dish with no ticket left for it
-   * (the rival took it, or it expired); `slow` = a finished dish that still had a ticket; `partial` = an
-   * unfinished dish.
+   * (the rival took it, or it expired); `slow` = a finished dish that still had a ticket; `partialSniped` /
+   * `partialSlow` = an unfinished dish with no / some ticket it could still fill.
    */
-  coldCause: { sniped: Pair; slow: Pair; partial: Pair };
+  coldCause: { sniped: Pair; slow: Pair; partialSniped: Pair; partialSlow: Pair };
   /**
    * Points by source, by crew (sums to the round score). Each delivery is split multiplicatively in the order
    * of the formula: `base` = baseValue × freshness, then the Critic premium, then the Heat bonus, then the
