@@ -1,0 +1,15 @@
+{
+  "name": "@line-war/botsim",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@line-war/bots": "workspace:*",
+    "@line-war/content": "workspace:*",
+    "@line-war/sim": "workspace:*"
+  }
+}

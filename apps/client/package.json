@@ -11,6 +11,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@line-war/bots": "workspace:*",
     "@line-war/content": "workspace:*",
     "@line-war/sim": "workspace:*"
   },

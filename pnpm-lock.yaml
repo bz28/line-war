@@ -17,6 +17,9 @@ importers:
 
   apps/client:
     dependencies:
+      '@line-war/bots':
+        specifier: workspace:*
+        version: link:../../packages/bots
       '@line-war/content':
         specifier: workspace:*
         version: link:../../packages/content
@@ -31,6 +34,16 @@ importers:
         specifier: ^5.4.11
         version: 5.4.21(@types/node@26.6.6)
 
+  packages/bots:
+    dependencies:
+      '@line-war/sim':
+        specifier: workspace:*
+        version: link:../sim
+    devDependencies:
+      '@line-war/content':
+        specifier: workspace:*
+        version: link:../content
+
   packages/content:
     dependencies:
       '@line-war/sim':
@@ -38,6 +51,18 @@ importers:
         version: link:../sim
 
   packages/sim: {}
+
+  tools/botsim:
+    dependencies:
+      '@line-war/bots':
+        specifier: workspace:*
+        version: link:../../packages/bots
+      '@line-war/content':
+        specifier: workspace:*
+        version: link:../../packages/content
+      '@line-war/sim':
+        specifier: workspace:*
+        version: link:../../packages/sim
 
 packages:
 
