@@ -237,7 +237,10 @@ export function judgeBars(scenarios: readonly ScenarioAggregate[]): BarResult[] 
           id: 'gap',
           name: 'A 10% faster crew wins 65–80% of rounds',
           target: '65–80% (gap-2v2, crew A)',
-          value: `${pct(gap.aRoundWinRate)} [${pct(gap.aRoundWinCI.lo)}, ${pct(gap.aRoundWinCI.hi)}]`,
+          value:
+            gap.roundWins[0] + gap.roundWins[1] === 0
+              ? 'no decisive rounds'
+              : `${pct(gap.aRoundWinRate)} [${pct(gap.aRoundWinCI.lo)}, ${pct(gap.aRoundWinCI.hi)}]`,
           status: gap.roundWins[0] + gap.roundWins[1] === 0 ? 'FAIL' : gap.aRoundWinRate >= 0.65 && gap.aRoundWinRate <= 0.8 ? 'PASS' : 'FAIL',
         }
       : { id: 'gap', name: 'A 10% faster crew wins 65–80% of rounds', target: '65–80% (gap-2v2)', value: 'not run', status: 'N/A' },
