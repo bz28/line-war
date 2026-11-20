@@ -3,12 +3,13 @@ import { browserGamepads, type GetGamepads } from '../input/gamepad';
 import { loadSettings, saveSettings, type StorageLike } from '../settings/store';
 import type { Settings } from '../settings/types';
 import { h } from './dom';
-import { MenuNav } from './nav';
+import { focusables, MenuNav } from './nav';
 import { howToScreen } from './howTo';
 import { matchOverScreen, pauseScreen, titleScreen } from './screens';
 import { SettingsMenu } from './settingsMenu';
 import { charmShelfScreen } from './charmShelf';
 import { CHARM_IDS, loadCollection, saveCollection, setDisplay } from '../collection/store';
+import type { RoundResult } from './results';
 import './styles.css';
 import './charms.css';
 
@@ -19,6 +20,8 @@ export interface MatchSession {
   setPaused(paused: boolean): void;
   /** Charms unlocked for the first time during this match (the match-over reveal). */
   readonly newCharms?: readonly string[];
+  /** Each finished round's points and winner, recorded from roundEnd events (the result ledger). */
+  readonly rounds?: readonly RoundResult[];
   /** Live-apply settings that do not need a new match (controllers, display). */
   applySettings(settings: Settings): void;
   dispose(): void;
@@ -191,7 +194,12 @@ export class App {
     this.screen = 'over';
     this.showPanel(
       matchOverScreen(
-        { winner: state.winner, roundsWon: [state.teams[0].roundsWon, state.teams[1].roundsWon] },
+        {
+          winner: state.winner,
+          roundsWon: [state.teams[0].roundsWon, state.teams[1].roundsWon],
+          rounds: this.session.rounds,
+          totals: [state.totalScores[0], state.totalScores[1]],
+        },
         { again: () => this.play(), title: () => this.showTitle(), shelf: () => this.showCharms(this.session?.newCharms?.[0]) },
         this.session.newCharms ?? [],
       ),
@@ -261,7 +269,7 @@ export class App {
     this.overlay.hidden = false;
     this.stage.dataset.menu = this.screen;
     // Focus the first control so keyboard and gamepad navigation work immediately.
-    panel.querySelector<HTMLElement>('button, select, input')?.focus();
+    focusables(panel)[0]?.focus();
   }
 
   private hideOverlay(): void {

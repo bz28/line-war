@@ -11,6 +11,9 @@ import { svg } from './screens';
  * Choosing an unlocked charm hangs it from your crew sign (choose it again to take it down).
  */
 
+/** Where the favourite hangs when this machine has players on both crews (collection/store displayTeam). */
+export const SIGN_RULE = 'Players on both crews? It hangs on one sign only: the crew of the first player, P1 before P2, P3 and P4.';
+
 export interface ShelfActions {
   pick(id: string): void;
   back(): void;
@@ -139,6 +142,7 @@ export function charmShelfScreen(col: Collection, actions: ShelfActions): HTMLEl
       progress(col),
     ),
     h('p', { class: 'lw-shelf-lede' }, 'Carry a charm home with your crew to add it here. Hang your favourite from your crew sign.'),
+    h('p', { class: 'lw-shelf-note' }, SIGN_RULE),
     h('div', { class: 'lw-shelf-body' }, shelves, info.el),
     h('div', { class: 'lw-howto-foot lw-shelf-foot' }, button('Back', actions.back, { class: 'lw-btn lw-btn-primary', 'data-key': 'menu-Back' })),
   );

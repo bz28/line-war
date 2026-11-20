@@ -81,6 +81,17 @@ export function humanTeams(slots: Settings['slots']): Set<TeamId> {
 }
 
 /**
+ * The crew whose sign shows the favourite charm: the crew of the first local human in slot
+ * order (P1 before P2, P3, P4), the same player the first-match coach follows. The collection
+ * is one per browser, so with humans on both crews it hangs once, on that first player's
+ * crew, not on both signs. null when nobody on this machine plays.
+ */
+export function displayTeam(slots: Settings['slots']): TeamId | null {
+  const i = slots.findIndex((s) => s.kind === 'keyboard' || s.kind === 'gamepad');
+  return i < 0 ? null : teamOf(i as PlayerId);
+}
+
+/**
  * Charm variants this tick's events unlock: every charm banked by a crew with a local human.
  * Bots-only crews unlock nothing; when both crews have humans, either crew's bank counts.
  */

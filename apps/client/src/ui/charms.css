@@ -29,6 +29,7 @@
 .lw-shelf-pip { width: 10px; height: 13px; border-radius: 45%; background: color-mix(in srgb, var(--paper) 14%, transparent); }
 .lw-shelf-pip.lw-lit { background: var(--lantern); box-shadow: 0 0 10px var(--lantern); }
 .lw-shelf-lede { margin: 10px 0 2px; font-size: 15px; font-weight: 700; color: var(--lw-muted); }
+.lw-shelf-note { margin: 0 0 2px; font-size: 13px; font-weight: 600; color: color-mix(in srgb, var(--paper) 52%, transparent); }
 
 .lw-shelf-body { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 22px; align-items: start; margin-top: 10px; }
 .lw-shelves { display: grid; gap: 6px; }
@@ -259,3 +260,26 @@
 @keyframes lw-reveal-spin { to { transform: rotate(360deg); } }
 /* The paper result card grows a little to make room for the reveal. */
 .lw-over:has(.lw-reveal) { max-width: 460px; }
+
+/* Short screens (1366x768, 1280x720): smaller slots so all three shelves and Back fit. */
+@media (max-height: 800px) {
+  .lw-shelf h2 { font-size: 30px; }
+  .lw-shelf-head { padding-bottom: 8px; }
+  .lw-shelf-count { font-size: 26px; }
+  .lw-shelf-lede { margin: 6px 0 0; font-size: 14px; }
+  .lw-shelf-note { font-size: 12.5px; }
+  .lw-shelf-body { margin-top: 6px; }
+  .lw-shelves { gap: 10px; }
+  .lw-shelf-level { margin: 0 0 2px 4px; font-size: 14px; }
+  .lw-shelf-plank { padding: 7px 12px 9px; gap: 10px; }
+  .lw-shelf-slot { padding: 5px 6px 6px; gap: 0; font-size: 13px; }
+  .lw-shelf-art { width: 50px; }
+  .lw-shelf-q { top: 20px; font-size: 22px; }
+  .lw-shelf-name { margin-top: 2px; }
+  .lw-shelf-pin { margin-top: 2px; font-size: 10.5px; }
+  .lw-shelf-detail { padding: 16px 16px 18px; }
+  .lw-shelf-detail-art { width: 128px; height: 128px; }
+  .lw-shelf-detail-art .lw-charm { width: 86px; }
+  .lw-shelf-foot { margin-top: 8px; padding-top: 6px; padding-bottom: 14px; }
+
+}

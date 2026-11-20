@@ -17,7 +17,8 @@ import { Coach, coachKeysFor, type CoachKeys } from './hud/coach';
 import { HIT_STOP_MS } from './render/feel';
 import { browserStorage } from './settings/store';
 import { App, type MatchSession, type StartSession } from './ui/app';
-import { addUnlocks, humanTeams, loadCollection, saveCollection, unlocksFromEvents } from './collection/store';
+import { addUnlocks, displayTeam, humanTeams, loadCollection, saveCollection, unlocksFromEvents } from './collection/store';
+import { recordRoundEnds, type RoundResult } from './ui/results';
 
 /** One InputSource per player slot, built from settings. */
 function createInputSources(settings: Settings, keyboard: KeyboardState, getState: () => MatchState): InputSource[] {
@@ -88,12 +89,14 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
   let worldRenderer: GreyboxRenderer | null = null;
   // Charm collection: banks by a crew with a local human unlock that variant on this machine.
   const newCharms: string[] = [];
+  const rounds: RoundResult[] = [];
   const display = loadCollection(storage).display;
+  const displayCrew = displayTeam(settings.slots);
   const hud = new HudRenderer(host, {
     locate: (pos) => worldRenderer?.toClient(pos) ?? null,
     coach: coach ? { ...coach, storage } : undefined,
     onScoreLand: (team) => audio.scoreLand(team),
-    displayCharms: display ? Object.fromEntries([...humanTeams(settings.slots)].map((t) => [t, display])) : undefined,
+    displayCharms: display && displayCrew !== null ? { [displayCrew]: display } : undefined,
   });
   const world = document.createElement('div');
   world.className = 'lw-world';
@@ -106,7 +109,7 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
   const renderers: Renderer[] = [worldRenderer, hud];
   let overTimer: ReturnType<typeof setTimeout> | undefined;
   // Dev only: expose the live state so scripted playtests can steer and inspect.
-  if (import.meta.env.DEV) (window as unknown as { __lw?: unknown }).__lw = { state, newCharms, locate: (pos: { x: number; y: number }) => worldRenderer?.toClient(pos) ?? null };
+  if (import.meta.env.DEV) (window as unknown as { __lw?: unknown }).__lw = { state, newCharms, rounds, locate: (pos: { x: number; y: number }) => worldRenderer?.toClient(pos) ?? null };
 
   const unlockAudio = () => audio.resume();
   window.addEventListener('pointerdown', unlockAudio, { once: true });
@@ -150,6 +153,7 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
       }
       for (const r of renderers) r.onTick?.(state);
       audio.onTick(state);
+      recordRoundEnds(state.events, rounds);
       const unlocked = unlocksFromEvents(state.events, humanTeams(current.slots));
       if (unlocked.length) {
         const { collection, fresh } = addUnlocks(loadCollection(storage), unlocked);
@@ -178,6 +182,7 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
   return {
     state,
     newCharms,
+    rounds,
     setPaused(p) {
       if (p === paused) return;
       paused = p;

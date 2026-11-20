@@ -31,7 +31,7 @@ function setup() {
         paused: false,
         disposed: false,
         over: hooks.onMatchOver,
-        state: { winner: 1, teams: [{ roundsWon: 0 }, { roundsWon: 2 }] } as unknown as MatchState,
+        state: { winner: 1, teams: [{ roundsWon: 0 }, { roundsWon: 2 }], totalScores: [300, 520] } as unknown as MatchState,
       };
       sessions.push(rec);
       return {

@@ -9,6 +9,7 @@ import { levelById } from '@line-war/content';
 import { slotName } from './settingsMenu';
 import { charmIcon } from '../hud/charmIcon';
 import { charmById } from '@line-war/content';
+import { decidedOnTotal, ledger, type MatchResult } from './results';
 
 export interface MenuItem {
   label: string;
@@ -159,7 +160,7 @@ export function charmReveal(ids: readonly string[]): HTMLElement | null {
 }
 
 export function matchOverScreen(
-  result: { winner: TeamId | null; roundsWon: [number, number] },
+  result: MatchResult,
   actions: { again(): void; title(): void; shelf?(): void },
   newCharms: readonly string[] = [],
 ): HTMLElement {
@@ -178,6 +179,8 @@ export function matchOverScreen(
     h('p', { class: 'lw-eyebrow' }, 'Match over'),
     h('h2', { class: 'lw-winner' }, w === null ? 'A draw!' : `${TEAMS[w].name} wins`),
     h('div', { class: 'lw-score', 'aria-label': `Rounds won: ${TEAMS[0].name} ${result.roundsWon[0]}, ${TEAMS[1].name} ${result.roundsWon[1]}` }, crew(0), h('span', { class: 'lw-vs' }, 'rounds'), crew(1)),
+    decidedOnTotal(result) ? h('p', { class: 'lw-over-tiebreak' }, 'Level on rounds, so total points decide it.') : null,
+    ledger(result),
     charmReveal(newCharms),
     menu([
       { label: 'Play again', onSelect: actions.again, primary: true },

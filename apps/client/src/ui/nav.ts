@@ -13,6 +13,17 @@ export interface NavHandlers {
 }
 
 const FOCUSABLE = 'button:not([disabled]), select:not([disabled]), input:not([disabled])';
+
+/**
+ * False for controls hidden by CSS (e.g. How to play's page tabs on tall screens), so focus
+ * never lands on something invisible. Without layout support (jsdom) everything counts as shown.
+ */
+export function isShown(el: HTMLElement): boolean {
+  return typeof el.checkVisibility === 'function' ? el.checkVisibility() : true;
+}
+
+/** Navigable controls under `root`, in document order. */
+export const focusables = (root: ParentNode): HTMLElement[] => [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(isShown);
 const REPEAT_DELAY_MS = 380;
 const REPEAT_MS = 110;
 
@@ -89,7 +100,7 @@ export class MenuNav {
   }
 
   private move(root: HTMLElement, dir: Dir): void {
-    const items = [...root.querySelectorAll<HTMLElement>(FOCUSABLE)];
+    const items = focusables(root);
     if (!items.length) return;
     const active = document.activeElement as HTMLElement | null;
     const idx = active ? items.indexOf(active) : -1;
@@ -162,5 +173,5 @@ function adjust(el: HTMLElement, delta: 1 | -1): boolean {
 function activate(root: HTMLElement): void {
   const el = document.activeElement as HTMLElement | null;
   if (el && root.contains(el)) el.click();
-  else root.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+  else focusables(root)[0]?.focus();
 }
