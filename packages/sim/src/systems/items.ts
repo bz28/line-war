@@ -84,10 +84,13 @@ function fly(state: MatchState, fi: FloorItem): boolean {
 function findCatcher(state: MatchState, fi: FloorItem): PlayerState | null {
   const reach = state.config.tuning.playerRadius + CATCH_MARGIN;
   const selfTicks = secondsToTicks(state.config, SELF_CATCH_SECONDS);
+  // A player can't reach into their rival's kitchen (e.g. from the doorway) to catch.
+  const itemTile = tileIndexAtPos(state.arena, fi.pos);
   let best: PlayerState | null = null;
   let bestDist = Infinity;
   for (const p of actingOrder(state)) {
     if (p.holding !== null) continue;
+    if (itemTile !== null && isRivalTile(state, p.team, itemTile)) continue;
     if (p.id === fi.thrownBy && fi.thrownAtTick !== null && state.tick - fi.thrownAtTick < selfTicks) continue;
     const d = dist(p.pos, fi.pos);
     if (d <= reach && d < bestDist) {

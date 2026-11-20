@@ -53,6 +53,21 @@ describe('throw', () => {
     expect(s.players[2].holding).toBe(ing);
   });
 
+  it("a rival in the doorway can't catch an item flying over the other team's kitchen", () => {
+    const s = kitchenMatch();
+    // Item over kitchen0 (tile x=7), rival standing in the doorway column 8, 0.4 away.
+    put(s, 2, 8.4, 2.5);
+    const ing = ingredient(s, 'steak');
+    s.floorItems.push({ item: ing, pos: { x: 7.8, y: 2.9 }, vel: { x: 0, y: -12 }, thrownBy: 0, thrownAtTick: s.tick - 100, travelled: 0 });
+    updateFloorItems(s);
+    expect(s.players[2].holding).toBeNull();
+    expect(s.floorItems[0]!.item).toBe(ing);
+    // Once it is over the doorway (neutral) the same rival may catch it.
+    s.floorItems[0]!.pos = { x: 8.05, y: 2.9 };
+    updateFloorItems(s);
+    expect(s.players[2].holding).toBe(ing);
+  });
+
   it('stops at a wall on the last open tile', () => {
     const s = kitchenMatch();
     put(s, 0, 3.5, 2.5, LEFT).holding = ingredient(s, 'bun');
