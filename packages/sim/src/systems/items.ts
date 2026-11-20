@@ -10,7 +10,7 @@ import { secondsToTicks } from '../tuning';
 import type { FloorItem, Item, MatchState, PlayerState } from '../types';
 import { teamOf } from '../types';
 import { CATCH_MARGIN, EPS, SELF_CATCH_SECONDS, SUBSTEP } from './kitchen/constants';
-import { emit, fireAt, isResting, isRivalTile, kindAt, stationAt } from './kitchen/world';
+import { actingOrder, emit, fireAt, isResting, isRivalTile, kindAt, stationAt } from './kitchen/world';
 
 export function updateFloorItems(state: MatchState): void {
   const gone = new Set<FloorItem>();
@@ -77,13 +77,16 @@ function fly(state: MatchState, fi: FloorItem): boolean {
   return false;
 }
 
-/** Nearest empty-handed player whose centre is within playerRadius + CATCH_MARGIN (ties: lowest id). */
+/**
+ * Nearest empty-handed player whose centre is within playerRadius + CATCH_MARGIN.
+ * Equal distances go to whoever comes first in actingOrder (alternates by tick parity).
+ */
 function findCatcher(state: MatchState, fi: FloorItem): PlayerState | null {
   const reach = state.config.tuning.playerRadius + CATCH_MARGIN;
   const selfTicks = secondsToTicks(state.config, SELF_CATCH_SECONDS);
   let best: PlayerState | null = null;
   let bestDist = Infinity;
-  for (const p of state.players) {
+  for (const p of actingOrder(state)) {
     if (p.holding !== null) continue;
     if (p.id === fi.thrownBy && fi.thrownAtTick !== null && state.tick - fi.thrownAtTick < selfTicks) continue;
     const d = dist(p.pos, fi.pos);

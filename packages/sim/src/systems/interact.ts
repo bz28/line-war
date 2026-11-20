@@ -13,6 +13,7 @@ import { addToVessel, putOutFire, resetVessel } from './kitchen/cooking';
 import { DROP_OFFSET } from './kitchen/constants';
 import { addToPlate, emptyPlate, plateFits } from './kitchen/plate';
 import {
+  actingOrder,
   canUseTile,
   emit,
   fireAt,
@@ -29,7 +30,8 @@ import { deliverPlate } from './tickets';
 
 export function handleInteractions(state: MatchState, inputs: MatchInputs): void {
   for (const p of state.players) p.working = false;
-  for (const p of state.players) {
+  // Contested pickups go to whoever acts first; the order alternates by tick parity (fairness).
+  for (const p of actingOrder(state)) {
     const input = inputs[p.id];
     // One button action per tick; Grab wins over Throw. Dazed players can't grab or throw.
     if (p.dazedTicks === 0) {

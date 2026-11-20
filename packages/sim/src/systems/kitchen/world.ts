@@ -1,6 +1,6 @@
 /** Shared spatial / station helpers for the kitchen systems. */
 import { inBounds, isWalkable, tileAt, tileIndex, tileIndexAtPos, tileOwner } from '../../grid';
-import type { FireState, MatchState, PlayerState, SimEvent, StationState, TeamId, TileKind, Vec2 } from '../../types';
+import type { FireState, MatchState, PlayerId, PlayerState, SimEvent, StationState, TeamId, TileKind, Vec2 } from '../../types';
 import { TARGET_OFFSET } from './constants';
 
 export const emit = (state: MatchState, ev: SimEvent): void => {
@@ -51,4 +51,16 @@ export function interactTarget(state: MatchState, p: PlayerState): { tile: numbe
   return { tile: tileIndexAtPos(state.arena, point), point };
 }
 
-export const isResting = (v: Vec2): boolean => v.x === 0 && v.y === 0;
+const EVEN_ORDER: readonly PlayerId[] = [0, 1, 2, 3];
+const ODD_ORDER: readonly PlayerId[] = [2, 3, 0, 1];
+
+/**
+ * Order in which players act when they contend for the same thing in one tick (interactions,
+ * catch ties). Alternates by tick parity so neither team always wins: even ticks team 0 first,
+ * odd ticks team 1 first. Deterministic.
+ */
+export function actingOrder(state: MatchState): PlayerState[] {
+  return (state.tick % 2 === 0 ? EVEN_ORDER : ODD_ORDER).map((id) => state.players[id]);
+}
+
+export const isResting =(v: Vec2): boolean => v.x === 0 && v.y === 0;
