@@ -1,5 +1,6 @@
 /** Runner smoke tests (idle bots from @line-war/bots) and determinism (scripted test bots). */
 import { fileURLToPath } from 'node:url';
+import { idleBot, type BotOptions } from '@line-war/bots';
 import { DEFAULT_MATCH_CONFIG, DEFAULT_TUNING } from '@line-war/sim';
 import { describe, expect, it } from 'vitest';
 import { MatchPool } from '../src/pool';
@@ -10,9 +11,11 @@ import { createBots as scripted } from './scriptedBot';
 const N = { difficulty: 'normal' } as const;
 const SCRIPTED = fileURLToPath(new URL('./scriptedBot.ts', import.meta.url));
 const short = { roundSeconds: 60, bestOf: 1 };
+/** Bots that never act (the real ones in @line-war/bots now play), for the runner smoke test. */
+const idle = (slots: readonly (BotOptions | null)[]) => slots.map((s) => (s ? idleBot : null));
 
 describe('runner smoke test (idle bots)', () => {
-  const rec = runMatch({ seed: 7, slots: [N, N, N, N] });
+  const rec = runMatch({ seed: 7, slots: [N, N, N, N], createBots: idle });
   const prepEndTick = DEFAULT_MATCH_CONFIG.prepSeconds * DEFAULT_TUNING.tickRate;
 
   it('plays a full best-of-3 to a draw', () => {
@@ -40,7 +43,7 @@ describe('runner smoke test (idle bots)', () => {
   });
 
   it('never checks empty slots', () => {
-    const r = runMatch({ seed: 7, slots: [N, null, null, null], config: short });
+    const r = runMatch({ seed: 7, slots: [N, null, null, null], config: short, createBots: idle });
     expect(new Set(r.stuck.map((s) => s.player))).toEqual(new Set([0]));
   });
 
