@@ -85,7 +85,8 @@ function buildKitchen(state: MatchState, team: TeamId): Kitchen {
     rivalDoorFront: [],
     watchTiles: [],
   };
-  for (let i = 0; i < state.arena.tiles.length; i++) {
+  // Scan from this team's own side so every list (and every "first" pick from it) mirrors the rival's.
+  for (const i of nav.order()) {
     const def = state.arena.tiles[i]!;
     const owner = tileOwner(state, i);
     if (def.kind === 'floor' || def.kind === 'wall') continue;
@@ -123,11 +124,11 @@ function buildKitchen(state: MatchState, team: TeamId): Kitchen {
     }
   }
   const rival = (1 - team) as TeamId;
-  for (let i = 0; i < nav.n; i++) {
+  for (const i of nav.order()) {
     if (state.arena.zones[i] !== 'none' || !nav.open[i]) continue;
     const [x, y] = nav.xy(i);
     const nb: number[] = [];
-    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+    for (const [dx, dy] of nav.dirs([[-1, 0], [1, 0], [0, -1], [0, 1]])) {
       const nx = x + dx;
       const ny = y + dy;
       if (nx >= 0 && ny >= 0 && nx < nav.w && ny < nav.h) nb.push(ny * nav.w + nx);
@@ -156,7 +157,7 @@ function buildKitchen(state: MatchState, team: TeamId): Kitchen {
       const [x, y] = nav.xy(w);
       let alt = -1;
       let altD = Infinity;
-      for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]] as const) {
+      for (const [dx, dy] of nav.dirs([[0, -1], [0, 1], [-1, 0], [1, 0]])) {
         const nx = x + dx;
         const ny = y + dy;
         const j = ny * nav.w + nx;
@@ -179,7 +180,7 @@ function buildKitchen(state: MatchState, team: TeamId): Kitchen {
     return best;
   };
   const score = (c: number): number => near(c, k.passes) + 0.6 * near(c, k.boards) + 0.4 * near(c, k.pans);
-  k.assembly = [...k.counters].sort((a, b) => score(a) - score(b) || a - b);
+  k.assembly = [...k.counters].sort((a, b) => score(a) - score(b) || nav.rank(a) - nav.rank(b));
   // Idle spot: the open kitchen tile closest to the middle of the team's stations.
   let sx = 0;
   let sy = 0;
