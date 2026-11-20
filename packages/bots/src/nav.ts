@@ -23,6 +23,9 @@ const DIAG: readonly [number, number][] = [
   [-1, 1],
   [1, 1],
 ];
+/** The same neighbour orders seen from the right-hand kitchen (x mirrored). */
+const ORTHO_FLIP = ORTHO.map(([dx, dy]) => [-dx, dy] as [number, number]);
+const DIAG_FLIP = DIAG.map(([dx, dy]) => [-dx, dy] as [number, number]);
 export const STEP_COST = 10;
 const DIAG_COST = 14;
 
@@ -34,8 +37,15 @@ export class Nav {
   readonly open: Uint8Array;
   /** 1 = market zone tile. */
   readonly market: Uint8Array;
+  /**
+   * This team's kitchen is on the right: every scan and neighbour order runs mirrored (x
+   * descending, right before left), so ties break the same way for both crews (side fairness).
+   */
+  readonly flip: boolean;
   /** Station tile → access points (stations this team may use: own kitchen + neutral). */
   readonly access = new Map<number, Access[]>();
+  private readonly ortho: readonly [number, number][];
+  private readonly diag: readonly [number, number][];
   private readonly fields = new Map<number, Int32Array>();
   private readonly cost: Int32Array;
   private readonly prev: Int32Array;
@@ -49,12 +59,15 @@ export class Nav {
     this.n = a.width * a.height;
     this.open = new Uint8Array(this.n);
     this.market = new Uint8Array(this.n);
+    this.flip = (team === 1) !== state.round.swapped;
+    this.ortho = this.flip ? ORTHO_FLIP : ORTHO;
+    this.diag = this.flip ? DIAG_FLIP : DIAG;
     for (let i = 0; i < this.n; i++) {
       const owner = tileOwner(state, i);
       this.open[i] = a.tiles[i]?.kind === 'floor' && (owner === null || owner === team) ? 1 : 0;
       this.market[i] = a.zones[i] === 'market' ? 1 : 0;
     }
-    for (let i = 0; i < this.n; i++) {
+    for (const i of this.order()) {
       const kind = a.tiles[i]?.kind;
       if (!kind || kind === 'floor' || kind === 'wall') continue;
       const owner = tileOwner(state, i);
@@ -62,7 +75,7 @@ export class Nav {
       const x = i % this.w;
       const y = (i - x) / this.w;
       const list: Access[] = [];
-      for (const [dx, dy] of ORTHO) {
+      for (const [dx, dy] of this.ortho) {
         const nx = x + dx;
         const ny = y + dy;
         if (nx < 0 || ny < 0 || nx >= this.w || ny >= this.h) continue;
@@ -75,6 +88,29 @@ export class Nav {
     this.prev = new Int32Array(this.n);
     this.heapNode = new Int32Array(this.n * 8 + 8);
     this.heapCost = new Int32Array(this.n * 8 + 8);
+  }
+
+  /** The tile seen from the other kitchen: same row, mirrored column. */
+  mirror(i: number): number {
+    const x = i % this.w;
+    return i - x + (this.w - 1 - x);
+  }
+
+  /** Tie-break rank of a tile: its index, counted from this team's own side of the map. */
+  rank(i: number): number {
+    return this.flip ? this.mirror(i) : i;
+  }
+
+  /** Every tile index in this team's scan order (row by row, from its own side). */
+  order(): number[] {
+    const out: number[] = [];
+    for (let i = 0; i < this.n; i++) out.push(this.flip ? this.mirror(i) : i);
+    return out;
+  }
+
+  /** Offsets written from the left kitchen's point of view, as this team sees them (x mirrored on the right). */
+  dirs(offsets: readonly (readonly [number, number])[]): [number, number][] {
+    return offsets.map(([dx, dy]) => [this.flip ? -dx : dx, dy]);
   }
 
   xy(i: number): [number, number] {
@@ -94,15 +130,20 @@ export class Nav {
     return y * this.w + x;
   }
 
-  /** Nearest open tile to a position (its own tile if open). */
+  /**
+   * Nearest open tile to a position (its own tile if open). A point exactly on a column boundary
+   * counts as being in the column on this team's side, so the answer mirrors the rival's.
+   */
   openTileNear(p: Vec2): number {
-    const t = this.tileAt(p);
+    const x0 = this.flip ? this.w - 1 - Math.floor(this.w - p.x) : Math.floor(p.x);
+    const y0 = Math.floor(p.y);
+    const t = x0 < 0 || y0 < 0 || x0 >= this.w || y0 >= this.h ? -1 : y0 * this.w + x0;
     if (t >= 0 && this.open[t]) return t;
     let best = -1;
     let bestD = Infinity;
-    const [x0, y0] = [Math.floor(p.x), Math.floor(p.y)];
     for (let dy = -2; dy <= 2; dy++) {
-      for (let dx = -2; dx <= 2; dx++) {
+      for (let k = -2; k <= 2; k++) {
+        const dx = this.flip ? -k : k;
         const x = x0 + dx;
         const y = y0 + dy;
         if (x < 0 || y < 0 || x >= this.w || y >= this.h) continue;
@@ -230,12 +271,12 @@ export class Nav {
           push(v, nc);
         }
       };
-      for (const [dx, dy] of ORTHO) {
+      for (const [dx, dy] of this.ortho) {
         const nx = x + dx;
         const ny = y + dy;
         if (nx >= 0 && ny >= 0 && nx < w && ny < h) relax(nx, ny, STEP_COST);
       }
-      for (const [dx, dy] of DIAG) {
+      for (const [dx, dy] of this.diag) {
         const nx = x + dx;
         const ny = y + dy;
         if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;

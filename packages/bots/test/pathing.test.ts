@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { LEVELS } from '@line-war/content';
-import { createMatch, interactTarget, makeConfig, tileOwner, type PlayerState, type TeamId } from '@line-war/sim';
+import { createMatch, interactTarget, makeConfig, NO_INPUT, step, tileOwner, type MatchInputs, type PlayerId, type PlayerState, type TeamId } from '@line-war/sim';
+import { Bot } from '../src/bot';
+import { Crew } from '../src/crew';
 import { navFor } from '../src/nav';
-import { kitchenFor } from '../src/world';
+import { BotRng } from '../src/rng';
+import { resolveSkill, skillParams } from '../src/skill';
+import { kitchenFor, type Kitchen } from '../src/world';
 import { bot, newMatch, runMatch } from './harness';
 
 const TEAMS: TeamId[] = [0, 1];
@@ -96,6 +100,47 @@ describe('mirrored tie-breaks (side fairness)', () => {
       const pa = a.path(spawnA, a.access.get(crate)!.map((x) => x.tile), null, null);
       const pb = b.path(spawnB, b.access.get(mirror(crate))!.map((x) => x.tile), null, null);
       expect(pb).toEqual(pa!.map(mirror));
+    });
+  });
+
+  it.each(LEVELS.map((l) => [l.name, l] as const))('on %s, each crew’s kitchen layout and lists are the mirror of the other’s', (_n, level) => {
+    const state = createMatch({ arena: level.arena, recipes: level.recipes, ingredients: level.ingredients, config: makeConfig() });
+    const w = state.arena.width;
+    const mirror = (i: number) => (i < 0 ? i : Math.floor(i / w) * w + (w - 1 - (i % w)));
+    const [a, b] = [kitchenFor(state, 0), kitchenFor(state, 1)];
+    const keys = ['boards', 'counters', 'pans', 'pots', 'racks', 'sinks', 'passes', 'trash', 'assembly', 'owned', 'rivalDoorFront', 'watchTiles'] as const;
+    for (const key of keys) expect((b[key] as number[]).map(mirror), key).toEqual(a[key]);
+    expect(mirror(b.idleTile)).toBe(a.idleTile);
+    const accessOf = (k: Kitchen, st: number) => k.nav.access.get(st)!.map((x) => ({ tile: x.tile, dx: x.dir.x, dy: x.dir.y }));
+    for (const st of a.nav.access.keys()) {
+      expect(accessOf(b, mirror(st)).map((x) => ({ tile: mirror(x.tile), dx: -x.dx + 0, dy: x.dy }))).toEqual(accessOf(a, st).map((x) => ({ ...x, dx: x.dx + 0 })));
+    }
+  });
+
+  // Bots whose seeds are swapped across the two sides must play exact mirror images of each other
+  // until the first same-tick contest (which the sim settles by tick parity, fairly).
+  it.each([1000, 1003])('on Harbor Pier, a 1v1 and its seed-swapped twin stay mirror images (seed %s)', (seed) => {
+    const level = LEVELS.find((l) => l.id === 'harbor-pier')!;
+    const play = (botSeeds: [number, number], crewSeeds: [number, number]) => {
+      const state = createMatch({ arena: level.arena, recipes: level.recipes, ingredients: level.ingredients, config: makeConfig({ seed, bestOf: 1 }) });
+      const skill = resolveSkill('normal');
+      const bots = ([0, 2] as PlayerId[]).map((id, side) => {
+        const crew = new Crew(side as TeamId, crewSeeds[side]!);
+        crew.addMember(id, skill);
+        return new Bot(id, crew, skillParams(skill), new BotRng(botSeeds[side]!));
+      });
+      const frames: number[][] = [];
+      for (let t = 0; t < 1500; t++) {
+        step(state, [bots[0]!.decide(state), NO_INPUT, bots[1]!.decide(state), NO_INPUT] as MatchInputs);
+        frames.push([0, 2].flatMap((id) => [state.players[id]!.pos.x, state.players[id]!.pos.y]));
+      }
+      return { frames, w: state.arena.width };
+    };
+    const one = play([seed * 7, seed * 13], [seed + 1, seed + 2]);
+    const twin = play([seed * 13, seed * 7], [seed + 2, seed + 1]);
+    one.frames.forEach((f, t) => {
+      const g = twin.frames[t]!;
+      expect([one.w - g[2]!, g[3]!, one.w - g[0]!, g[1]!].map((v, i) => Math.abs(v - f[i]!) < 1e-6), `tick ${t + 1}`).toEqual([true, true, true, true]);
     });
   });
 });

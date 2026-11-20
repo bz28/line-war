@@ -200,7 +200,7 @@ export class Crew {
   }
 
   private reconcile(state: MatchState, k: Kitchen): void {
-    const items = itemIndex(state);
+    const items = itemIndex(state, this.team);
     const fakeCtx = { state, k };
     const finished: Order[] = [];
     for (const o of this.orders) {
@@ -339,7 +339,7 @@ export class Crew {
   }
 
   private plateHasFood(state: MatchState, id: number): boolean {
-    const loc = itemIndex(state).get(id);
+    const loc = itemIndex(state, this.team).get(id);
     return !!loc && loc.item.type === 'plate' && loc.item.contents.length > 0;
   }
 
@@ -355,7 +355,7 @@ export class Crew {
   private retarget(state: MatchState, o: Order, spare: Map<string, number>, used: Map<string, number>): Order | null {
     const plateFoods: Food[] = [];
     if (o.plate !== null) {
-      const loc = itemIndex(state).get(o.plate);
+      const loc = itemIndex(state, this.team).get(o.plate);
       if (loc?.item.type === 'plate') plateFoods.push(...loc.item.contents);
     }
     for (const r of state.recipes) {
@@ -486,7 +486,7 @@ export class Crew {
     const rate = t.tickRate;
     const roundLeft = (state.config.roundSeconds * rate - state.round.tick) / rate;
     const rival = this.rivalNearlyDone(state);
-    const fakeCtx = { state, k, crew: this, me: state.players[this.members[0]!], tile: k.idleTile, items: itemIndex(state), stoveLeadTicks: 0 } as Ctx;
+    const fakeCtx = { state, k, crew: this, me: state.players[this.members[0]!], tile: k.idleTile, items: itemIndex(state, this.team), stoveLeadTicks: 0 } as Ctx;
     // Plates: every dish needs one.
     const rackStock = k.racks.reduce((n, r) => n + (stationOf(state, r)?.stock ?? 0), 0);
     const platesFree = rackStock + this.sparePlates(state) - this.orders.filter((o) => o.plate === null).length;
@@ -536,7 +536,7 @@ export class Crew {
       const v = stationOf(state, t)!.vessel!;
       if (v.contents.every((f) => r.ingredients.some((x) => x.kind === f.kind && pipeline(state, x).vessel === v.kind))) return true;
     }
-    for (const [id, loc] of itemIndex(state)) {
+    for (const [id, loc] of itemIndex(state, this.team)) {
       if (loc.item.type !== 'plate' || this.assigned.has(id) || loc.item.contents.length === 0 || loc.at !== 'station' || !k.counters.includes(loc.tile)) continue;
       if (!isPlateCold(state, loc.item) && subBag(loc.item.contents, r.ingredients)) return true;
     }
@@ -545,7 +545,7 @@ export class Crew {
 
   private sparePlates(state: MatchState): number {
     let n = 0;
-    const items = itemIndex(state);
+    const items = itemIndex(state, this.team);
     const k = kitchenFor(state, this.team);
     for (const [id, loc] of items) {
       if (loc.item.type !== 'plate' || loc.item.dirty || this.assigned.has(id) || loc.item.contents.length > 0) continue;

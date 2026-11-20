@@ -126,7 +126,7 @@ export class Bot {
       me,
       crew: this.crew,
       k,
-      items: itemIndex(state),
+      items: itemIndex(state, me.team),
       tile: k.nav.openTileNear(me.pos),
       stoveLeadTicks: this.params.stoveLeadSeconds * state.config.tuning.tickRate,
     };
@@ -289,7 +289,7 @@ export class Bot {
     if (ownFloor(interactTarget(state, me).tile)) return this.press(ctx, () => this.failTask(ctx));
     if (ownFloor(ctx.tile)) {
       const [x, y] = nav.xy(ctx.tile);
-      for (const [dx, dy] of ORTHO) {
+      for (const [dx, dy] of nav.dirs(ORTHO)) {
         const nx = x + dx;
         const ny = y + dy;
         if (nx < 0 || ny < 0 || nx >= nav.w || ny >= nav.h || !ownFloor(ny * nav.w + nx)) continue;
@@ -465,7 +465,8 @@ export class Bot {
         return NO_WAY;
       }
       this.repath(ctx, goals, goalKey, true);
-      const s = this.rng.chance(0.5) ? 1 : -1;
+      // Same coin, mirrored on the right-hand side, so the two crews' sidesteps are mirror images.
+      const s = (this.rng.chance(0.5) ? 1 : -1) * (nav.flip ? -1 : 1);
       const dx = target.x - me.pos.x;
       const dy = target.y - me.pos.y;
       const l = vecLength(dx, dy) || 1;

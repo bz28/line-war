@@ -85,7 +85,8 @@ function buildKitchen(state: MatchState, team: TeamId): Kitchen {
     rivalDoorFront: [],
     watchTiles: [],
   };
-  for (let i = 0; i < state.arena.tiles.length; i++) {
+  // Scan from this team's own side so every list (and every "first" pick from it) mirrors the rival's.
+  for (const i of nav.order()) {
     const def = state.arena.tiles[i]!;
     const owner = tileOwner(state, i);
     if (def.kind === 'floor' || def.kind === 'wall') continue;
@@ -123,11 +124,11 @@ function buildKitchen(state: MatchState, team: TeamId): Kitchen {
     }
   }
   const rival = (1 - team) as TeamId;
-  for (let i = 0; i < nav.n; i++) {
+  for (const i of nav.order()) {
     if (state.arena.zones[i] !== 'none' || !nav.open[i]) continue;
     const [x, y] = nav.xy(i);
     const nb: number[] = [];
-    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+    for (const [dx, dy] of nav.dirs([[-1, 0], [1, 0], [0, -1], [0, 1]])) {
       const nx = x + dx;
       const ny = y + dy;
       if (nx >= 0 && ny >= 0 && nx < nav.w && ny < nav.h) nb.push(ny * nav.w + nx);
@@ -156,7 +157,7 @@ function buildKitchen(state: MatchState, team: TeamId): Kitchen {
       const [x, y] = nav.xy(w);
       let alt = -1;
       let altD = Infinity;
-      for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]] as const) {
+      for (const [dx, dy] of nav.dirs([[0, -1], [0, 1], [-1, 0], [1, 0]])) {
         const nx = x + dx;
         const ny = y + dy;
         const j = ny * nav.w + nx;
@@ -179,7 +180,7 @@ function buildKitchen(state: MatchState, team: TeamId): Kitchen {
     return best;
   };
   const score = (c: number): number => near(c, k.passes) + 0.6 * near(c, k.boards) + 0.4 * near(c, k.pans);
-  k.assembly = [...k.counters].sort((a, b) => score(a) - score(b) || a - b);
+  k.assembly = [...k.counters].sort((a, b) => score(a) - score(b) || nav.rank(a) - nav.rank(b));
   // Idle spot: the open kitchen tile closest to the middle of the team's stations.
   let sx = 0;
   let sy = 0;
@@ -201,22 +202,41 @@ export type Loc =
   | { at: 'station'; tile: number; item: Item }
   | { at: 'floor'; pos: Vec2; item: Item; resting: boolean };
 
-const itemCache = new WeakMap<MatchState, { tick: number; map: Map<number, Loc> }>();
+const itemCache = new WeakMap<MatchState, { tick: number; maps: (Map<number, Loc> | null)[] }>();
+const stationOrder = new WeakMap<Nav, string[]>();
 
-/** Where every item is this tick (cached per state and tick). */
-export function itemIndex(state: MatchState): Map<number, Loc> {
-  const c = itemCache.get(state);
-  if (c && c.tick === state.tick) return c.map;
+/**
+ * Where every item is this tick, as `team` sees it (cached per state, tick and team). The map
+ * lists items in that team's order (its own players first, stations from its own side of the
+ * map), so a "first match" or a tie in a scan over it mirrors the rival's.
+ */
+export function itemIndex(state: MatchState, team: TeamId): Map<number, Loc> {
+  let c = itemCache.get(state);
+  if (!c || c.tick !== state.tick) {
+    c = { tick: state.tick, maps: [null, null] };
+    itemCache.set(state, c);
+  }
+  const cached = c.maps[team];
+  if (cached) return cached;
+  const nav = navFor(state, team);
+  let keys = stationOrder.get(nav);
+  if (!keys) {
+    keys = Object.keys(state.stations).sort((a, b) => nav.rank(Number(a)) - nav.rank(Number(b)));
+    stationOrder.set(nav, keys);
+  }
   const map = new Map<number, Loc>();
-  for (const p of state.players) if (p.holding) map.set(p.holding.id, { at: 'held', player: p.id, item: p.holding });
-  for (const key in state.stations) {
+  for (const id of [team * 2, team * 2 + 1, (1 - team) * 2, (1 - team) * 2 + 1] as PlayerId[]) {
+    const p = state.players[id];
+    if (p.holding) map.set(p.holding.id, { at: 'held', player: p.id, item: p.holding });
+  }
+  for (const key of keys) {
     const st = state.stations[key]!;
     if (st.item) map.set(st.item.id, { at: 'station', tile: st.tile, item: st.item });
   }
   for (const fi of state.floorItems) {
     map.set(fi.item.id, { at: 'floor', pos: fi.pos, item: fi.item, resting: fi.vel.x === 0 && fi.vel.y === 0 });
   }
-  itemCache.set(state, { tick: state.tick, map });
+  c.maps[team] = map;
   return map;
 }
 
