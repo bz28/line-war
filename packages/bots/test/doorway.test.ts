@@ -20,8 +20,7 @@ describe('a rival standing in the doorway (Harbor Pier)', () => {
     const crew = bots[2]!.crew;
     const doors = kitchenFor(state, 1).doorTiles.map((t) => ({ x: (t % state.arena.width) + 0.5, y: Math.floor(t / state.arena.width) + 0.5 }));
     expect(doors).toHaveLength(2);
-    // Stand on the seam between the two doorway tiles: touching both lanes.
-    const seam = { x: doors[0]!.x, y: (doors[0]!.y + doors[1]!.y) / 2 };
+    // Two rivals, one on each doorway lane: a real seal.
     const rate = state.config.tuning.tickRate;
     const releaseAt = 90 * rate; // round tick at which the blocker walks away
     let blockedTicks = 0;
@@ -31,7 +30,8 @@ describe('a rival standing in the doorway (Harbor Pier)', () => {
     while (state.round.phase !== 'matchOver' && state.round.phase !== 'roundOver') {
       const playing = state.round.phase !== 'prep';
       const blocking = playing && state.round.tick < releaseAt;
-      state.players[0].pos = blocking ? { ...seam } : { x: 3.5, y: 9.5 };
+      state.players[0].pos = blocking ? { ...doors[0]! } : { x: 3.5, y: 9.5 };
+      state.players[1].pos = blocking ? { ...doors[1]! } : { x: 5.5, y: 9.5 };
       const inputs = [0, 1, 2, 3].map((i) => brains[i]?.decide(state, i as 0 | 1 | 2 | 3) ?? NO_INPUT) as MatchInputs;
       step(state, inputs);
       if (crew.doorBlocked) {
@@ -48,6 +48,18 @@ describe('a rival standing in the doorway (Harbor Pier)', () => {
     expect(servedWhileBlocked).toBeGreaterThanOrEqual(4);
     expect(unblockedAgainAt).toBeGreaterThan(0);
     expect((unblockedAgainAt - releaseAt) / rate).toBeLessThanOrEqual(3);
+  }, T);
+
+  it('one rival on the seam between the two lanes is not a blockade (it can be shoved past)', () => {
+    const state = harbor(3);
+    const { brains, bots } = createBotsDebug([null, null, { ...bot('normal'), seed: 5 }, { ...bot('normal'), seed: 6 }]);
+    const doors = kitchenFor(state, 1).doorTiles.map((t) => ({ x: (t % state.arena.width) + 0.5, y: Math.floor(t / state.arena.width) + 0.5 }));
+    const seam = { x: doors[0]!.x, y: (doors[0]!.y + doors[1]!.y) / 2 };
+    for (let i = 0; i < 40 * 30; i++) {
+      if (state.round.phase !== 'prep') state.players[0].pos = { ...seam };
+      step(state, [0, 1, 2, 3].map((p) => brains[p]?.decide(state, p as 0 | 1 | 2 | 3) ?? NO_INPUT) as MatchInputs);
+      expect(bots[2]!.crew.doorBlocked).toBe(false);
+    }
   }, T);
 
   it('one rival in a doorway of a two-door kitchen is not a blockade (Rooftop Garden)', () => {
