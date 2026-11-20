@@ -130,6 +130,7 @@ export function coachTarget(s: MatchState, me: PlayerId, step: CoachStep): numbe
     if (held.contents.length === 0) return null;
     return nearestTile(s, p.pos, (i) => tiles[i]!.kind === 'pass' && mine(i));
   }
+  if (held.type === 'charm') return null; // charms (RULES §10) aren't wired into the client yet
   const def = s.ingredients[held.kind];
   if (held.state === 'raw' && def?.choppable) return nearestTile(s, p.pos, (i) => tiles[i]!.kind === 'board' && mine(i));
   if (def?.cook && def.cook.from === held.state) {

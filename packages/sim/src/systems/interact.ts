@@ -59,8 +59,9 @@ function grab(state: MatchState, p: PlayerState): void {
     return;
   }
   if (station) {
+    // RULES §10: a charm never goes on a station (and can't be trashed).
     if (p.holding.type === 'ingredient') useIngredientOn(state, p, p.holding, station);
-    else usePlateOn(state, p, p.holding, station);
+    else if (p.holding.type === 'plate') usePlateOn(state, p, p.holding, station);
     return;
   }
   if (tile !== null && kindAt(state, tile) === 'floor' && canUseTile(state, p.team, tile)) dropOnFloor(state, p);

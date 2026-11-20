@@ -45,6 +45,11 @@ export const DEFAULT_TUNING: Tuning = {
   intermissionSeconds: 5,
   /** Plated food goes cold (must be trashed) this long after plating. From the design sim. */
   plateColdSeconds: 20,
+  // Charms (RULES §10). Tuned with botsim on all three levels.
+  charmsPerRound: 3,
+  charmLifetimeSeconds: 20,
+  charmPoints: 50,
+  charmHeatTiers: 1,
 };
 
 export const DEFAULT_MATCH_CONFIG: MatchConfig = {
@@ -54,6 +59,7 @@ export const DEFAULT_MATCH_CONFIG: MatchConfig = {
   rushEnabled: true,
   criticEnabled: true,
   brunchSpeed: false,
+  charmsEnabled: true,
   seed: 1,
   tuning: DEFAULT_TUNING,
 };

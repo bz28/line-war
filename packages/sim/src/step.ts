@@ -1,4 +1,5 @@
 import { isPlaying } from './match';
+import { updateCharms } from './systems/charms';
 import { handleInteractions } from './systems/interact';
 import { updateFloorItems } from './systems/items';
 import { updateMarket } from './systems/market';
@@ -25,6 +26,7 @@ export function step(state: MatchState, inputs: MatchInputs): MatchState {
     updateFloorItems(state);
     updateMarket(state);
     updateTickets(state);
+    updateCharms(state);
   }
   return state;
 }

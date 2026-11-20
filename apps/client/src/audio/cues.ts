@@ -132,6 +132,10 @@ export const EVENT_HANDLING: Record<SimEvent['type'], EventHandling> = {
   phaseChange: 'mapped',
   roundEnd: 'mapped',
   matchEnd: 'mapped',
+  // Charms (RULES §10): no sounds yet; the client never passes charm variants to createMatch, so these don't fire.
+  charmSpawned: 'ignored',
+  charmBanked: 'ignored',
+  charmFaded: 'ignored',
 };
 
 const tileX = (state: MatchState, tile: number): number => (tile % state.arena.width) + 0.5;
@@ -219,6 +223,10 @@ export function cueForEvent(ev: SimEvent, state: MatchState, ctx: CueContext): C
       const won = ev.winner !== null && (ctx.localTeam === null || ctx.localTeam === ev.winner);
       return at(won ? 'matchWin' : 'matchEnd', null);
     }
+    case 'charmSpawned':
+    case 'charmBanked':
+    case 'charmFaded':
+      return null;
   }
 }
 

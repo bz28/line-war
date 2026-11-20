@@ -581,7 +581,7 @@ export function paintPlate(ctx: Ctx, plate: Pick<PlateItem, 'dirty' | 'cold' | '
 /** Half-size of the square a food or plate sprite needs at reference radius r. */
 export const itemHalf = (r: number): number => r * 1.65;
 
-function itemKey(item: Item | Food, r: number): string {
+function itemKey(item: Exclude<Item, { type: 'charm' }> | Food, r: number): string {
   if ('type' in item && item.type === 'plate') {
     return `p${item.dirty ? 'd' : ''}${item.cold ? 'c' : ''}:${item.contents.map((f) => f.kind + f.state[0]).join(',')}:${r.toFixed(1)}`;
   }
@@ -590,6 +590,8 @@ function itemKey(item: Item | Food, r: number): string {
 
 /** Draw an item or a piece of food (cached sprite) centred at x,y. */
 export function drawItem(ctx: Ctx, sprites: SpriteCache, item: Item | Food, x: number, y: number, r: number): void {
+  // Charms (RULES §10) get their own art later; the client doesn't spawn them yet.
+  if ('type' in item && item.type === 'charm') return;
   sprites.draw(ctx, itemKey(item, r), itemHalf(r), x, y, (c) => {
     if ('type' in item && item.type === 'plate') paintPlate(c, item, r);
     else paintFood(c, item, r);

@@ -52,7 +52,34 @@ export interface PlateItem {
   cold: boolean;
 }
 
-export type Item = IngredientItem | PlateItem;
+/**
+ * A charm (RULES §10): a mascot figurine that spawns in the market and is banked by carrying it into
+ * your own kitchen. Held, dropped, thrown, caught and knocked like any item; never placed on a station.
+ */
+export interface CharmItem {
+  id: number;
+  type: 'charm';
+  /** Stable variant id from the level's charm set (content). */
+  variant: CharmVariantId;
+  /** Tick it came to rest on the floor (fades charmLifetimeSeconds later); null while held or flying. */
+  floorSinceTick: number | null;
+}
+
+export type Item = IngredientItem | PlateItem | CharmItem;
+
+export type CharmVariantId = string;
+
+/** One collectible charm variant of a level (content data). */
+export interface CharmVariantDef {
+  /** Stable id (used by the client's collection screen; never rename). */
+  id: CharmVariantId;
+  /** Display name. */
+  name: string;
+  /** Relative spawn weight (RULES §10). */
+  weight: number;
+  /** Rare variants have a low weight; shown as such in the collection. */
+  rare: boolean;
+}
 
 /** Static description of an ingredient (content data). */
 export interface IngredientDef {
@@ -244,6 +271,10 @@ export interface MatchState {
   arena: ArenaRuntime;
   recipes: RecipeDef[];
   ingredients: Record<IngredientKind, IngredientDef>;
+  /** Charm variants that can spawn (RULES §10). Empty = no charms this match. */
+  charmVariants: CharmVariantDef[];
+  /** Charms spawned (or dropped at Last Call) so far this round (RULES §10). Reset each round. */
+  charmsSpawned: number;
   players: [PlayerState, PlayerState, PlayerState, PlayerState];
   /** Interactive tiles by tile index (as string key for JSON safety). */
   stations: Record<string, StationState>;
@@ -318,7 +349,10 @@ export type SimEvent =
   | { type: 'heatChange'; team: TeamId; heat: number }
   | { type: 'phaseChange'; phase: Phase }
   | { type: 'roundEnd'; winner: TeamId | null; scores: [number, number] }
-  | { type: 'matchEnd'; winner: TeamId | null };
+  | { type: 'matchEnd'; winner: TeamId | null }
+  | { type: 'charmSpawned'; itemId: number; tile: number; variant: CharmVariantId }
+  | { type: 'charmBanked'; team: TeamId; player: PlayerId; itemId: number; variant: CharmVariantId }
+  | { type: 'charmFaded'; itemId: number; variant: CharmVariantId };
 
 // ---------- config ----------
 
@@ -369,6 +403,14 @@ export interface Tuning {
   dirtyPlateReturnSeconds: number;
   intermissionSeconds: number;
   plateColdSeconds: number;
+  /** RULES §10: charms spawned per round (spread evenly over service and rush). */
+  charmsPerRound: number;
+  /** A charm resting on the floor this long fades away. */
+  charmLifetimeSeconds: number;
+  /** Points a crew gets for banking a charm. */
+  charmPoints: number;
+  /** Heat tiers a crew gains for banking a charm (capped at the top tier). */
+  charmHeatTiers: number;
 }
 
 export interface MatchConfig {
@@ -380,6 +422,8 @@ export interface MatchConfig {
   criticEnabled: boolean;
   /** "Brunch Speed": multiplies all cook/burn/spawn timers by 1.5. */
   brunchSpeed: boolean;
+  /** RULES §10: charms spawn in the market (needs charm variants passed to createMatch). Omitted = true. */
+  charmsEnabled?: boolean;
   seed: number;
   tuning: Tuning;
 }

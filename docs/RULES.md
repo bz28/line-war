@@ -121,3 +121,37 @@ Adding food sets `platedAtTick = tick`. Dirty plates accept nothing.
   team score/heat/cleanStreak (keep roundsWon), `round.tick = 0`, `criticSpawned = false`, phase `prep`, index + 1.
   `swapped` stays false (kitchen swap is held for later).
 - During `roundOver` and `matchOver` no other system runs (already handled by `step`).
+
+## 10. Charms (rules track)
+Charms are small figurines of the LINE WAR mascot (a round paper-lantern bunny) that turn up in the market.
+They exist only when `config.charmsEnabled` is true **and** the match was created with a non-empty list of
+charm variants (`createMatch({ charms })`, from the level's content). Otherwise nothing in this section runs and
+no rng is drawn, so the match plays exactly as without charms.
+
+- **Item**: a charm is an item `{ type: 'charm', variant, floorSinceTick }`. It can be held, dropped, thrown,
+  caught and knocked loose exactly like any other item (§1, §2, §5, §6), rivals included. It can never be put on a
+  station: Grab while holding a charm and facing any station (counter, board, stove, pass, trash, crate...) does
+  nothing; facing floor drops it (§2). A charm can't be trashed. A flying charm treats counters and boards like
+  any other non-floor tile: it stops on the last open tile instead of landing on them. Holding a charm fills
+  your hands (you can't take food, catch, or grab anything else until it is gone).
+- **Spawning**: `charmsPerRound` charms per round. The count is **per level**: each level sets it in content (`LevelDef.charmsPerRound`: Night Market 3, Harbor Pier 3, Rooftop Garden 1) and it is passed to `createMatch({ charmsPerRound })`, which overrides `tuning.charmsPerRound` (the default, 3, used when no count is given). Charm *k* (0-based) is due at round tick
+  `prepEnd + floor((k + 1) × (lastCallStart − prepEnd) / (charmsPerRound + 1))` (§9 round times), so spawns
+  are spread evenly over service and Dinner Rush and never fall in prep or Last Call. When a charm is due and the
+  phase is `service` or `rush`, candidate tiles are the **floor tiles of the market's middle column** (the
+  column halfway between the market's leftmost and rightmost columns; if the market is an even number of columns
+  wide, both middle columns), skipping any tile that contains a floor item or a player's centre, in tile-index
+  order. If there is at least one candidate: pick one with `randomInt(candidates)`, then the variant with
+  `weightedIndex` over the variant weights, and put a resting charm (thrownBy null) at the tile centre; emit
+  `charmSpawned { itemId, tile, variant }`. If there is no candidate the charm stays due and is retried every
+  tick; a charm still due when Last Call starts is dropped. Because the arenas are mirrored, the middle column is
+  the same distance from both kitchens.
+- **Banking**: at the end of every tick, each player (in id order) holding a charm while their centre is on a tile
+  of their own kitchen (tileOwner = their team) banks it: the charm is removed, the team gets `charmPoints` points
+  (added to the round score) and `charmHeatTiers` Heat tiers (capped at the top tier; each tier raised sets
+  `cleanStreak` to that tier's threshold, emit `heatChange`). Emit `charmBanked { team, player, itemId, variant }`.
+  Banking is not a delivery: it doesn't touch tickets, freshness or the rush multiplier.
+- **Fading**: a charm that rests on the floor (vel 0) for `charmLifetimeSeconds` without being picked up
+  disappears; emit `charmFaded { itemId, variant }`. Its `floorSinceTick` is the tick it came to rest; it is
+  cleared whenever the charm is held or in flight, so the clock restarts after each pickup, throw or knock.
+- **Round end**: when a round ends (§9), every charm still in play (held or on the floor) is removed without an
+  event. Charms are not carried over to the next round.

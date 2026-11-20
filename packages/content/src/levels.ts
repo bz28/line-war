@@ -1,4 +1,5 @@
-import type { ArenaDef, IngredientDef, IngredientKind, RecipeDef } from '@line-war/sim';
+import type { ArenaDef, CharmVariantDef, IngredientDef, IngredientKind, RecipeDef } from '@line-war/sim';
+import { LEVEL_CHARMS } from './charms';
 import { HARBOR_PIER } from './arenas/harborPier';
 import { NIGHT_MARKET } from './arenas/nightMarket';
 import { ROOFTOP_GARDEN } from './arenas/rooftopGarden';
@@ -14,6 +15,10 @@ export interface LevelDef {
   arena: ArenaDef;
   recipes: RecipeDef[];
   ingredients: Record<IngredientKind, IngredientDef>;
+  /** Charm variants that spawn on this level (RULES §10); pass to createMatch({ charms }). */
+  charms: CharmVariantDef[];
+  /** Charms per round on this level (RULES §10); pass to createMatch({ charmsPerRound }). */
+  charmsPerRound: number;
 }
 
 type Ingredients = Record<IngredientKind, IngredientDef>;
@@ -51,6 +56,8 @@ export const LEVELS: LevelDef[] = [
     arena: NIGHT_MARKET,
     recipes: menu(nightIngredients),
     ingredients: nightIngredients,
+    charms: LEVEL_CHARMS[NIGHT_MARKET.id]!,
+    charmsPerRound: 3,
   },
   {
     id: HARBOR_PIER.id,
@@ -59,6 +66,8 @@ export const LEVELS: LevelDef[] = [
     arena: HARBOR_PIER,
     recipes: menu(harborIngredients, { fish: 3, steak: 1.5, salad: 2, burger: 2.5, soup: 1.5 }),
     ingredients: harborIngredients,
+    charms: LEVEL_CHARMS[HARBOR_PIER.id]!,
+    charmsPerRound: 3,
   },
   {
     id: ROOFTOP_GARDEN.id,
@@ -67,6 +76,9 @@ export const LEVELS: LevelDef[] = [
     arena: ROOFTOP_GARDEN,
     recipes: menu(roofIngredients, { salad: 3, steak: 2, soup: 0, burger: 3, fish: 2 }),
     ingredients: roofIngredients,
+    charms: LEVEL_CHARMS[ROOFTOP_GARDEN.id]!,
+    // Its market is already the busiest (5.4 knocks/round without charms): one charm keeps it under the bar.
+    charmsPerRound: 1,
   },
 ];
 

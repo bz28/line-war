@@ -65,6 +65,8 @@ export interface RoundRecord {
   rushStartScores: Pair | null;
   /** Times the (non-tied) leader changed during the round, counted at each delivery. */
   leadChanges: number;
+  /** Charms (RULES §10): spawned, banked by each crew, faded, and knocks on charm carriers (by the knocker's crew). */
+  charms: { spawned: number; banked: Pair; faded: number; knocks: Pair };
 }
 
 export interface MatchRecord {

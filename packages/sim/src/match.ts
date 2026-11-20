@@ -2,6 +2,7 @@ import { secondsToTicks } from './tuning';
 import type {
   ArenaDef,
   ArenaRuntime,
+  CharmVariantDef,
   IngredientDef,
   IngredientKind,
   MatchConfig,
@@ -52,6 +53,10 @@ export interface CreateMatchOptions {
   recipes: RecipeDef[];
   ingredients: Record<IngredientKind, IngredientDef>;
   config: MatchConfig;
+  /** The level's charm variants (RULES §10). Omitted or empty = no charms. */
+  charms?: readonly CharmVariantDef[];
+  /** The level's charm count per round (RULES §10); overrides tuning.charmsPerRound when given. */
+  charmsPerRound?: number;
 }
 
 const freshTeam = (): TeamState => ({ score: 0, roundsWon: 0, heat: 0, cleanStreak: 0 });
@@ -100,13 +105,16 @@ export function spawnPlayers(arena: ArenaRuntime, swapped: boolean): MatchState[
 
 export function createMatch(opts: CreateMatchOptions): MatchState {
   const arena = buildArena(opts.arena);
-  const { config } = opts;
+  const config =
+    opts.charmsPerRound === undefined ? opts.config : { ...opts.config, tuning: { ...opts.config.tuning, charmsPerRound: opts.charmsPerRound } };
   return {
     tick: 0,
     config,
     arena,
     recipes: opts.recipes,
     ingredients: opts.ingredients,
+    charmVariants: (opts.charms ?? []).map((c) => ({ ...c })),
+    charmsSpawned: 0,
     players: spawnPlayers(arena, false),
     stations: createStations(arena, config),
     floorItems: [],

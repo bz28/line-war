@@ -28,6 +28,9 @@ const SAMPLES: Sample = {
   phaseChange: { type: 'phaseChange', phase: 'rush' },
   roundEnd: { type: 'roundEnd', winner: 0, scores: [10, 5] },
   matchEnd: { type: 'matchEnd', winner: 0 },
+  charmSpawned: { type: 'charmSpawned', itemId: 1, tile: 0, variant: 'night-lantern' },
+  charmBanked: { type: 'charmBanked', team: 0, player: 0, itemId: 1, variant: 'night-lantern' },
+  charmFaded: { type: 'charmFaded', itemId: 1, variant: 'night-lantern' },
 };
 
 const ctx = (over: Partial<CueContext> = {}): CueContext => ({ localTeam: 0, prevHeat: [0, 0], inFlight: new Set(), ...over });

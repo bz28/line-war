@@ -159,3 +159,23 @@ describe('recipes', () => {
     expect(Object.keys(state.stations).length).toBeGreaterThan(30);
   });
 });
+
+describe('charm variants (RULES §10)', () => {
+  it('every level has a themed set with unique stable ids, positive weights and a rarer rare one', async () => {
+    const { ALL_CHARMS, charmById } = await import('../src');
+    const ids = ALL_CHARMS.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const level of LEVELS) {
+      expect(level.charms.length, level.id).toBeGreaterThanOrEqual(3);
+      const rare = level.charms.filter((c) => c.rare);
+      const common = level.charms.filter((c) => !c.rare);
+      expect(rare.length, level.id).toBeGreaterThanOrEqual(1);
+      for (const c of level.charms) {
+        expect(c.weight).toBeGreaterThan(0);
+        expect(c.name.length).toBeGreaterThan(0);
+        expect(charmById(c.id)?.level).toBe(level.id);
+      }
+      expect(Math.max(...rare.map((c) => c.weight))).toBeLessThan(Math.min(...common.map((c) => c.weight)));
+    }
+  });
+});

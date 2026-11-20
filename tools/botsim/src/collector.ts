@@ -137,6 +137,7 @@ class RoundBuilder {
       critic: null,
       rushStartScores: null,
       leadChanges: 0,
+      charms: { spawned: 0, banked: pair(), faded: 0, knocks: pair() },
     };
   }
 }
@@ -225,6 +226,7 @@ export class Collector {
       case 'knock': {
         const team = teamOf(ev.by);
         r.knocks[team]++;
+        if (state.floorItems.some((fi) => fi.item.id === ev.itemId && fi.item.type === 'charm')) r.charms.knocks[team]++;
         this.cur.popped.set(ev.itemId, team);
         return;
       }
@@ -256,6 +258,15 @@ export class Collector {
         if (owner !== null) r.fires[owner]++;
         return;
       }
+      case 'charmSpawned':
+        r.charms.spawned++;
+        return;
+      case 'charmBanked':
+        r.charms.banked[ev.team]++;
+        return;
+      case 'charmFaded':
+        r.charms.faded++;
+        return;
       case 'roundEnd':
         this.endRound(state, ev.winner, ev.scores);
         return;
@@ -326,7 +337,7 @@ export class Collector {
           player: p.id,
           idleSeconds: this.opts.stuckSeconds,
           pos: { x: Math.round(p.pos.x * 100) / 100, y: Math.round(p.pos.y * 100) / 100 },
-          holding: h === null ? null : h.type === 'plate' ? `plate[${h.contents.map(foodKey).join(',')}]` : `${h.kind}:${h.state}`,
+          holding: h === null ? null : h.type === 'plate' ? `plate[${h.contents.map(foodKey).join(',')}]` : h.type === 'charm' ? `charm:${h.variant}` : `${h.kind}:${h.state}`,
         });
       }
     }

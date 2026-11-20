@@ -125,6 +125,16 @@ function contextTable(scenarios: readonly ScenarioAggregate[]): string {
   );
 }
 
+function charmTable(scenarios: readonly ScenarioAggregate[]): string {
+  return table(
+    ['Scenario', 'Charms/round spawned', 'Banked/round A / B', 'Faded/round', 'Knocks on charm carriers/round'],
+    scenarios.map((s) => {
+      const c = s.charmsPerRound;
+      return [s.scenario, f2(c.spawned), pair(c.banked, f2), f2(c.faded), f2(c.knocks)];
+    }),
+  );
+}
+
 function calibrationSection(p: PointResult): string {
   const c = p.calibration;
   if (!c) return '';
@@ -160,6 +170,7 @@ function sweepComparison(points: readonly PointResult[]): string {
             s.roundWins[0] + s.roundWins[1] ? `${pct(s.aRoundWinRate)} [${pct(s.aRoundWinCI.lo)}, ${pct(s.aRoundWinCI.hi)}]` : 'n/a',
             pair(s.pointsPerRound),
             f2(s.knocksPerRound),
+            `${f2(s.charmsPerRound.banked[0])} / ${f2(s.charmsPerRound.banked[1])}`,
             pct(s.contestedShare),
             f2(s.wastedPerRound.total),
             s.scoredRounds ? pct(s.closeRoundShare) : 'n/a',
@@ -168,7 +179,7 @@ function sweepComparison(points: readonly PointResult[]): string {
           ],
         ];
       });
-      return `### ${name}\n\n${table(['Point', 'A win %', 'Pts/round A / B', 'Knocks/round', 'Contested %', 'Wasted/round', 'Close %', 'Comeback %', 'Stuck'], rows)}`;
+      return `### ${name}\n\n${table(['Point', 'A win %', 'Pts/round A / B', 'Knocks/round', 'Charms banked A / B', 'Contested %', 'Wasted/round', 'Close %', 'Comeback %', 'Stuck'], rows)}`;
     })
     .join('\n\n');
 }
@@ -181,6 +192,8 @@ function pointDetails(p: PointResult): string {
     recipeTable(p.scenarios),
     '### Context: tickets, waste, Critic, Heat',
     contextTable(p.scenarios),
+    '### Charms',
+    charmTable(p.scenarios),
   ];
   if (p.calibration) parts.push('### gap-2v2 calibration', calibrationSection(p));
   parts.push('### Stuck events', stuckSection(p.scenarios));
