@@ -82,7 +82,7 @@ describe('phases', () => {
     expect(b.overlay).toBe(true);
     expect(b.title).toBe('ROUND 1 OVER');
     expect(b.subtitle).toContain('120 - 300');
-    expect(b.subtitle).toContain('CREW B WINS');
+    expect(b.subtitle).toContain(`${TEAM_NAMES[1]} WINS`);
     s.teams[0].score = 300;
     expect(phaseBanner(s, TEAM_NAMES)!.subtitle).toContain('TIE');
   });
@@ -93,7 +93,7 @@ describe('phases', () => {
     s.teams[0].roundsWon = 2;
     const b = phaseBanner(s, TEAM_NAMES)!;
     expect(b.title).toBe('MATCH OVER');
-    expect(b.subtitle).toContain('CREW A WINS');
+    expect(b.subtitle).toContain(`${TEAM_NAMES[0]} WINS`);
     expect(b.subtitle).toContain('2 - 0');
   });
 });

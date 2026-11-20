@@ -1,5 +1,6 @@
 import { tileCenter, tileOwner } from '@line-war/sim';
 import type { MatchState, PlayerId, SimEvent, TeamId, Vec2 } from '@line-war/sim';
+import { PALETTE, WORLD } from '../art/tokens';
 import { TEAM_COLORS } from './palette';
 
 /**
@@ -15,6 +16,9 @@ export type EffectKind =
   | 'ticketFlash' // highlight a ticket card
   | 'heatFlash'; // highlight a team's heat meter
 
+/** Particle burst the world renderer spawns when the effect starts. */
+export type BurstKind = 'knock' | 'serve' | 'chop' | 'wash' | 'cook' | 'fire' | 'smoke';
+
 export interface Effect {
   kind: EffectKind;
   start: number;
@@ -25,11 +29,12 @@ export interface Effect {
   player?: PlayerId;
   team?: TeamId;
   ticketId?: number;
+  burst?: BurstKind;
 }
 
 export const EFFECT_MS: Record<EffectKind, number> = {
   flash: 450,
-  popup: 1200,
+  popup: 1100,
   ring: 400,
   smoke: 700,
   shake: 400,
@@ -62,45 +67,45 @@ export function eventsToEffects(s: MatchState, events: readonly SimEvent[], now:
     switch (ev.type) {
       case 'knock': {
         const v = s.players[ev.victim].pos;
-        add({ kind: 'flash', pos: { x: v.x, y: v.y }, color: '#ffe14a', player: ev.victim });
-        add({ kind: 'popup', pos: { x: v.x, y: v.y - 0.6 }, text: 'KNOCK!', color: '#ffe14a' });
+        add({ kind: 'flash', pos: { x: v.x, y: v.y }, color: PALETTE.lantern, player: ev.victim, burst: 'knock' });
+        add({ kind: 'popup', pos: { x: v.x, y: v.y - 0.6 }, text: 'Knock!', color: PALETTE.lantern });
         break;
       }
       case 'delivered': {
         const pos = passCenter(s, ev.team);
-        if (pos) add({ kind: 'popup', pos, text: `+${ev.points}`, color: TEAM_COLORS[ev.team], team: ev.team });
+        if (pos) add({ kind: 'popup', pos, text: `+${ev.points}`, color: TEAM_COLORS[ev.team], team: ev.team, burst: 'serve' });
         break;
       }
       case 'chopDone':
-        add({ kind: 'ring', pos: at(ev.tile), color: '#9be89b' });
+        add({ kind: 'ring', pos: at(ev.tile), color: PALETTE.lantern, burst: 'chop' });
         break;
       case 'washDone':
-        add({ kind: 'ring', pos: at(ev.tile), color: '#9ad0ff' });
+        add({ kind: 'ring', pos: at(ev.tile), color: WORLD.frost, burst: 'wash' });
         break;
       case 'cookDone':
-        add({ kind: 'ring', pos: at(ev.tile), color: '#ffb347' });
-        add({ kind: 'popup', pos: at(ev.tile), text: 'DONE', color: '#ffb347' });
+        add({ kind: 'ring', pos: at(ev.tile), color: PALETTE.lantern, burst: 'cook' });
+        add({ kind: 'popup', pos: at(ev.tile), text: 'Done', color: PALETTE.lantern });
         break;
       case 'burnt':
-        add({ kind: 'smoke', pos: at(ev.tile), color: '#777777' });
-        add({ kind: 'popup', pos: at(ev.tile), text: 'BURNT', color: '#bbbbbb' });
+        add({ kind: 'smoke', pos: at(ev.tile), color: PALETTE.steel, burst: 'smoke' });
+        add({ kind: 'popup', pos: at(ev.tile), text: 'Burnt', color: PALETTE.danger });
         break;
       case 'fireStart':
-        add({ kind: 'flash', pos: at(ev.tile), color: '#ff7a1a' });
+        add({ kind: 'flash', pos: at(ev.tile), color: PALETTE.lanternHot, burst: 'fire' });
         break;
       case 'fireOut':
-        add({ kind: 'smoke', pos: at(ev.tile), color: '#cccccc' });
+        add({ kind: 'smoke', pos: at(ev.tile), color: PALETTE.paper, burst: 'smoke' });
         break;
       case 'serveRefused':
-        add({ kind: 'shake', player: ev.player, color: '#ff4040' });
+        add({ kind: 'shake', player: ev.player, color: PALETTE.danger });
         break;
       case 'plateCold': {
         const pos = findItemPos(s, ev.itemId);
-        if (pos) add({ kind: 'popup', pos, text: 'COLD', color: '#9cc4ff' });
+        if (pos) add({ kind: 'popup', pos, text: 'Cold', color: WORLD.frost });
         break;
       }
       case 'ticketSpawn':
-        add({ kind: 'ticketFlash', ticketId: ev.ticketId, color: ev.isCritic ? '#ffd54a' : '#ffffff' });
+        add({ kind: 'ticketFlash', ticketId: ev.ticketId, color: ev.isCritic ? PALETTE.lantern : PALETTE.paper });
         break;
       case 'heatChange':
         add({ kind: 'heatFlash', team: ev.team, color: TEAM_COLORS[ev.team] });

@@ -1,5 +1,6 @@
 import { secondsToTicks, timerTicks } from '@line-war/sim';
 import type { MatchState, Phase, TeamId, Ticket, VesselState } from '@line-war/sim';
+import { PALETTE, WORLD } from '../art/tokens';
 
 /** Pure formatting / derived-number helpers for the renderer. Never mutate state. */
 
@@ -76,7 +77,7 @@ export function phaseBanner(s: MatchState, names: Record<TeamId, string>): Banne
       return {
         title: 'PREP',
         subtitle: `Service starts in ${formatClock(s.config.prepSeconds - t)}`,
-        color: '#9ad0ff',
+        color: WORLD.frost,
         overlay: false,
       };
     case 'rush':
@@ -84,15 +85,15 @@ export function phaseBanner(s: MatchState, names: Record<TeamId, string>): Banne
       const start = phaseStartSeconds(s, phase) ?? 0;
       if (t - start > PHASE_BANNER_SECONDS) return null;
       return phase === 'rush'
-        ? { title: 'DINNER RUSH', subtitle: `Points x${s.config.tuning.rushMultiplier}`, color: '#ffb347', overlay: false }
-        : { title: 'LAST CALL', subtitle: 'No new tickets', color: '#ff6b5e', overlay: false };
+        ? { title: 'DINNER RUSH', subtitle: `Points x${s.config.tuning.rushMultiplier}`, color: PALETTE.lanternHot, overlay: false }
+        : { title: 'LAST CALL', subtitle: 'No new tickets', color: PALETTE.danger, overlay: false };
     }
     case 'roundOver': {
       const w = a.score === b.score ? null : a.score > b.score ? 0 : 1;
       return {
         title: `ROUND ${s.round.index + 1} OVER`,
         subtitle: `${names[0]} ${Math.round(a.score)} - ${Math.round(b.score)} ${names[1]}   ${w === null ? 'TIE' : `${names[w]} WINS THE ROUND`}`,
-        color: '#ffffff',
+        color: PALETTE.paper,
         overlay: true,
       };
     }
@@ -100,7 +101,7 @@ export function phaseBanner(s: MatchState, names: Record<TeamId, string>): Banne
       return {
         title: 'MATCH OVER',
         subtitle: `${s.winner === null ? 'DRAW' : `${names[s.winner]} WINS`}   rounds ${a.roundsWon} - ${b.roundsWon}`,
-        color: '#ffd54a',
+        color: PALETTE.lantern,
         overlay: true,
       };
     case 'service':
