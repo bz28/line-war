@@ -4,12 +4,11 @@
  * Act, or DONE / FAIL. Being reactive (not a fixed script) is what keeps bots unstuck when a
  * teammate, a rival or a human changes the world under them.
  */
-import { plateFits, type IngredientKind, type Item, type MatchState, type PlateItem, type PlayerState, vesselTimeline } from '@line-war/sim';
+import { isPlateCold, plateFits, vesselTimeline, type IngredientKind, type Item, type MatchState, type PlateItem, type PlayerState } from '@line-war/sim';
 import type { Crew, Order, Slot } from './crew';
 import { BOT_TUNING } from './tuning';
 import type { Kitchen, Loc } from './world';
 import { canBecome, pipeline, sameBag, subBag } from './world';
-import { isPlateCold } from '@line-war/sim';
 
 export type Act =
   /** Walk to the station, face it, press Grab once. */

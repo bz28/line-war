@@ -157,9 +157,8 @@ export class Nav {
    */
   path(from: number, goals: readonly number[], extra: Int32Array | null, blocked: Uint8Array | null): number[] | null {
     if (from < 0 || goals.length === 0) return null;
-    const goalSet = goals;
-    for (const g of goalSet) if (g === from) return [];
-    const reached = this.dijkstra(from, goalSet, extra, blocked);
+    if (goals.includes(from)) return [];
+    const reached = this.dijkstra(from, goals, extra, blocked);
     if (reached < 0) return null;
     const out: number[] = [];
     for (let t = reached; t !== from; t = this.prev[t]!) out.push(t);

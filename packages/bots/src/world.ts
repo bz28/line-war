@@ -4,6 +4,7 @@
  * (the hidden-Critic rule lives in visibleTickets).
  */
 import {
+  isVisibleTo,
   tileOwner,
   type Food,
   type IngredientKind,
@@ -212,8 +213,6 @@ export function itemIndex(state: MatchState): Map<number, Loc> {
 }
 
 // ---------- tickets ----------
-
-export const isVisibleTo = (t: Ticket, team: TeamId): boolean => t.visibleTo === null || t.visibleTo === team;
 
 /** Tickets a human on `team` can see right now. */
 export function visibleTickets(state: MatchState, team: TeamId): Ticket[] {
