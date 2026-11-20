@@ -149,3 +149,16 @@ describe('bad options', () => {
     for (const team of [0, 1] as const) expect(s.rounds[0]!.delivered[team]).toBeGreaterThanOrEqual(10);
   }, T);
 });
+
+describe('market decisions', () => {
+  it('a decision for an ongoing encounter is never re-rolled, and old ones are forgotten', () => {
+    const b = createBotsDebug([bot('normal'), null, null, null]).bots[0]!;
+    const first = b.decideOnce(1, 0.5, 0);
+    for (let i = 2; i < 500; i++) {
+      const tick = i * 20;
+      b.decideOnce(i, 0.5, tick); // a stream of short, unrelated encounters
+      expect(b.decideOnce(1, 0.5, tick)).toBe(first); // encounter 1 is still going on
+    }
+    expect(b.encountersRemembered).toBeLessThanOrEqual(32 + 300 / 20 + 2);
+  });
+});

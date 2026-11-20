@@ -39,6 +39,8 @@ const HUNT_RANGE = 7;
 const HUNT_TICKS = 120;
 /** Seconds we want to be in place before the rival reaches their doorway. */
 const CUT_MARGIN_SECONDS = 0.4;
+/** An encounter not seen for this long is forgotten (its decision may be rolled again). */
+const EPISODE_TTL_TICKS = 300;
 
 const BODY_OFFSETS: readonly [number, number][] = [
   [0, 0],
@@ -89,7 +91,8 @@ export class Bot {
   // market play
   private huntTarget: PlayerId | null = null;
   private huntUntil = 0;
-  private considered = new Map<number, number>();
+  /** One roll per market encounter (episode key → decision and the tick it was last seen). */
+  private considered = new Map<number, { take: boolean; seen: number }>();
   private chase: number | null = null;
   private chaseUntil = 0;
   /** Knocks this bot landed (for tests / stats). */
@@ -570,8 +573,7 @@ export class Bot {
         const episode = r.id * 100000 + (r.holding.id % 100000);
         // Empty-handed we can steal the popped item; carrying we can still deny it (less tempting).
         const chance = this.params.knockChance * (me.holding ? 0.5 : 1);
-        if (!this.considered.has(episode)) this.considered.set(episode, this.rng.chance(chance) ? 1 : 0);
-        if (this.huntTarget === r.id || this.considered.get(episode) === 1) return { ...NO_INPUT, move: { x: ux, y: uy }, dash: true };
+        if (this.huntTarget === r.id || this.decideOnce(episode, chance, state.tick)) return { ...NO_INPUT, move: { x: ux, y: uy }, dash: true };
       }
     }
     // Hunt a rival carrying a premium item: chase one that's close, or (with time on our hands)
@@ -587,8 +589,7 @@ export class Bot {
         const close = nearMarket && dist(me.pos, r.pos) <= HUNT_RANGE;
         if (!close && !(spare && this.cutOff(ctx, r) !== null)) continue;
         const episode = -(r.id * 100000 + (it.id % 100000));
-        if (!this.considered.has(episode)) this.considered.set(episode, this.rng.chance(this.params.huntChance) ? 1 : 0);
-        if (this.considered.get(episode) === 1) {
+        if (this.decideOnce(episode, this.params.huntChance, state.tick)) {
           this.huntTarget = r.id;
           this.huntUntil = state.tick + HUNT_TICKS;
           // Drop the kitchen job (and its claims) so a crewmate can pick it up meanwhile.
@@ -649,14 +650,34 @@ export class Bot {
         if (l < 1e-6) continue;
         const away = (dx * (me.pos.x - r.pos.x) + dy * (me.pos.y - r.pos.y)) / (l * d);
         const episode = -1e9 - r.id * 1000 - (state.tick >> 5);
-        if (!this.considered.has(episode)) this.considered.set(episode, this.rng.chance(this.params.defend * 0.6) ? 1 : 0);
-        if (away > 0.3 && this.considered.get(episode) === 1 && this.dashLaneClear(nav, me.pos, dx / l, dy / l, t.dashDistance)) {
+        if (away > 0.3 && this.decideOnce(episode, this.params.defend * 0.6, state.tick) && this.dashLaneClear(nav, me.pos, dx / l, dy / l, t.dashDistance)) {
           return { ...NO_INPUT, move: { x: dx / l, y: dy / l }, dash: true };
         }
       }
     }
-    if (this.considered.size > 64) this.considered.clear();
     return null;
+  }
+
+  /**
+   * Roll once per encounter and stick with it while the encounter lasts. Encounters not seen for
+   * EPISODE_TTL_TICKS are forgotten (never one still going on, so a decision is never re-rolled mid-way).
+   */
+  decideOnce(episode: number, chance: number, tick: number): boolean {
+    let d = this.considered.get(episode);
+    if (!d) {
+      if (this.considered.size >= 32) {
+        for (const [e, old] of this.considered) if (tick - old.seen > EPISODE_TTL_TICKS) this.considered.delete(e);
+      }
+      d = { take: this.rng.chance(chance), seen: tick };
+      this.considered.set(episode, d);
+    }
+    d.seen = tick;
+    return d.take;
+  }
+
+  /** For tests: encounters remembered. */
+  get encountersRemembered(): number {
+    return this.considered.size;
   }
 
   /**
