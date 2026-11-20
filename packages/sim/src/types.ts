@@ -261,7 +261,13 @@ export interface MatchState {
   nextId: number;
   /** Events produced during the most recent step() call. Cleared at the start of each step. */
   events: SimEvent[];
+  /** Match winner once phase is 'matchOver'; null while playing, or for a drawn match. */
   winner: TeamId | null;
+  /**
+   * Points per team summed over every completed round of the match (match tiebreak, RULES §9).
+   * Added at each round end; reset only by createMatch.
+   */
+  totalScores: [number, number];
 }
 
 // ---------- inputs ----------

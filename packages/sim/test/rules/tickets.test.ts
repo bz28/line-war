@@ -35,6 +35,18 @@ describe('ticket spawning', () => {
     expect(ticksSeen.every((t) => t < 55 * 30)).toBe(true);
   });
 
+  it('pulls the next ticket in to at most one rush interval when Dinner Rush starts', () => {
+    // Service every 10 s: the ticket scheduled at round tick 1050 would be due at 1350,
+    // but rush starts at 1200, so it comes at 1200 + 90 = 1290 instead.
+    const ticksSeen = spawnTicks({
+      roundSeconds: 60,
+      prepSeconds: 5,
+      criticEnabled: false,
+      tuning: { ...ROOMY, ticketSpawnSeconds: 10, rushSeconds: 20, lastCallSeconds: 5 },
+    });
+    expect(ticksSeen).toEqual([150, 450, 750, 1050, 1290, 1380, 1470, 1560]);
+  });
+
   it('keeps the service rate when rush is disabled', () => {
     const ticksSeen = spawnTicks({ roundSeconds: 60, prepSeconds: 5, rushEnabled: false, criticEnabled: false, tuning: { ...ROOMY, rushSeconds: 20, lastCallSeconds: 5 } });
     const diffs = ticksSeen.slice(1).map((t, i) => t - ticksSeen[i]!);

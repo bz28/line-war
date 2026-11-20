@@ -127,6 +127,7 @@ export function createMatch(opts: CreateMatchOptions): MatchState {
     nextId: 1,
     events: [],
     winner: null,
+    totalScores: [0, 0],
   };
 }
 

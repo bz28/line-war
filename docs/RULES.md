@@ -83,7 +83,8 @@ Adding food sets `platedAtTick = tick`. Dirty plates accept nothing.
 ## 7. Tickets (rules track)
 - No tickets during prep. The first spawns when prep ends, then every `ticketSpawnSeconds`
   (`rushTicketSpawnSeconds` during Dinner Rush). No spawns during Last Call. Skip a spawn if the board already holds
-  `maxTickets` non-critic tickets (try again next interval).
+  `maxTickets` non-critic tickets (try again next interval). When the phase becomes rush, the next spawn is
+  pulled in to at most `now + rushTicketSpawnSeconds` (so the first rush ticket doesn't wait a full service interval).
 - Recipe picked with `weightedIndex` over recipe weights. `expireTick = spawnTick + ticketLifetimeSeconds`. Expired tickets are removed (`ticketExpired`).
 - **Critic**: once per round at `criticAtFraction × roundSeconds`, if `criticEnabled`: a premium recipe (weighted among
   premium recipes), `baseValue × criticMultiplier`, `isCritic = true`. `visibleTo` = the team with the lower score
@@ -95,7 +96,8 @@ Adding food sets `platedAtTick = tick`. Dirty plates accept nothing.
 ## 8. Scoring and Heat (rules track)
 - Points = `round(ticket.baseValue × freshness × heatMultipliers[heat] × (rush ? rushMultiplier : 1)) + tip`, where
   `freshness = 1 − (1 − freshnessFloor) × age / lifetime` and tip = `tipPoints` if served within `tipWindowSeconds`
-  of `platedAtTick` (tipPoints is 0 for now).
+  of `platedAtTick` (tipPoints is 0 for now). `rush` is true when `rushEnabled` and the phase is `rush` **or `lastCall`**
+  (Last Call is the end of Dinner Rush, see §9).
 - After scoring: `cleanStreak + 1`; `heat` = number of `heatThresholds` ≤ cleanStreak. Emit `heatChange` when it changes.
 - `registerMistake`: if heat > 0, heat − 1 and `cleanStreak = heatThresholds[heat − 1]` (or 0 when heat becomes 0);
   if heat is 0, cleanStreak = 0. Emit `heatChange` if heat changed.
@@ -105,9 +107,16 @@ Adding food sets `platedAtTick = tick`. Dirty plates accept nothing.
 - Phase from `round.tick` (seconds = tick / tickRate): `prep` < `prepSeconds` ≤ `service` <
   `roundSeconds − rushSeconds` ≤ `rush` < `roundSeconds − lastCallSeconds` ≤ `lastCall` < `roundSeconds`.
   If `rushEnabled` is false there is no rush (service runs until last call) and no rush multiplier. Emit `phaseChange` on every change.
-- At `roundSeconds`: phase `roundOver`; higher score gets `roundsWon + 1` (tie: nobody); emit `roundEnd`.
-  Wait `intermissionSeconds`, then: if a team has `roundsWon ≥ ceil(bestOf / 2)`, phase `matchOver`, set
-  `state.winner`, emit `matchEnd`; otherwise start the next round.
+  Dinner Rush is the final `rushSeconds` of the round and **includes Last Call**: when `rushEnabled` is true the
+  rush multiplier (§8) applies during both `rush` and `lastCall`.
+- At `roundSeconds`: phase `roundOver`; higher score gets `roundsWon + 1` (tie: nobody); add each team's round
+  score to `state.totalScores` (match total, reset only by `createMatch`); emit `roundEnd`.
+- Wait `intermissionSeconds`, then decide the match (it is capped at `bestOf` rounds):
+  1. a team with `roundsWon ≥ ceil(bestOf / 2)` wins;
+  2. otherwise, if fewer than `bestOf` rounds have been played, start the next round;
+  3. otherwise (`bestOf` rounds played) the team with more `roundsWon` wins; if level, the team with the higher
+     `totalScores` wins; if still level the match is a **draw** (`winner = null`).
+  When decided: phase `matchOver`, set `state.winner` (null for a draw), emit `matchEnd` with that winner.
 - Next round: reset stations (`createStations`), players (`spawnPlayers`), floor items, fires, tickets, dirty returns,
   team score/heat/cleanStreak (keep roundsWon), `round.tick = 0`, `criticSpawned = false`, phase `prep`, index + 1.
   `swapped` stays false (kitchen swap is held for later).
