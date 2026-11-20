@@ -65,6 +65,7 @@ export function kitchenFor(state: MatchState, team: TeamId): Kitchen {
 
 function buildKitchen(state: MatchState, team: TeamId): Kitchen {
   const nav = navFor(state, team);
+  nav.warm();
   const k: Kitchen = {
     team,
     nav,

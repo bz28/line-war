@@ -130,6 +130,14 @@ export class Nav {
     return f;
   }
 
+  /**
+   * Compute the cost field from every open tile up front (a few ms, once per arena and team), so
+   * no single tick mid-service pays for a first-time Dijkstra.
+   */
+  warm(): void {
+    for (let i = 0; i < this.n; i++) if (this.open[i]) this.field(i);
+  }
+
   /** Path cost between two open tiles (in tiles), or Infinity. */
   tiles(from: number, to: number): number {
     if (from < 0 || to < 0) return Infinity;
