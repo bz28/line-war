@@ -1,0 +1,164 @@
+/** Regression tests for review findings: reused brains, odd options, edge cases in the executor. */
+import { describe, expect, it } from 'vitest';
+import { NO_INPUT, newId, step, tileOwner, type FloorItem, type MatchInputs, type PlayerId } from '@line-war/sim';
+import { createBotsDebug, navFor, resolveSkill, type BotOptions } from '../src';
+import { bot, newMatch, runMatch, type Slots } from './harness';
+
+const T = 120_000;
+
+describe('reusing brains', () => {
+  it('the same brains play a second match as well as fresh ones', () => {
+    const slots: Slots = [bot('normal'), bot('normal'), bot('hard'), bot('easy')];
+    const seeded = slots.map((s, i) => (s ? { ...s, seed: 7 * 31 + i } : null));
+    const brains = createBotsDebug(seeded);
+    const config = { bestOf: 1 as const };
+    const first = runMatch({ seed: 7, slots, config, brains });
+    const second = runMatch({ seed: 8, slots, config, brains });
+    for (const s of [first, second]) {
+      expect(s.matchOver).toBe(true);
+      for (const i of [0, 1, 2, 3]) expect(s.maxIdleSeconds[i], `player ${i} idle`).toBeLessThanOrEqual(10);
+      for (const team of [0, 1] as const) expect(s.rounds[0]!.delivered[team]).toBeGreaterThanOrEqual(10);
+    }
+  }, T);
+});
+
+describe('market play', () => {
+  it('a hunting bot holds no kitchen claims (crewmates can take over its job)', () => {
+    let huntTicks = 0;
+    for (const seed of [1, 2, 3]) {
+      const slots: Slots = [bot('hard'), bot('hard'), bot('hard'), bot('hard')];
+      runMatch({
+        seed,
+        slots,
+        config: { bestOf: 1 },
+        onTick: (_state, _inputs, bots) => {
+          for (const b of bots) {
+            if (!b || b.hunting === null) continue;
+            huntTicks++;
+            expect(b.crew.claimsOf(b.id)).toEqual([]);
+          }
+        },
+      });
+    }
+    expect(huntTicks).toBeGreaterThan(0);
+  }, T);
+});
+
+describe('floor items in front of stations', () => {
+  it('an empty-handed station grab never scoops up junk lying in front when another spot is clean', () => {
+    let junkScoops = 0;
+    let checks = 0;
+    for (const seed of [1, 2]) {
+      const slots: Slots = [bot('normal'), bot('normal'), bot('normal'), bot('normal')];
+      const junk = new Set<number>();
+      let seededRound = -1;
+      runMatch({
+        seed,
+        slots,
+        config: { bestOf: 1 },
+        onTick: (state, inputs, bots) => {
+          // At the start of service, drop a burnt tomato on one access tile of every station that has
+          // more than one, just in front of where a player stands to use it.
+          if (state.round.phase === 'service' && seededRound !== state.round.index) {
+            seededRound = state.round.index;
+            for (const team of [0, 1] as const) {
+              const nav = navFor(state, team);
+              for (const [, acc] of nav.access) {
+                if (acc.length < 2) continue;
+                const c = nav.center(acc[0]!.tile);
+                const id = newId(state);
+                junk.add(id);
+                const fi: FloorItem = {
+                  item: { id, type: 'ingredient', kind: 'tomato', state: 'burnt' },
+                  pos: { x: c.x + acc[0]!.dir.x * 0.4, y: c.y + acc[0]!.dir.y * 0.4 },
+                  vel: { x: 0, y: 0 },
+                  thrownBy: null,
+                  thrownAtTick: null,
+                  travelled: 0,
+                };
+                state.floorItems.push(fi);
+              }
+            }
+          }
+          for (const b of bots) {
+            if (!b || !inputs[b.id].grab || !b.actKey.startsWith('use:') || state.players[b.id].holding) continue;
+            checks++;
+            // What would this grab take? Nearest resting floor item in front within reach (RULES §2).
+            const me = state.players[b.id];
+            let best: number | null = null;
+            let bestD = Infinity;
+            for (const fi of state.floorItems) {
+              const dx = fi.pos.x - me.pos.x;
+              const dy = fi.pos.y - me.pos.y;
+              const d = Math.hypot(dx, dy);
+              if (fi.vel.x || fi.vel.y || d > state.config.tuning.interactReach || d >= bestD || dx * me.facing.x + dy * me.facing.y < 0) continue;
+              best = fi.item.id;
+              bestD = d;
+            }
+            if (best !== null && junk.has(best)) junkScoops++;
+          }
+        },
+      });
+    }
+    expect(checks).toBeGreaterThan(100);
+    expect(junkScoops).toBe(0);
+  }, T);
+});
+
+describe('nowhere to put things', () => {
+  it('a bot holding a plate with every counter taken sets it down on its kitchen floor', () => {
+    const state = newMatch(3, { prepSeconds: 30 });
+    const { brains } = createBotsDebug([bot('normal'), null, null, null]);
+    // Every surface in kitchen 0 holds a clean plate; player 0 holds one more.
+    for (const key in state.stations) {
+      const st = state.stations[key]!;
+      const kind = state.arena.tiles[st.tile]?.kind;
+      if ((kind === 'counter' || kind === 'board') && tileOwner(state, st.tile) === 0) {
+        st.item = { id: newId(state), type: 'plate', dirty: false, contents: [], platedAtTick: null, cold: false };
+      }
+    }
+    const held = newId(state);
+    state.players[0].holding = { id: held, type: 'plate', dirty: false, contents: [], platedAtTick: null, cold: false };
+    for (let t = 0; t < 300; t++) {
+      const inputs = [0, 1, 2, 3].map((i) => brains[i]?.decide(state, i as PlayerId) ?? NO_INPUT) as MatchInputs;
+      step(state, inputs);
+    }
+    expect(state.round.phase).toBe('prep');
+    expect(state.players[0].holding).toBeNull();
+    const fi = state.floorItems.find((f) => f.item.id === held);
+    expect(fi).toBeDefined();
+    const nav = navFor(state, 0);
+    expect(tileOwner(state, nav.tileAt(fi!.pos))).toBe(0);
+  }, T);
+});
+
+describe('bad options', () => {
+  it('an unknown difficulty or a non-finite skill falls back to normal', () => {
+    expect(resolveSkill('insane')).toBe(0.6);
+    expect(resolveSkill('toString')).toBe(0.6);
+    expect(resolveSkill('hard', Number.NaN)).toBe(0.9);
+    expect(resolveSkill('easy', 2)).toBe(1);
+    const weird: BotOptions[] = [
+      { difficulty: 'insane' } as unknown as BotOptions,
+      { difficulty: 'normal', skill: Number.NaN },
+      { difficulty: undefined } as unknown as BotOptions,
+      { difficulty: 'hard', skill: Infinity },
+    ];
+    const s = runMatch({ seed: 4, slots: weird, config: { bestOf: 1 } });
+    expect(s.matchOver).toBe(true);
+    for (const team of [0, 1] as const) expect(s.rounds[0]!.delivered[team]).toBeGreaterThanOrEqual(10);
+  }, T);
+});
+
+describe('market decisions', () => {
+  it('a decision for an ongoing encounter is never re-rolled, and old ones are forgotten', () => {
+    const b = createBotsDebug([bot('normal'), null, null, null]).bots[0]!;
+    const first = b.decideOnce(1, 0.5, 0);
+    for (let i = 2; i < 500; i++) {
+      const tick = i * 20;
+      b.decideOnce(i, 0.5, tick); // a stream of short, unrelated encounters
+      expect(b.decideOnce(1, 0.5, tick)).toBe(first); // encounter 1 is still going on
+    }
+    expect(b.encountersRemembered).toBeLessThanOrEqual(32 + 300 / 20 + 2);
+  });
+});
