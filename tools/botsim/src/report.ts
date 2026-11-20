@@ -125,6 +125,26 @@ function contextTable(scenarios: readonly ScenarioAggregate[]): string {
   );
 }
 
+function economyTable(scenarios: readonly ScenarioAggregate[]): string {
+  return table(
+    ['Scenario', 'Top-Heat share', 'Heat drops/crew/round', 'Lead changes/round', 'Comeback %', 'Points: base · Critic · Heat · rush · charm', 'Waste/round: cold sniped · cold slow · cold partial · trashed · left · burns · expired tickets'],
+    scenarios.map((s) => {
+      const p = s.pointsShare;
+      const c = s.coldCausePerRound;
+      const w = s.wastedPerRound;
+      return [
+        s.scenario,
+        pct(s.topHeatShare),
+        f2(s.heatDropsPerCrewRound),
+        f2(s.leadChangesPerRound),
+        s.comeback.eligible ? pct(s.comeback.rate) : 'n/a',
+        [p.base, p.critic, p.heat, p.rush, p.charm].map(pct).join(' · '),
+        [c.sniped, c.slow, c.partial, w.trashed, w.leftover, s.burnsPerRound, s.ticketsPerRound.expired].map(f2).join(' · '),
+      ];
+    }),
+  );
+}
+
 function charmTable(scenarios: readonly ScenarioAggregate[]): string {
   return table(
     ['Scenario', 'Charms/round spawned', 'Banked/round A / B', 'Faded/round', 'Knocks on charm carriers/round'],
@@ -175,11 +195,15 @@ function sweepComparison(points: readonly PointResult[]): string {
             f2(s.wastedPerRound.total),
             s.scoredRounds ? pct(s.closeRoundShare) : 'n/a',
             s.comeback.eligible ? pct(s.comeback.rate) : 'n/a',
+            pct(s.topHeatShare),
+            f2(s.heatDropsPerCrewRound),
+            f2(s.leadChangesPerRound),
+            pct(s.pointsShare.heat),
             `${s.stuck}`,
           ],
         ];
       });
-      return `### ${name}\n\n${table(['Point', 'A win %', 'Pts/round A / B', 'Knocks/round', 'Charms banked A / B', 'Contested %', 'Wasted/round', 'Close %', 'Comeback %', 'Stuck'], rows)}`;
+      return `### ${name}\n\n${table(['Point', 'A win %', 'Pts/round A / B', 'Knocks/round', 'Charms banked A / B', 'Contested %', 'Wasted/round', 'Close %', 'Comeback %', 'Top Heat', 'Heat drops/crew', 'Lead changes', 'Heat pts %', 'Stuck'], rows)}`;
     })
     .join('\n\n');
 }
@@ -194,6 +218,8 @@ function pointDetails(p: PointResult): string {
     contextTable(p.scenarios),
     '### Charms',
     charmTable(p.scenarios),
+    '### Scoring economy: Heat, lead swings, points by source, waste by cause',
+    economyTable(p.scenarios),
   ];
   if (p.calibration) parts.push('### gap-2v2 calibration', calibrationSection(p));
   parts.push('### Stuck events', stuckSection(p.scenarios));
@@ -253,7 +279,9 @@ export function renderMarkdown(r: SuiteResult, meta: ReportMeta = {}): string {
       '- **Lead changes**: times the non-tied leader changed, checked at each delivery.',
       '- **Served rate** (recipe bar): regular tickets of the recipe served, over tickets spawned (the Critic is excluded). The bar passes when the lowest rate is at least half the highest.',
       `- **Stuck**: a bot whose position stayed within 0.25 tiles and who pressed no grab/work/throw for more than ${o.stuckSeconds} s of time with tickets on the board. Idle (non-bot) slots are not checked.`,
-      '- **Heat**: share of service/rush/last-call time at each Heat tier.',
+      '- **Heat**: share of service/rush/last-call time at each Heat tier. **Top-Heat share**: both crews at the top tier. **Heat drops**: tier lost to a burn, per crew per round.',
+      '- **Points by source**: each delivery split in formula order — base (baseValue × freshness), Critic premium, Heat bonus, rush bonus — plus charmPoints per banked charm. Heat from charms shows up as Heat bonus.',
+      '- **Cold sniped / slow / partial**: a plate went cold holding a finished dish with no ticket left (rival served it or it expired) / a finished dish that still had a ticket / an unfinished dish.',
     ].join('\n'),
     '',
   );

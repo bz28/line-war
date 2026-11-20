@@ -16,6 +16,8 @@
  */
 import {
   isPlaying,
+  isVisibleTo,
+  matchesRecipe,
   teamOf,
   tileIndexAtPos,
   tileOwner,
@@ -99,6 +101,23 @@ function snapshotPlates(state: MatchState): Map<number, PlateSeen> {
 
 const pair = (): Pair => [0, 0];
 
+/** The plate with this id, wherever it is. */
+function findPlate(state: MatchState, id: number): Item | null {
+  for (const p of state.players) if (p.holding?.id === id) return p.holding;
+  for (const st of Object.values(state.stations)) if (st.item?.id === id) return st.item;
+  for (const fi of state.floorItems) if (fi.item.id === id) return fi.item;
+  return null;
+}
+
+/** Why a plate went cold (see RoundRecord.coldCause). */
+export function coldCause(state: MatchState, team: TeamId, item: Item | null): 'sniped' | 'slow' | 'partial' {
+  if (!item || item.type !== 'plate') return 'partial';
+  const recipe = state.recipes.find((r) => matchesRecipe(item.contents, r));
+  if (!recipe) return 'partial';
+  const open = state.tickets.some((t) => t.recipe === recipe.id && isVisibleTo(t, team) && state.tick < t.expireTick);
+  return open ? 'slow' : 'sniped';
+}
+
 /** Tiles a player may drift (pushing against a wall or a player) and still count as not moving. */
 export const STILL_RADIUS = 0.25;
 
@@ -110,6 +129,9 @@ class RoundBuilder {
   /** Popped item id -> knocker's team, until someone picks it up. */
   readonly popped = new Map<number, TeamId>();
   lastLeader: TeamId | null = null;
+  readonly heat: [number, number] = [0, 0];
+  /** Ticket id -> what scoring needs, for points by source. */
+  readonly ticketInfo = new Map<number, { baseValue: number; spawnTick: number; expireTick: number; critic: boolean }>();
 
   constructor(index: number, recipes: readonly RecipeDef[]) {
     const servedByRecipe: Record<RecipeId, Pair> = {};
@@ -129,10 +151,13 @@ class RoundBuilder {
       tickets,
       contested: 0,
       wasted: { cold: pair(), trashed: pair(), leftover: pair() },
+      coldCause: { sniped: pair(), slow: pair(), partial: pair() },
+      points: { base: pair(), critic: pair(), heat: pair(), rush: pair(), charm: pair() },
       knocks: pair(),
       steals: pair(),
       burns: pair(),
       fires: pair(),
+      heatDrops: pair(),
       heatTicks: [[0, 0, 0, 0], [0, 0, 0, 0]],
       critic: null,
       rushStartScores: null,
@@ -184,7 +209,9 @@ export class Collector {
         if (ev.phase === 'prep' && state.round.index !== r.index) this.startRound(state);
         else if (ev.phase === 'rush') this.cur.rec.rushStartScores = [state.teams[0].score, state.teams[1].score];
         return;
-      case 'ticketSpawn':
+      case 'ticketSpawn': {
+        const t = state.tickets.find((x) => x.id === ev.ticketId);
+        if (t) this.cur.ticketInfo.set(t.id, { baseValue: t.baseValue, spawnTick: t.spawnTick, expireTick: t.expireTick, critic: ev.isCritic });
         if (ev.isCritic) {
           this.cur.criticId = ev.ticketId;
           const t = state.tickets.find((x) => x.id === ev.ticketId);
@@ -195,6 +222,7 @@ export class Collector {
           if (c) c.spawned++;
         }
         return;
+      }
       case 'ticketExpired': {
         const recipe = this.cur.ticketRecipe.get(ev.ticketId);
         if (recipe !== undefined) {
@@ -205,6 +233,7 @@ export class Collector {
       }
       case 'delivered': {
         r.served[ev.team]++;
+        this.attributePoints(state, ev.team, ev.ticketId, ev.points);
         const s = r.servedByRecipe[ev.recipe];
         if (s) s[ev.team]++;
         if (ev.ticketId === this.cur.criticId && r.critic) (r.critic as CriticRecord).winner = ev.team;
@@ -245,7 +274,9 @@ export class Collector {
       }
       case 'plateCold': {
         const team = snapshotPlates(state).get(ev.itemId)?.team ?? this.plates.get(ev.itemId)?.team ?? null;
-        if (team !== null) r.wasted.cold[team]++;
+        if (team === null) return;
+        r.wasted.cold[team]++;
+        r.coldCause[coldCause(state, team, findPlate(state, ev.itemId))][team]++;
         return;
       }
       case 'burnt': {
@@ -258,11 +289,16 @@ export class Collector {
         if (owner !== null) r.fires[owner]++;
         return;
       }
+      case 'heatChange':
+        if (ev.heat < this.cur.heat[ev.team]) r.heatDrops[ev.team]++;
+        this.cur.heat[ev.team] = ev.heat;
+        return;
       case 'charmSpawned':
         r.charms.spawned++;
         return;
       case 'charmBanked':
         r.charms.banked[ev.team]++;
+        r.points.charm[ev.team] += state.config.tuning.charmPoints;
         return;
       case 'charmFaded':
         r.charms.faded++;
@@ -273,6 +309,34 @@ export class Collector {
       default:
         return;
     }
+  }
+
+  /** Split one delivery's points into base / Critic / Heat / rush (see RoundRecord.points). */
+  private attributePoints(state: MatchState, team: TeamId, ticketId: number, points: number): void {
+    const p = this.cur.rec.points;
+    const info = this.cur.ticketInfo.get(ticketId);
+    this.cur.ticketInfo.delete(ticketId);
+    if (!info) {
+      p.base[team] += points;
+      return;
+    }
+    const t = state.config.tuning;
+    const life = info.expireTick - info.spawnTick;
+    const age = Math.min(life, Math.max(0, state.tick - info.spawnTick));
+    const fresh = life > 0 ? 1 - (1 - t.freshnessFloor) * (age / life) : t.freshnessFloor;
+    const cm = info.critic ? t.criticMultiplier : 1;
+    const rm = state.config.rushEnabled && (state.round.phase === 'rush' || state.round.phase === 'lastCall') ? t.rushMultiplier : 1;
+    const raw = (info.baseValue / cm) * fresh;
+    // The Heat tier used is not in the event (Heat has already moved on): take the multiplier closest to the ratio.
+    const implied = points / Math.max(1e-9, raw * cm * rm);
+    const hm = t.heatMultipliers.reduce((best, m) => (Math.abs(m - implied) < Math.abs(best - implied) ? m : best), t.heatMultipliers[0]!);
+    const critic = raw * (cm - 1);
+    const heat = raw * cm * (hm - 1);
+    const rush = raw * cm * hm * (rm - 1);
+    p.critic[team] += critic;
+    p.heat[team] += heat;
+    p.rush[team] += rush;
+    p.base[team] += points - critic - heat - rush;
   }
 
   private startRound(state: MatchState): void {

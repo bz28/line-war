@@ -221,3 +221,68 @@ describe('stuck detection', () => {
     expect(c.stuck).toHaveLength(1);
   });
 });
+
+describe('scoring economy: points by source, Heat drops, cold causes', () => {
+  const T = { recipe: 'salad', spawnTick: 0, expireTick: 1e9, isCritic: false, visibleTo: null, revealAllAtTick: null };
+
+  it('splits a delivery into base, Critic, Heat and rush in formula order, and counts charm points', () => {
+    const { state, c } = setup();
+    state.tickets = [
+      { ...T, id: 1, baseValue: 40 },
+      { ...T, id: 2, recipe: 'steak', baseValue: 300, isCritic: true },
+    ];
+    tick(state, c, [
+      { type: 'ticketSpawn', ticketId: 1, recipe: 'salad', isCritic: false },
+      { type: 'ticketSpawn', ticketId: 2, recipe: 'steak', isCritic: true },
+    ]);
+    // Salad at Heat 2 (×1.5) in rush (×1.5): 40 → base 40, heat 20, rush 30 = 90.
+    state.round.phase = 'rush';
+    tick(state, c, [{ type: 'delivered', team: 0, ticketId: 1, recipe: 'salad', points: 90 }]);
+    // Critic steak at Heat 0, no rush: 300 → base 100, Critic 200.
+    state.round.phase = 'service';
+    tick(state, c, [
+      { type: 'delivered', team: 1, ticketId: 2, recipe: 'steak', points: 300 },
+      { type: 'charmBanked', team: 1, player: 2, itemId: 9, variant: 'gold' },
+    ]);
+    const r = endRound(state, c, [90, 350]);
+    expect(r.points.base[0]).toBeCloseTo(40);
+    expect(r.points.heat[0]).toBeCloseTo(20);
+    expect(r.points.rush[0]).toBeCloseTo(30);
+    expect(r.points.base[1]).toBeCloseTo(100);
+    expect(r.points.critic[1]).toBeCloseTo(200);
+    expect(r.points.charm).toEqual([0, state.config.tuning.charmPoints]);
+    const a = aggregate('x', [{ seed: 1, ticks: 0, runaway: false, winner: 1, roundsWon: [0, 1], totalScores: r.scores, rounds: [r], stuck: [] }]);
+    const share = a.pointsShare;
+    expect(share.base + share.critic + share.heat + share.rush + share.charm).toBeCloseTo(1);
+    expect(share.critic).toBeCloseTo(200 / 440);
+  });
+
+  it('counts Heat drops but not rises', () => {
+    const { state, c } = setup();
+    tick(state, c, [{ type: 'heatChange', team: 0, heat: 1 }]);
+    tick(state, c, [{ type: 'heatChange', team: 0, heat: 2 }]);
+    tick(state, c, [{ type: 'heatChange', team: 0, heat: 1 }]);
+    tick(state, c, [{ type: 'heatChange', team: 1, heat: 1 }]);
+    expect(endRound(state, c).heatDrops).toEqual([1, 0]);
+  });
+
+  it('classifies cold plates: finished with no ticket (sniped), finished with a ticket (slow), unfinished (partial)', () => {
+    const { state, c } = setup();
+    const salad = [{ kind: 'lettuce' as const, state: 'chopped' as const }, { kind: 'tomato' as const, state: 'chopped' as const }];
+    const sniped = plate(salad, { cold: true });
+    const partial = plate([{ kind: 'lettuce', state: 'chopped' }], { cold: true });
+    station(state, 1, 3).item = sniped;
+    station(state, 1, 4).item = partial;
+    tick(state, c, [
+      { type: 'plateCold', itemId: sniped.id },
+      { type: 'plateCold', itemId: partial.id },
+    ]);
+    const slow = plate(salad, { cold: true });
+    station(state, 23, 3).item = slow;
+    state.tickets = [{ ...T, id: 7, baseValue: 40 }];
+    tick(state, c, [{ type: 'plateCold', itemId: slow.id }]);
+    const r = endRound(state, c);
+    expect(r.wasted.cold).toEqual([2, 1]);
+    expect(r.coldCause).toEqual({ sniped: [1, 0], slow: [0, 1], partial: [1, 0] });
+  });
+});
