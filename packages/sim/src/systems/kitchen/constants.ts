@@ -16,5 +16,10 @@ export const SELF_CATCH_SECONDS = 0.2;
 
 /** Implementation detail: max distance (tiles) moved per collision sub-step, so nothing tunnels. */
 export const SUBSTEP = 0.1;
+/**
+ * Implementation detail: per tick, players move in equal slices of at most playerRadius × this,
+ * separated after each slice, so no move (a dash) can pass through another player.
+ */
+export const PLAYER_STEP_FRACTION = 0.5;
 /** Implementation detail: float tolerance. */
 export const EPS = 1e-9;

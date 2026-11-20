@@ -149,6 +149,35 @@ describe('dash', () => {
     expect(run(s, 1, only(0, { dash: true }))).toContainEqual({ type: 'dash', player: 0 });
   });
 
+  it('never carries a player through another: rivals dashing head-on meet and stop (RULES §1)', () => {
+    // 0.5 tiles per dash tick each way closes 1 tile per tick, more than a body width (0.7): moved
+    // in one go and separated once, they swapped sides. Moving in slices, they meet in the middle.
+    const s = kitchenMatch();
+    put(s, 0, 9.6, 2.5, RIGHT);
+    put(s, 2, 10.4, 2.5, LEFT);
+    const both: MatchInputs = [input({ dash: true }), NO_INPUT, input({ dash: true }), NO_INPUT];
+    for (let i = 0; i < 8; i++) {
+      run(s, 1, i === 0 ? both : undefined);
+      const [a, b] = [s.players[0].pos, s.players[2].pos];
+      expect(a.x, `tick ${i}`).toBeLessThan(b.x);
+      expect(b.x - a.x).toBeCloseTo(2 * R, 5);
+    }
+    // Equal split, measured together: the meeting point is mirror-symmetric (side-fair).
+    expect(s.players[0].pos.x + s.players[2].pos.x).toBeCloseTo(20, 5);
+  });
+
+  it('a dash straight into a standing rival shoves them along (equal split) and never ends past them', () => {
+    const s = kitchenMatch();
+    put(s, 0, 9.0, 2.5, RIGHT);
+    put(s, 2, 9.9, 2.5);
+    run(s, 1, only(0, { dash: true }));
+    run(s, 7);
+    const [a, b] = [s.players[0].pos, s.players[2].pos];
+    expect(a.x).toBeLessThan(b.x);
+    expect(b.x).toBeGreaterThan(9.9 + 0.5); // pushed, not passed
+    expect(b.x - a.x).toBeCloseTo(2 * R, 5);
+  });
+
   it('is stopped by walls', () => {
     const s = kitchenMatch();
     put(s, 0, 2.5, 2.5, LEFT);

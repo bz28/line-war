@@ -8,7 +8,7 @@
 import { dist, vecLength } from '../grid';
 import { secondsToTicks } from '../tuning';
 import type { MatchInputs, MatchState, PlayerState, Vec2 } from '../types';
-import { DAZED_SPEED_FACTOR, EPS, SUBSTEP } from './kitchen/constants';
+import { DAZED_SPEED_FACTOR, EPS, PLAYER_STEP_FRACTION, SUBSTEP } from './kitchen/constants';
 import { emit, isOpenFor } from './kitchen/world';
 import { tryKnock } from './market';
 
@@ -21,6 +21,7 @@ export function updateMovement(state: MatchState, inputs: MatchInputs): void {
   const t = state.config.tuning;
   const before: Vec2[] = state.players.map((p) => ({ x: p.pos.x, y: p.pos.y }));
   const dashedThisTick = [false, false, false, false];
+  const deltas: Vec2[] = [];
 
   for (const p of state.players) {
     if (p.dazedTicks > 0) p.dazedTicks--;
@@ -40,27 +41,42 @@ export function updateMovement(state: MatchState, inputs: MatchInputs): void {
       emit(state, { type: 'dash', player: p.id });
     }
 
-    let dx: number;
-    let dy: number;
     if (p.dashTicks > 0) {
       // A dash replaces walking: dashDistance spread evenly over its ticks.
       const perTick = t.dashDistance / secondsToTicks(state.config, t.dashSeconds);
-      dx = p.dashDir.x * perTick;
-      dy = p.dashDir.y * perTick;
+      deltas[p.id] = { x: p.dashDir.x * perTick, y: p.dashDir.y * perTick };
       p.dashTicks--;
       dashedThisTick[p.id] = true;
     } else {
       const speed = (t.playerSpeed / t.tickRate) * (p.dazedTicks > 0 ? DAZED_SPEED_FACTOR : 1);
-      dx = move.x * speed;
-      dy = move.y * speed;
+      deltas[p.id] = { x: move.x * speed, y: move.y * speed };
     }
-    moveWithCollision(state, p, dx, dy);
   }
 
-  // Dash knocks: first rival touched during a dash, once per dash. Only rivals AHEAD of the
-  // dash count (dot(dashDir, victim − pos) > 0), so a dash blocked by a wall can't knock
-  // someone already touching you from the side or behind.
-  const touch = 2 * t.playerRadius + EPS;
+  // Everyone moves together in equal slices, with players separated after each slice, so a fast
+  // move (a dash) can't carry one player through another (RULES §1: collisions still apply).
+  // Slices are capped at half a radius; ordinary walking fits in one, exactly as before.
+  const cap = t.playerRadius * PLAYER_STEP_FRACTION;
+  const slices = Math.max(1, ...deltas.map((d) => Math.ceil(vecLength(d.x, d.y) / cap - EPS)));
+  for (let k = 0; k < slices; k++) {
+    for (const p of state.players) moveWithCollision(state, p, deltas[p.id]!.x / slices, deltas[p.id]!.y / slices);
+    dashKnocks(state, dashedThisTick);
+    separatePlayers(state);
+  }
+
+  for (const p of state.players) {
+    const b = before[p.id]!;
+    p.vel = { x: (p.pos.x - b.x) * t.tickRate, y: (p.pos.y - b.y) * t.tickRate };
+  }
+}
+
+/**
+ * Dash knocks: first rival touched during a dash, once per dash. Only rivals AHEAD of the
+ * dash count (dot(dashDir, victim − pos) > 0), so a dash blocked by a wall can't knock
+ * someone already touching you from the side or behind.
+ */
+function dashKnocks(state: MatchState, dashedThisTick: boolean[]): void {
+  const touch = 2 * state.config.tuning.playerRadius + EPS;
   for (const p of state.players) {
     if (!dashedThisTick[p.id] || p.dashHit) continue;
     let victim: PlayerState | null = null;
@@ -79,13 +95,6 @@ export function updateMovement(state: MatchState, inputs: MatchInputs): void {
       p.dashHit = true;
       tryKnock(state, p.id, victim.id);
     }
-  }
-
-  separatePlayers(state);
-
-  for (const p of state.players) {
-    const b = before[p.id]!;
-    p.vel = { x: (p.pos.x - b.x) * t.tickRate, y: (p.pos.y - b.y) * t.tickRate };
   }
 }
 
