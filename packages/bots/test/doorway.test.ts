@@ -63,18 +63,3 @@ describe('a rival standing in the doorway (Harbor Pier)', () => {
     }
   });
 });
-
-describe('plates in the sink', () => {
-  it('with the rack empty, one dish is prepped ahead while a dirty plate waits to be washed (not none, not more)', () => {
-    for (const dirty of [0, 1, 3]) {
-      const state = newMatch(4, { bestOf: 1 });
-      while (state.tickets.length === 0) step(state, [NO_INPUT, NO_INPUT, NO_INPUT, NO_INPUT]);
-      const { brains, bots } = createBotsDebug([{ ...bot('normal'), seed: 1 }, null, null, null]);
-      const k = kitchenFor(state, 0);
-      for (const r of k.racks) state.stations[String(r)]!.stock = 0;
-      for (const s of k.sinks) state.stations[String(s)]!.dirtyPlates = dirty;
-      brains[0]!.decide(state, 0);
-      expect(bots[0]!.crew.orders.length, `dirty ${dirty}`).toBe(dirty > 0 ? 1 : 0);
-    }
-  });
-});

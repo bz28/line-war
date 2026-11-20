@@ -57,7 +57,9 @@ describe('bots and charms (RULES §10)', () => {
     let knocks = 0;
     for (const level of LEVELS) {
       const total = { banked: [0, 0], knocks: [0, 0] };
-      for (const seed of [1, 2, 3]) {
+      // Enough matches that a level with one charm per round (Rooftop) gives each crew real chances.
+      const seeds = level.charmsPerRound >= 3 ? [1, 2, 3] : [1, 2, 3, 4, 5, 6, 7, 8];
+      for (const seed of seeds) {
         const r = run(level.id, seed, [N, N, N, N]);
         expect(r.state.round.phase).toBe('matchOver');
         expect(r.maxChasers).toBeLessThanOrEqual(1);

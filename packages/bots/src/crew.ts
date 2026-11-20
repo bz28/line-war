@@ -536,10 +536,7 @@ export class Crew {
     const fakeCtx = { state, k, crew: this, me: state.players[this.members[0]!], tile: k.idleTile, items: itemIndex(state, this.team), stoveLeadTicks: 0 } as Ctx;
     // Plates: every dish needs one.
     const rackStock = k.racks.reduce((n, r) => n + (stationOf(state, r)?.stock ?? 0), 0);
-    // While a dirty plate waits in the sink, one dish may be prepped ahead of it (it is washed in a
-    // few seconds); otherwise the crew would stand idle until the rack refills.
-    const washing = k.sinks.some((t) => (stationOf(state, t)?.dirtyPlates ?? 0) > 0) ? 1 : 0;
-    const platesFree = rackStock + this.sparePlates(state) + washing - this.orders.filter((o) => o.plate === null).length;
+    const platesFree = rackStock + this.sparePlates(state) - this.orders.filter((o) => o.plate === null).length;
     if (platesFree <= 0) return null;
     const freePans = k.pans.filter((p) => freeVessel(fakeCtx, [p]) !== null).length - this.pendingPanSlots(state);
     const freePots = k.pots.filter((p) => freeVessel(fakeCtx, [p]) !== null).length - this.orders.filter((o) => o.pot === null && o.recipe.ingredients.some((f) => pipeline(state, f).vessel === 'pot')).length;
