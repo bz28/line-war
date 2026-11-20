@@ -83,7 +83,8 @@ Adding food sets `platedAtTick = tick`. Dirty plates accept nothing.
 ## 7. Tickets (rules track)
 - No tickets during prep. The first spawns when prep ends, then every `ticketSpawnSeconds`
   (`rushTicketSpawnSeconds` during Dinner Rush). No spawns during Last Call. Skip a spawn if the board already holds
-  `maxTickets` non-critic tickets (try again next interval).
+  `maxTickets` non-critic tickets (try again next interval). When the phase becomes rush, the next spawn is
+  pulled in to at most `now + rushTicketSpawnSeconds` (so the first rush ticket doesn't wait a full service interval).
 - Recipe picked with `weightedIndex` over recipe weights. `expireTick = spawnTick + ticketLifetimeSeconds`. Expired tickets are removed (`ticketExpired`).
 - **Critic**: once per round at `criticAtFraction × roundSeconds`, if `criticEnabled`: a premium recipe (weighted among
   premium recipes), `baseValue × criticMultiplier`, `isCritic = true`. `visibleTo` = the team with the lower score

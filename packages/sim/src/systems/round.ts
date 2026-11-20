@@ -5,7 +5,7 @@
  * Spec: docs/RULES.md §9.
  */
 import { createStations, spawnPlayers } from '../match';
-import { secondsToTicks } from '../tuning';
+import { secondsToTicks, timerTicks } from '../tuning';
 import type { MatchState, Phase, TeamId } from '../types';
 import { phaseAt, roundStartTick, roundTimes } from './rules/timing';
 
@@ -78,5 +78,12 @@ export function updateRound(state: MatchState): void {
     endRound(state);
     return;
   }
+  const entersRush = next === 'rush' && r.phase !== 'rush';
   setPhase(state, next);
+  if (entersRush) {
+    // The ticket scheduled during service may be a full service interval away: pull it in
+    // so the first rush ticket comes at most one rush interval after Dinner Rush starts.
+    const rushNext = state.tick + timerTicks(state.config, state.config.tuning.rushTicketSpawnSeconds);
+    state.nextTicketTick = Math.min(state.nextTicketTick, rushNext);
+  }
 }
