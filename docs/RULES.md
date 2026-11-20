@@ -11,11 +11,17 @@ Time: the sim runs at `tickRate` (30) ticks/s. Durations below are seconds; conv
 - Speed `playerSpeed` tiles/s; `move` is clamped to length 1. Dazed players move at half speed.
 - `facing` = normalized last non-zero move direction (initially up). It does not change while standing still.
 - Players are circles of radius `playerRadius`. They collide with every non-floor tile and with each other (push apart, equal split).
+  Each tick every player's move is applied together in equal slices of at most `playerRadius / 2`, with walls and
+  player separation resolved after each slice, so no move (a dash) can carry one player through another. Separation
+  measures every overlapping pair from the same positions and applies the pushes together (independent of player order).
+  A dash that meets a rival straight on shoves them along; one that meets them off-centre slides round them.
 - **Rival kitchen is solid.** Tiles whose `tileOwner` is the other team are treated as walls for that player.
   Door columns (zone `none`) and the market are open to both.
 - **Dash**: on `dash` press, if `dashCooldown == 0` and not dazed: move `dashDistance` along `facing` over
   `dashSeconds` (collisions still apply), set cooldown `dashCooldownSeconds`. Emit `dash`. Holding an item is fine.
-  While dashing, the first rival touched (centres within 2 × radius) triggers `tryKnock(by, victim)` once per dash.
+  While dashing, the first rival touched (centres within 2 × radius) **ahead of the dash** (dot(dash direction,
+  victim − dasher) > 0) triggers `tryKnock(by, victim)` once per dash. A rival beside or behind you doesn't count,
+  so a dash stopped by a wall can't knock someone already touching you from the side.
 - Target tile for interactions: the tile containing `pos + facing × 0.75`. If that is floor, the target is the floor
   position itself (for drops / picking up floor items).
 
@@ -140,7 +146,10 @@ no rng is drawn, so the match plays exactly as without charms.
   phase is `service` or `rush`, candidate tiles are the **floor tiles of the market's middle column** (the
   column halfway between the market's leftmost and rightmost columns; if the market is an even number of columns
   wide, both middle columns), skipping any tile that contains a floor item or a player's centre, in tile-index
-  order. If there is at least one candidate: pick one with `randomInt(candidates)`, then the variant with
+  order. If none of them is free, the candidates are instead the free market floor tiles nearest the market's
+  centre (the middle of its bounding box; straight-line distance between tile centres) whose mirror tile (same row,
+  mirrored column) is a free market floor tile too, so they come in mirror-symmetric pairs; again in tile-index
+  order. Littering the middle column therefore can't deny a charm. If there is at least one candidate: pick one with `randomInt(candidates)`, then the variant with
   `weightedIndex` over the variant weights, and put a resting charm (thrownBy null) at the tile centre; emit
   `charmSpawned { itemId, tile, variant }`. If there is no candidate the charm stays due and is retried every
   tick; a charm still due when Last Call starts is dropped. Because the arenas are mirrored, the middle column is
