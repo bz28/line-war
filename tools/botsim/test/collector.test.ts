@@ -227,6 +227,7 @@ describe('scoring economy: points by source, Heat drops, cold causes', () => {
 
   it('splits a delivery into base, Critic, Heat and rush in formula order, and counts charm points', () => {
     const { state, c } = setup();
+    state.config = { ...state.config, tuning: { ...state.config.tuning, rushMultiplier: 1.5, heatMultipliers: [1, 1.25, 1.5, 2], criticMultiplier: 3 } };
     state.tickets = [
       { ...T, id: 1, baseValue: 40 },
       { ...T, id: 2, recipe: 'steak', baseValue: 300, isCritic: true },

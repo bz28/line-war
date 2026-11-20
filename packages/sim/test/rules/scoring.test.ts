@@ -44,11 +44,12 @@ describe('scoreDelivery multipliers', () => {
 
   it('applies the rush multiplier in Dinner Rush and Last Call', () => {
     const rush = atRoundTick(200 * 30);
+    const want = Math.round(40 * rush.config.tuning.rushMultiplier);
     expect(rush.round.phase).toBe('rush');
-    expect(scoreDelivery(rush, 0, addTicket(rush, SALAD), plate(rush, SALAD_FOOD))).toBe(60);
+    expect(scoreDelivery(rush, 0, addTicket(rush, SALAD), plate(rush, SALAD_FOOD))).toBe(want);
     const last = atRoundTick(235 * 30);
     expect(last.round.phase).toBe('lastCall');
-    expect(scoreDelivery(last, 0, addTicket(last, SALAD), plate(last, SALAD_FOOD))).toBe(60);
+    expect(scoreDelivery(last, 0, addTicket(last, SALAD), plate(last, SALAD_FOOD))).toBe(want);
     const service = atRoundTick(100 * 30);
     expect(scoreDelivery(service, 0, addTicket(service, SALAD), plate(service, SALAD_FOOD))).toBe(40);
   });
@@ -76,9 +77,12 @@ describe('scoreDelivery multipliers', () => {
   });
 });
 
+/** Rule arithmetic below is written against these thresholds, not the live defaults. */
+const HEAT_FIXTURE: ConfigOverrides = { tuning: { heatThresholds: [2, 4, 7] } };
+
 describe('heat', () => {
   it('climbs tiers at heatThresholds and emits heatChange only on change', () => {
-    const s = newRulesMatch();
+    const s = newRulesMatch(HEAT_FIXTURE);
     const heats: number[] = [];
     for (let i = 0; i < 9; i++) {
       registerCleanDelivery(s, 1);
@@ -94,7 +98,7 @@ describe('heat', () => {
   });
 
   it('registerMistake drops one tier and resets the streak to that tier threshold', () => {
-    const s = newRulesMatch();
+    const s = newRulesMatch(HEAT_FIXTURE);
     s.teams[0].heat = 3;
     s.teams[0].cleanStreak = 9;
     registerMistake(s, 0);
@@ -112,7 +116,7 @@ describe('heat', () => {
   });
 
   it('after a mistake, the next clean delivery continues from the threshold', () => {
-    const s = newRulesMatch();
+    const s = newRulesMatch(HEAT_FIXTURE);
     for (let i = 0; i < 5; i++) registerCleanDelivery(s, 0);
     expect(s.teams[0].heat).toBe(2);
     registerMistake(s, 0);

@@ -306,7 +306,7 @@ describe('banking (RULES §10)', () => {
   });
 
   it('keeps a streak already past the threshold and caps Heat at the top tier', () => {
-    const s = inService();
+    const s = inService({ tuning: { heatThresholds: [2, 4, 7] } });
     const t = s.teams[0];
     t.heat = 1;
     t.cleanStreak = 3; // thresholds [2, 4, 7]
