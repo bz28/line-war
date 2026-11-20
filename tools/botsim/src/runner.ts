@@ -1,23 +1,22 @@
 /** Headless runner: one full match with the real sim and bots, observed by the Collector. */
 import { createBots as defaultCreateBots, type BotBrain, type BotOptions } from '@line-war/bots';
-import { INGREDIENTS, NIGHT_MARKET, RECIPES } from '@line-war/content';
-import { createMatch, makeConfig, NO_INPUT, step, type ArenaDef, type MatchConfig, type MatchInputs, type MatchState } from '@line-war/sim';
+import { LEVELS, levelById, type LevelDef } from '@line-war/content';
+import { createMatch, makeConfig, NO_INPUT, step, type MatchConfig, type MatchInputs, type MatchState } from '@line-war/sim';
 import { Collector } from './collector';
 import { deriveSeed } from './seeds';
 import type { ConfigOverrides, MatchRecord, TuningOverrides } from './types';
 
 export type CreateBots = (slots: readonly (BotOptions | null)[]) => (BotBrain | null)[];
 
-export const ARENAS: Record<string, ArenaDef> = { [NIGHT_MARKET.id]: NIGHT_MARKET };
+/** Level ids botsim can run (the `--arena` flag takes one of these). */
+export const ARENAS: readonly string[] = LEVELS.map((l) => l.id);
 
-export function arenaById(id: string): ArenaDef {
-  const a = ARENAS[id];
-  if (!a) throw new Error(`unknown arena '${id}' (known: ${Object.keys(ARENAS).join(', ')})`);
-  return a;
-}
+/** The level (map + menu + ingredient rules) for an id. */
+export const arenaById = (id: string): LevelDef => levelById(id);
 
 export interface RunMatchOptions {
-  arena?: ArenaDef;
+  /** Level to play (map, menu, ingredients). Default: Night Market. */
+  arena?: LevelDef;
   seed: number;
   /** Index = PlayerId. null = no controller (the player stands still, like an empty or AFK slot). */
   slots: readonly (BotOptions | null)[];
@@ -47,7 +46,8 @@ const seededSlots = (seed: number, slots: readonly (BotOptions | null)[]): (BotO
 
 export function runMatch(opts: RunMatchOptions): MatchRecord {
   const config = buildConfig(opts.seed, opts.config, opts.tuning);
-  const state: MatchState = createMatch({ arena: opts.arena ?? NIGHT_MARKET, recipes: RECIPES, ingredients: INGREDIENTS, config });
+  const level = opts.arena ?? LEVELS[0]!;
+  const state: MatchState = createMatch({ arena: level.arena, recipes: level.recipes, ingredients: level.ingredients, config });
   const slots = [0, 1, 2, 3].map((i) => opts.slots[i] ?? null);
   const brains = (opts.createBots ?? defaultCreateBots)(seededSlots(opts.seed, slots));
   const collector = new Collector(state, {

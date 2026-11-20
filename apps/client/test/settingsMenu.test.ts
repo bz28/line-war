@@ -50,7 +50,7 @@ describe('SettingsMenu', () => {
     const { last, q, menu } = mount(undefined, pads);
     choose(q<HTMLSelectElement>('slot-1-kind'), 'gamepad');
     expect(last().slots[1]).toEqual({ kind: 'gamepad', index: 0 });
-    expect(menu.el.textContent).toContain('Pad 2 · Xbox Wireless Controller');
+    expect(menu.el.textContent).toContain('Pad 2: Xbox Wireless Controller');
     choose(q<HTMLSelectElement>('slot-1-pad'), '1');
     expect(last().slots[1]).toEqual({ kind: 'gamepad', index: 1 });
 

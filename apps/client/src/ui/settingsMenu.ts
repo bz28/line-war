@@ -19,6 +19,7 @@ import {
   type Settings,
   type SlotController,
 } from '../settings/types';
+import { TEAMS } from '../art/tokens';
 import { button, h, select, slider, toggle } from './dom';
 import { keyLabel } from './keyNames';
 
@@ -57,7 +58,7 @@ const ACTION_LABELS: Record<Action, string> = {
 const DIFFICULTY_LABELS: Record<BotDifficulty, string> = { easy: 'Easy', normal: 'Normal', hard: 'Hard' };
 
 export const slotName = (i: number) => `P${i + 1}`;
-export const crewName = (i: number) => (i < 2 ? 'Crew A' : 'Crew B');
+export const crewName = (i: number) => TEAMS[i < 2 ? 0 : 1].name;
 const actionName = (a: Action) => ACTION_LABELS[a];
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -234,7 +235,7 @@ export class SettingsMenu {
         case 'gamepad': {
           const opts = [0, 1, 2, 3].map((n) => ({
             value: String(n),
-            label: `Pad ${n + 1} ${padName(n) ? `· ${shortPadName(padName(n)!)}` : '(not connected)'}`,
+            label: `Pad ${n + 1}${padName(n) ? `: ${shortPadName(padName(n)!)}` : ' (not connected)'}`,
           }));
           detail = select(opts, String(slot.index), (v) => this.setSlot(i, { kind: 'gamepad', index: Number(v) }), {
             'data-key': `slot-${i}-pad`,
@@ -268,8 +269,8 @@ export class SettingsMenu {
       ? `Connected gamepads: ${pads.map((p) => `Pad ${p.index + 1}`).join(', ')}`
       : 'No gamepads detected. Press a button on a pad to wake it up.';
     return [
-      crew('Crew A', [0, 1], 'lw-crew-a'),
-      crew('Crew B', [2, 3], 'lw-crew-b'),
+      crew(TEAMS[0].name, [0, 1], 'lw-crew-a'),
+      crew(TEAMS[1].name, [2, 3], 'lw-crew-b'),
       h('p', { class: 'lw-muted' }, padSummary),
     ];
   }
@@ -317,7 +318,7 @@ export class SettingsMenu {
         h(
           'fieldset',
           { class: `lw-bindings lw-crew-${i < 2 ? 'a' : 'b'}` },
-          h('legend', {}, `${slotName(i)} · ${crewName(i)} · keyboard`),
+          h('legend', {}, `${slotName(i)} keyboard, ${crewName(i)}`),
           rows,
           h(
             'div',
@@ -335,7 +336,7 @@ export class SettingsMenu {
       h(
         'p',
         { class: 'lw-muted' },
-        `Gamepads: stick or D-pad move · A grab · X work (hold) · B dash · Y throw · Start pause. ${RESERVED_KEYS.map(keyLabel).join(', ')} is reserved for pause.`,
+        `On a gamepad, move with the stick or D-pad, A grabs, X works (hold), B dashes, Y throws and Start pauses. ${RESERVED_KEYS.map(keyLabel).join(', ')} is reserved for pause.`,
       ),
     );
     return out;
