@@ -658,7 +658,7 @@
 /* Three fixed columns (crew, label, crew), shared with the round ledger so each score sits under its crew. */
 .lw-result { display: grid; grid-template-columns: var(--res-crew) var(--res-mid) var(--res-crew); column-gap: calc(var(--s) * 1.2); align-items: center; justify-content: center; margin: calc(var(--s) * 1.4) 0 calc(var(--s) * 0.6); }
 .lw-result-vs { display: grid; justify-items: center; gap: calc(var(--s) * 0.3); font-weight: 800; font-size: calc(var(--s) * 1); color: color-mix(in srgb, var(--ink) 50%, transparent); }
-.lw-result-label { font-size: calc(var(--s) * 0.8); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; color: color-mix(in srgb, var(--ink) 62%, transparent); }
+.lw-result-label { font-size: calc(var(--s) * 0.8); letter-spacing: 0.06em; white-space: nowrap; color: color-mix(in srgb, var(--ink) 62%, transparent); }
 
 /* Round card receipt (round 2 on): the same rows as the match-over ledger, scaled with the HUD. */
 .lw-rledger { display: grid; margin: calc(var(--s) * 0.2) auto calc(var(--s) * 0.6); width: max-content; font-weight: 700; font-size: calc(var(--s) * 1); font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--ink) 72%, transparent); }

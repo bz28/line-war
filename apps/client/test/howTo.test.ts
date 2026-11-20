@@ -33,7 +33,7 @@ describe('how to play', () => {
     expect(text).toContain(`${DEFAULT_TUNING.plateColdSeconds} s`);
     const pad = [...el.querySelectorAll('.lw-howto-keys')].find((k) => k.textContent?.startsWith('Gamepad'))!;
     const caps = [...pad.querySelectorAll('kbd')].map((k) => k.textContent);
-    expect(caps).toEqual(['Stick', padActionLabel('grab'), padActionLabel('work'), padActionLabel('dash'), padActionLabel('throw')]);
+    expect(caps).toEqual(['Stick', padActionLabel('grab'), padActionLabel('work'), padActionLabel('dash'), padActionLabel('throw'), 'Start']);
   });
 
   it('Back calls back', () => {
