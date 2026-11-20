@@ -23,7 +23,7 @@ Cross-track calls in the sim are fixed by the stub signatures: kitchen calls `ta
 | --- | --- |
 | bots | `packages/bots`: path-finding bot with ticket choice, market runs, knock/steal behaviour, 3 difficulties; wired into client slots |
 | botsim | `tools/botsim`: run N headless matches on Night Market, write a balance report (design doc step-4 metrics) |
-| deploy | Static deploy of the client (host chosen with the user) |
+| deploy | Done: GitHub Pages via `.github/workflows/deploy.yml` (free; public repo) |
 
 ## Wave 3 — validation
 Run botsim, compare with the design doc's step-4 pass bars, tune `tuning.ts`, report. Then greybox human playtest (step 5).
