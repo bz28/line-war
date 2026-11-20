@@ -55,7 +55,9 @@ export function updateMovement(state: MatchState, inputs: MatchInputs): void {
     moveWithCollision(state, p, dx, dy);
   }
 
-  // Dash knocks: first rival touched during a dash, once per dash.
+  // Dash knocks: first rival touched during a dash, once per dash. Only rivals AHEAD of the
+  // dash count (dot(dashDir, victim − pos) > 0), so a dash blocked by a wall can't knock
+  // someone already touching you from the side or behind.
   const touch = 2 * t.playerRadius + EPS;
   for (const p of state.players) {
     if (!dashedThisTick[p.id] || p.dashHit) continue;
@@ -63,6 +65,8 @@ export function updateMovement(state: MatchState, inputs: MatchInputs): void {
     let best = Infinity;
     for (const o of state.players) {
       if (o.team === p.team) continue;
+      const ahead = p.dashDir.x * (o.pos.x - p.pos.x) + p.dashDir.y * (o.pos.y - p.pos.y);
+      if (ahead <= 0) continue;
       const d = dist(p.pos, o.pos);
       if (d <= touch && d < best) {
         best = d;

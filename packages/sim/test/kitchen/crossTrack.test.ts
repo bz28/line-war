@@ -8,7 +8,7 @@ import { handleInteractions } from '../../src/systems/interact';
 import { deliverPlate } from '../../src/systems/tickets';
 import { registerMistake } from '../../src/systems/scoring';
 import { takeFromCrate, tryKnock } from '../../src/systems/market';
-import { DOWN, food, ingredient, kitchenMatch, only, plate, put, RIGHT, run, stationXY, tileAtXY, UP } from './helpers';
+import { DOWN, food, ingredient, kitchenMatch, LEFT, only, plate, put, RIGHT, run, stationXY, tileAtXY, UP } from './helpers';
 
 vi.mock('../../src/systems/market', async (orig) => ({
   ...(await orig<typeof import('../../src/systems/market')>()),
@@ -47,6 +47,30 @@ describe('dash knocks → tryKnock', () => {
     put(s, 2, s.players[0].pos.x + 0.6, 2.5);
     run(s, 10, only(0, { move: RIGHT }));
     expect(tryKnock).not.toHaveBeenCalled();
+  });
+
+  it('does not knock a touching rival behind or beside the dash (e.g. dash blocked by a wall)', () => {
+    const s = kitchenMatch();
+    // Pinned against the left wall, dashing left into it: goes nowhere.
+    put(s, 0, 1.35, 2.5, LEFT);
+    put(s, 2, 2.05, 2.5); // touching, directly behind
+    run(s, 6, only(0, { dash: true }));
+    expect(tryKnock).not.toHaveBeenCalled();
+    // Beside (perpendicular to the dash) doesn't count either.
+    const t = kitchenMatch();
+    put(t, 0, 1.35, 2.5, LEFT);
+    put(t, 2, 1.35, 3.2);
+    run(t, 6, only(0, { dash: true }));
+    expect(tryKnock).not.toHaveBeenCalled();
+    expect(t.players[0].dashHit).toBe(false);
+  });
+
+  it('still knocks a touching rival ahead even if the dash is blocked', () => {
+    const s = kitchenMatch();
+    put(s, 0, 9.5, 2.5, RIGHT);
+    put(s, 2, 10.2, 2.5);
+    run(s, 1, only(0, { dash: true }));
+    expect(tryKnock).toHaveBeenCalledWith(s, 0, 2);
   });
 
   it('a new dash can knock again', () => {
