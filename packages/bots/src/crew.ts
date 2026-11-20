@@ -118,7 +118,7 @@ export class Crew {
   /** How many dishes beyond one per bot the crew juggles (dithered so the mean is smooth in skill). */
   private rollExtraOrders(): number {
     // A lone bot has one pair of hands: juggling more than two dishes just burns food.
-    const x = this.members.length > 1 ? this.params.extraOrders : Math.min(0.7, this.params.extraOrders * 0.5);
+    const x = this.members.length > 1 ? this.params.extraOrders : 0;
     const base = Math.floor(x);
     return base + (this.rng.chance(x - base) ? 1 : 0);
   }
