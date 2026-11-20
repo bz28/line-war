@@ -10,7 +10,7 @@ From the design doc, validation step 4.
 | --- | --- | --- | --- | --- |
 | Bots never get stuck | 0 stuck events (all scenarios) | 1679 ❌ FAIL | 1625 ❌ FAIL | 1824 ❌ FAIL |
 | Knocks per round | 2–6 (even-2v2) | 0.00 ❌ FAIL | 0.00 ❌ FAIL | 0.00 ❌ FAIL |
-| No recipe skipped 2× as often as another | max skip share ≤ 2 × min (even-2v2) | soup 100.0% vs burger 57.1% ✅ PASS | soup 100.0% vs burger 58.9% ✅ PASS | soup 100.0% vs burger 61.7% ✅ PASS |
+| No recipe skipped twice as often as another | lowest served rate ≥ 0.5 × highest (even-2v2) | salad 33.7%, burger 42.9%, soup 0.0%, steak 0.0%, fish 0.0% ❌ FAIL | salad 33.8%, burger 41.1%, soup 0.0%, steak 0.0%, fish 0.0% ❌ FAIL | salad 28.2%, burger 38.3%, soup 0.0%, steak 0.0%, fish 0.0% ❌ FAIL |
 | A 10% faster crew wins 65–80% of rounds | 65–80% (gap-2v2) | not run ➖ N/A | not run ➖ N/A | not run ➖ N/A |
 
 ## Side bias
@@ -51,13 +51,13 @@ Even scenarios: crew A should win about 50% of decisive rounds.
 
 ### Recipes
 
-| Recipe (skip % = expired or never served) | even-2v2 | even-1v1 |
+| Recipe served rate (served / spawned) | even-2v2 | even-1v1 |
 | --- | --- | --- |
-| salad | 66.3% (650/1928 served) | 21.8% (1571/2008 served) |
-| burger | 57.1% (808/1883 served) | 25.0% (1508/2012 served) |
-| soup | 100.0% (0/1177 served) | 100.0% (0/1267 served) |
-| steak | 100.0% (0/892 served) | 100.0% (0/999 served) |
-| fish | 100.0% (0/916 served) | 100.0% (0/975 served) |
+| salad | 33.7% (650/1928) | 78.2% (1571/2008) |
+| burger | 42.9% (808/1883) | 75.0% (1508/2012) |
+| soup | 0.0% (0/1177) | 0.0% (0/1267) |
+| steak | 0.0% (0/892) | 0.0% (0/999) |
+| fish | 0.0% (0/916) | 0.0% (0/975) |
 
 ### Context: tickets, waste, Critic, Heat
 
@@ -104,13 +104,13 @@ First 20 (up to 10 per scenario). Reproduce with `runMatch({ seed, slots })` for
 
 ### Recipes
 
-| Recipe (skip % = expired or never served) | even-2v2 | even-1v1 |
+| Recipe served rate (served / spawned) | even-2v2 | even-1v1 |
 | --- | --- | --- |
-| salad | 66.2% (633/1874 served) | 22.3% (1485/1912 served) |
-| burger | 58.9% (758/1844 served) | 25.3% (1432/1918 served) |
-| soup | 100.0% (0/1121 served) | 100.0% (0/1223 served) |
-| steak | 100.0% (0/860 served) | 100.0% (0/962 served) |
-| fish | 100.0% (0/871 served) | 100.0% (0/933 served) |
+| salad | 33.8% (633/1874) | 77.7% (1485/1912) |
+| burger | 41.1% (758/1844) | 74.7% (1432/1918) |
+| soup | 0.0% (0/1121) | 0.0% (0/1223) |
+| steak | 0.0% (0/860) | 0.0% (0/962) |
+| fish | 0.0% (0/871) | 0.0% (0/933) |
 
 ### Context: tickets, waste, Critic, Heat
 
@@ -157,13 +157,13 @@ First 20 (up to 10 per scenario). Reproduce with `runMatch({ seed, slots })` for
 
 ### Recipes
 
-| Recipe (skip % = expired or never served) | even-2v2 | even-1v1 |
+| Recipe served rate (served / spawned) | even-2v2 | even-1v1 |
 | --- | --- | --- |
-| salad | 71.8% (524/1855 served) | 21.7% (1436/1835 served) |
-| burger | 61.7% (680/1777 served) | 25.2% (1383/1850 served) |
-| soup | 100.0% (0/1100 served) | 100.0% (0/1179 served) |
-| steak | 100.0% (0/854 served) | 100.0% (0/919 served) |
-| fish | 100.0% (0/877 served) | 100.0% (0/901 served) |
+| salad | 28.2% (524/1855) | 78.3% (1436/1835) |
+| burger | 38.3% (680/1777) | 74.8% (1383/1850) |
+| soup | 0.0% (0/1100) | 0.0% (0/1179) |
+| steak | 0.0% (0/854) | 0.0% (0/919) |
+| fish | 0.0% (0/877) | 0.0% (0/901) |
 
 ### Context: tickets, waste, Critic, Heat
 
@@ -214,8 +214,8 @@ First 20 (up to 10 per scenario). Reproduce with `runMatch({ seed, slots })` for
 | Max ticks | 1.5 × longest possible match |
 | Calibration | 40 solo matches × 12 skills, target 1.1× |
 | Workers | 7 |
-| Matches run | 600 in 15.7 s (38.2 matches/s) |
-| Commit | `740f041` |
+| Matches run | 600 in 16.2 s (37.1 matches/s) |
+| Commit | `de58e34` |
 
 ## Definitions
 
@@ -226,6 +226,6 @@ First 20 (up to 10 per scenario). Reproduce with `runMatch({ seed, slots })` for
 - **Close %**: rounds with a margin ≤ 10% of the winner's score (rounds where someone scored).
 - **Comeback %**: rounds where the crew trailing when Dinner Rush began went on to win (rounds tied at rush start excluded).
 - **Lead changes**: times the non-tied leader changed, checked at each delivery.
-- **Skip %** (recipe bar): regular tickets of the recipe that expired or were still on the board at round end, over tickets spawned. The Critic is excluded.
+- **Served rate** (recipe bar): regular tickets of the recipe served, over tickets spawned (the Critic is excluded). The bar passes when the lowest rate is at least half the highest.
 - **Stuck**: a bot whose position stayed within 0.25 tiles and who pressed no grab/work/throw for more than 10 s of time with tickets on the board. Idle (non-bot) slots are not checked.
 - **Heat**: share of service/rush/last-call time at each Heat tier.

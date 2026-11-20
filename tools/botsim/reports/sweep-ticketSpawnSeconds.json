@@ -1,6 +1,6 @@
 {
   "meta": {
-    "commit": "740f041",
+    "commit": "de58e34",
     "note": "Bots from `./test/scriptedBot.ts` (not @line-war/bots)."
   },
   "options": {
@@ -155,35 +155,35 @@
               "served": 650,
               "expired": 911,
               "leftover": 367,
-              "skipShare": 0.6628630705394191
+              "servedRate": 0.33713692946058094
             },
             "burger": {
               "spawned": 1883,
               "served": 808,
               "expired": 710,
               "leftover": 365,
-              "skipShare": 0.5708975039830059
+              "servedRate": 0.4291024960169942
             },
             "soup": {
               "spawned": 1177,
               "served": 0,
               "expired": 914,
               "leftover": 263,
-              "skipShare": 1
+              "servedRate": 0
             },
             "steak": {
               "spawned": 892,
               "served": 0,
               "expired": 694,
               "leftover": 198,
-              "skipShare": 1
+              "servedRate": 0
             },
             "fish": {
               "spawned": 916,
               "served": 0,
               "expired": 726,
               "leftover": 190,
-              "skipShare": 1
+              "servedRate": 0
             }
           },
           "heatShare": [
@@ -395,35 +395,35 @@
               "served": 1571,
               "expired": 156,
               "leftover": 281,
-              "skipShare": 0.21762948207171315
+              "servedRate": 0.7823705179282868
             },
             "burger": {
               "spawned": 2012,
               "served": 1508,
               "expired": 227,
               "leftover": 277,
-              "skipShare": 0.2504970178926441
+              "servedRate": 0.7495029821073559
             },
             "soup": {
               "spawned": 1267,
               "served": 0,
               "expired": 1026,
               "leftover": 241,
-              "skipShare": 1
+              "servedRate": 0
             },
             "steak": {
               "spawned": 999,
               "served": 0,
               "expired": 794,
               "leftover": 205,
-              "skipShare": 1
+              "servedRate": 0
             },
             "fish": {
               "spawned": 975,
               "served": 0,
               "expired": 783,
               "leftover": 192,
-              "skipShare": 1
+              "servedRate": 0
             }
           },
           "heatShare": [
@@ -589,11 +589,11 @@
           "status": "FAIL"
         },
         {
-          "id": "skips",
-          "name": "No recipe skipped 2× as often as another",
-          "target": "max skip share ≤ 2 × min (even-2v2)",
-          "value": "soup 100.0% vs burger 57.1%",
-          "status": "PASS"
+          "id": "recipes",
+          "name": "No recipe skipped twice as often as another",
+          "target": "lowest served rate ≥ 0.5 × highest (even-2v2)",
+          "value": "salad 33.7%, burger 42.9%, soup 0.0%, steak 0.0%, fish 0.0%",
+          "status": "FAIL"
         },
         {
           "id": "gap",
@@ -696,35 +696,35 @@
               "served": 633,
               "expired": 883,
               "leftover": 358,
-              "skipShare": 0.6622198505869797
+              "servedRate": 0.33778014941302026
             },
             "burger": {
               "spawned": 1844,
               "served": 758,
               "expired": 737,
               "leftover": 349,
-              "skipShare": 0.588937093275488
+              "servedRate": 0.41106290672451196
             },
             "soup": {
               "spawned": 1121,
               "served": 0,
               "expired": 873,
               "leftover": 248,
-              "skipShare": 1
+              "servedRate": 0
             },
             "steak": {
               "spawned": 860,
               "served": 0,
               "expired": 685,
               "leftover": 175,
-              "skipShare": 1
+              "servedRate": 0
             },
             "fish": {
               "spawned": 871,
               "served": 0,
               "expired": 700,
               "leftover": 171,
-              "skipShare": 1
+              "servedRate": 0
             }
           },
           "heatShare": [
@@ -936,35 +936,35 @@
               "served": 1485,
               "expired": 163,
               "leftover": 264,
-              "skipShare": 0.223326359832636
+              "servedRate": 0.7766736401673641
             },
             "burger": {
               "spawned": 1918,
               "served": 1432,
               "expired": 207,
               "leftover": 279,
-              "skipShare": 0.2533889468196038
+              "servedRate": 0.7466110531803962
             },
             "soup": {
               "spawned": 1223,
               "served": 0,
               "expired": 1005,
               "leftover": 218,
-              "skipShare": 1
+              "servedRate": 0
             },
             "steak": {
               "spawned": 962,
               "served": 0,
               "expired": 780,
               "leftover": 182,
-              "skipShare": 1
+              "servedRate": 0
             },
             "fish": {
               "spawned": 933,
               "served": 0,
               "expired": 760,
               "leftover": 173,
-              "skipShare": 1
+              "servedRate": 0
             }
           },
           "heatShare": [
@@ -1130,11 +1130,11 @@
           "status": "FAIL"
         },
         {
-          "id": "skips",
-          "name": "No recipe skipped 2× as often as another",
-          "target": "max skip share ≤ 2 × min (even-2v2)",
-          "value": "soup 100.0% vs burger 58.9%",
-          "status": "PASS"
+          "id": "recipes",
+          "name": "No recipe skipped twice as often as another",
+          "target": "lowest served rate ≥ 0.5 × highest (even-2v2)",
+          "value": "salad 33.8%, burger 41.1%, soup 0.0%, steak 0.0%, fish 0.0%",
+          "status": "FAIL"
         },
         {
           "id": "gap",
@@ -1237,35 +1237,35 @@
               "served": 524,
               "expired": 966,
               "leftover": 365,
-              "skipShare": 0.7175202156334232
+              "servedRate": 0.28247978436657684
             },
             "burger": {
               "spawned": 1777,
               "served": 680,
               "expired": 738,
               "leftover": 359,
-              "skipShare": 0.6173325830050647
+              "servedRate": 0.3826674169949353
             },
             "soup": {
               "spawned": 1100,
               "served": 0,
               "expired": 856,
               "leftover": 244,
-              "skipShare": 1
+              "servedRate": 0
             },
             "steak": {
               "spawned": 854,
               "served": 0,
               "expired": 689,
               "leftover": 165,
-              "skipShare": 1
+              "servedRate": 0
             },
             "fish": {
               "spawned": 877,
               "served": 0,
               "expired": 706,
               "leftover": 171,
-              "skipShare": 1
+              "servedRate": 0
             }
           },
           "heatShare": [
@@ -1477,35 +1477,35 @@
               "served": 1436,
               "expired": 146,
               "leftover": 253,
-              "skipShare": 0.21743869209809263
+              "servedRate": 0.7825613079019074
             },
             "burger": {
               "spawned": 1850,
               "served": 1383,
               "expired": 197,
               "leftover": 270,
-              "skipShare": 0.2524324324324324
+              "servedRate": 0.7475675675675676
             },
             "soup": {
               "spawned": 1179,
               "served": 0,
               "expired": 949,
               "leftover": 230,
-              "skipShare": 1
+              "servedRate": 0
             },
             "steak": {
               "spawned": 919,
               "served": 0,
               "expired": 740,
               "leftover": 179,
-              "skipShare": 1
+              "servedRate": 0
             },
             "fish": {
               "spawned": 901,
               "served": 0,
               "expired": 715,
               "leftover": 186,
-              "skipShare": 1
+              "servedRate": 0
             }
           },
           "heatShare": [
@@ -1671,11 +1671,11 @@
           "status": "FAIL"
         },
         {
-          "id": "skips",
-          "name": "No recipe skipped 2× as often as another",
-          "target": "max skip share ≤ 2 × min (even-2v2)",
-          "value": "soup 100.0% vs burger 61.7%",
-          "status": "PASS"
+          "id": "recipes",
+          "name": "No recipe skipped twice as often as another",
+          "target": "lowest served rate ≥ 0.5 × highest (even-2v2)",
+          "value": "salad 28.2%, burger 38.3%, soup 0.0%, steak 0.0%, fish 0.0%",
+          "status": "FAIL"
         },
         {
           "id": "gap",
@@ -1704,5 +1704,5 @@
     }
   ],
   "matchesRun": 600,
-  "elapsedMs": 15687.437
+  "elapsedMs": 16163.005042
 }
