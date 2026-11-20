@@ -1,8 +1,9 @@
-/** Layout math for the greybox renderer. All values are in LOGICAL pixels (before viewport scaling). */
+/** Layout math for the world renderer. All values are in LOGICAL pixels (before viewport scaling). */
 
 export const TILE = 48;
-export const TOP_BAR = 64;
-export const TICKET_BAR = 108;
+
+/** Room around the arena, in tiles: the back wall and awnings rise above row 0; shadows fall below. */
+export const MARGIN = { top: 1.15, right: 0.4, bottom: 0.45, left: 0.4 } as const;
 
 export interface Rect {
   x: number;
@@ -13,29 +14,25 @@ export interface Rect {
 
 export interface Layout {
   tile: number;
+  /** Logical size of the whole diorama (arena + margins). */
   width: number;
   height: number;
-  topBar: Rect;
-  ticketBar: Rect;
-  /** Where tile (0,0) starts. */
+  /** Where tile (0,0) starts, and the arena's size. */
   world: Rect;
 }
 
 export function computeLayout(arenaWidth: number, arenaHeight: number, tile = TILE): Layout {
-  const width = arenaWidth * tile;
-  const worldTop = TOP_BAR + TICKET_BAR;
+  const world = { x: MARGIN.left * tile, y: MARGIN.top * tile, w: arenaWidth * tile, h: arenaHeight * tile };
   return {
     tile,
-    width,
-    height: worldTop + arenaHeight * tile,
-    topBar: { x: 0, y: 0, w: width, h: TOP_BAR },
-    ticketBar: { x: 0, y: TOP_BAR, w: width, h: TICKET_BAR },
-    world: { x: 0, y: worldTop, w: width, h: arenaHeight * tile },
+    width: world.w + (MARGIN.left + MARGIN.right) * tile,
+    height: world.h + (MARGIN.top + MARGIN.bottom) * tile,
+    world,
   };
 }
 
 export interface Viewport {
-  /** CSS size of the canvas element. */
+  /** CSS size of the canvas element (= the box it fills). */
   cssWidth: number;
   cssHeight: number;
   /** Backing-store size of the canvas (css * devicePixelRatio). */
@@ -43,22 +40,30 @@ export interface Viewport {
   pixelHeight: number;
   /** Backing-store pixels per logical pixel. */
   scale: number;
+  /** Backing-store offset of the logical origin, centring the diorama in the box. */
+  offsetX: number;
+  offsetY: number;
 }
 
-/** Largest size that fits (viewW x viewH) while keeping the logical aspect ratio. */
-export function fitToViewport(logicalW: number, logicalH: number, viewW: number, viewH: number, dpr = 1): Viewport {
-  const safeW = Math.max(1, viewW);
-  const safeH = Math.max(1, viewH);
-  const cssScale = Math.min(safeW / logicalW, safeH / logicalH);
-  const cssWidth = Math.max(1, Math.floor(logicalW * cssScale));
-  const cssHeight = Math.max(1, Math.floor(logicalH * cssScale));
-  const ratio = dpr > 0 ? dpr : 1;
+/**
+ * The canvas fills a (boxW x boxH) CSS box; the logical diorama is scaled to fit inside it with its
+ * aspect ratio kept and centred (letterboxed by the night backdrop).
+ */
+export function fitToBox(logicalW: number, logicalH: number, boxW: number, boxH: number, dpr = 1): Viewport {
+  const cssWidth = Math.max(1, Math.floor(boxW));
+  const cssHeight = Math.max(1, Math.floor(boxH));
+  const ratio = dpr > 0 && Number.isFinite(dpr) ? dpr : 1;
+  const pixelWidth = Math.round(cssWidth * ratio);
+  const pixelHeight = Math.round(cssHeight * ratio);
+  const scale = Math.min(pixelWidth / logicalW, pixelHeight / logicalH);
   return {
     cssWidth,
     cssHeight,
-    pixelWidth: Math.round(cssWidth * ratio),
-    pixelHeight: Math.round(cssHeight * ratio),
-    scale: (cssWidth * ratio) / logicalW,
+    pixelWidth,
+    pixelHeight,
+    scale,
+    offsetX: Math.round((pixelWidth - logicalW * scale) / 2),
+    offsetY: Math.round((pixelHeight - logicalH * scale) / 2),
   };
 }
 
@@ -71,15 +76,4 @@ export function tileRect(layout: Layout, arenaWidth: number, i: number): Rect {
 /** World position (in tiles) -> logical pixel. */
 export function worldToScreen(layout: Layout, pos: { x: number; y: number }): { x: number; y: number } {
   return { x: layout.world.x + pos.x * layout.tile, y: layout.world.y + pos.y * layout.tile };
-}
-
-/** Evenly spaced ticket cards across `area`, `slots` wide. Returns the first `count` rects. */
-export function ticketSlots(area: Rect, slots: number, count: number, gap = 8): Rect[] {
-  const n = Math.max(1, slots);
-  const w = (area.w - gap * (n + 1)) / n;
-  const out: Rect[] = [];
-  for (let i = 0; i < Math.min(count, n); i++) {
-    out.push({ x: area.x + gap + i * (w + gap), y: area.y + gap / 2, w, h: area.h - gap });
-  }
-  return out;
 }
