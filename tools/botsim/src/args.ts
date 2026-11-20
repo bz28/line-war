@@ -40,11 +40,11 @@ export const USAGE = `Usage: pnpm --filter @line-war/botsim sim -- [options]
   --sweep KEY=V1,V2,...   compare values in one report, repeatable (grid). Use ';' between values that contain commas
   --max-ticks N           hard stop per match (default 1.5 x longest possible match)
   --stuck-seconds S       stuck threshold (default 10)
-  --calibration-matches N solo matches per skill when calibrating gap-2v2 (default 40)
+  --calibration-matches N crew-vs-empty matches per skill when calibrating gap-2v2 (default 40)
   --calibration-skills L  skill grid, comma list or lo:hi:step (default 0.5:1:0.05)
   --target R              gap-2v2 throughput ratio (default 1.10)
   --gap-skill S           skip calibration; crew A skill in gap-2v2
-  --arena ID              arena id (default ${NIGHT_MARKET.id})
+  --arena ID              level id: night-market, harbor-pier, rooftop-garden (default ${NIGHT_MARKET.id})
   --quiet                 no progress output
   -h, --help              this help
 `;

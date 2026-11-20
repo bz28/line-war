@@ -3,7 +3,7 @@ import { INGREDIENTS, NIGHT_MARKET, RECIPES } from '@line-war/content';
 import { createMatch, makeConfig, NO_INPUT, type Item, type MatchInputs, type MatchState, type SimEvent } from '@line-war/sim';
 import { describe, expect, it } from 'vitest';
 import { aggregate } from '../src/aggregate';
-import { Collector } from '../src/collector';
+import { Collector, ENDGAME_GRACE_SECONDS } from '../src/collector';
 import type { MatchRecord, RoundRecord } from '../src/types';
 
 const IDLE: MatchInputs = [NO_INPUT, NO_INPUT, NO_INPUT, NO_INPUT];
@@ -196,6 +196,17 @@ describe('stuck detection', () => {
     for (let i = 0; i < TEN_S + 5; i++) {
       state.players[3].pos.x += i % 2 === 0 ? 0.3 : -0.3; // keeps moving
       tick(state, c, [], working);
+    }
+    expect(c.stuck).toHaveLength(0);
+  });
+
+  it('does not count idling in the last ENDGAME_GRACE_SECONDS of a round (no dish can be finished)', () => {
+    const { state, c } = setup([true, false, false, false]);
+    state.tickets = [ticket];
+    state.round.tick = (state.config.roundSeconds - ENDGAME_GRACE_SECONDS) * 30;
+    for (let i = 0; i < TEN_S * 2; i++) {
+      tick(state, c);
+      state.round.tick++;
     }
     expect(c.stuck).toHaveLength(0);
   });

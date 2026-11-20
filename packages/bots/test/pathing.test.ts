@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { interactTarget, tileOwner, type PlayerState, type TeamId } from '@line-war/sim';
+import { LEVELS } from '@line-war/content';
+import { createMatch, interactTarget, makeConfig, tileOwner, type PlayerState, type TeamId } from '@line-war/sim';
 import { navFor } from '../src/nav';
 import { kitchenFor } from '../src/world';
 import { bot, newMatch, runMatch } from './harness';
@@ -78,5 +79,23 @@ describe('navigation on Night Market', () => {
       },
     });
     expect(bad).toBe(0);
+  });
+});
+
+describe('mirrored tie-breaks (side fairness)', () => {
+  it.each(LEVELS.map((l) => [l.name, l] as const))('on %s, each crew’s path to every market crate is the mirror image of the other’s', (_n, level) => {
+    const state = createMatch({ arena: level.arena, recipes: level.recipes, ingredients: level.ingredients, config: makeConfig() });
+    const w = state.arena.width;
+    const [a, b] = [navFor(state, 0), navFor(state, 1)];
+    const mirror = (i: number) => Math.floor(i / w) * w + (w - 1 - (i % w));
+    const spawnA = a.tileAt(state.players[0].pos);
+    const spawnB = b.tileAt(state.players[2].pos);
+    expect(spawnB).toBe(mirror(spawnA));
+    state.arena.tiles.forEach((t, crate) => {
+      if (t.kind !== 'crate') return;
+      const pa = a.path(spawnA, a.access.get(crate)!.map((x) => x.tile), null, null);
+      const pb = b.path(spawnB, b.access.get(mirror(crate))!.map((x) => x.tile), null, null);
+      expect(pb).toEqual(pa!.map(mirror));
+    });
   });
 });
