@@ -1,16 +1,18 @@
 import { interactTarget, tileOwner } from '@line-war/sim';
-import type { FireState, FloorItem, MatchState, PlayerId, PlayerState, TeamId, Vec2 } from '@line-war/sim';
+import type { CharmItem, FireState, FloorItem, MatchState, PlayerId, PlayerState, TeamId, Vec2 } from '@line-war/sim';
 import { PALETTE } from '../art/tokens';
 import { drawChef, newChefAnim, type ChefAnim, type ChefCtx, type ChefPass } from './art/chef';
 import { ellipse, fill } from './art/draw';
-import { drawItem, itemShadow } from './art/food';
+import { CHARM_SCALE, drawItem, itemShadow } from './art/food';
+import { charmBlink, charmPopScale, drawCharm, drawCharmAura, drawCharmPool } from './art/charm';
+import { charmArt } from './art/charmShapes';
 import { drawEffect, Particles } from './art/fx';
 import { makeScene, rowRuns, topCenter, type Scene } from './art/scene';
 import { lightRects, paintBase, paintLights, paintRow } from './art/static';
 import { drawFire, drawStation, type FrameCtx } from './art/stations';
 import { EffectQueue, effectAge, eventsToEffects, type Effect } from './effects';
 import { celebratingTeam, CHEER_PERIOD_MS, hopAt, knockKick, nearestOfTeam, SERVE_HOP_MS, youArrowAlpha, type Hop } from './feel';
-import { dashCooldownFraction } from './format';
+import { charmSecondsLeft, CHARM_BLINK_SECONDS, dashCooldownFraction } from './format';
 import { PositionTracker } from './interp';
 import { computeLayout, fitToBox, worldToScreen, type Layout, type Viewport } from './layout';
 import { withAlpha } from './palette';
@@ -87,6 +89,10 @@ export class WorldRenderer implements Renderer {
   private anims: ChefAnim[] = [newChefAnim(), newChefAnim(), newChefAnim(), newChefAnim()];
   private bellAt: Record<TeamId, number> = { 0: -1e9, 1: -1e9 };
   private refusedAt = [-1e9, -1e9, -1e9, -1e9];
+  /** Renderer ms each live charm appeared (spawn pop). */
+  private charmBorn = new Map<number, number>();
+  /** Where each charm was last tick (a faded charm is gone before its puff is drawn). */
+  private charmSeen = new Map<number, Vec2>();
   private staticKey = '';
   private base: Layer | null = null;
   /** Baked block runs per row; null when there is no offscreen canvas (paint live instead). */
@@ -248,6 +254,8 @@ export class WorldRenderer implements Renderer {
     if (this.lastTick !== null && s.tick < this.lastTick) {
       this.effects.clear(); // new match
       this.particles.clear();
+      this.charmBorn.clear();
+      this.charmSeen.clear();
     }
     this.players.update(
       s.tick,
@@ -257,8 +265,9 @@ export class WorldRenderer implements Renderer {
       s.tick,
       s.floorItems.map((f) => [f.item.id, f.pos] as [number, Vec2]),
     );
-    const fresh = eventsToEffects(s, s.events, now);
+    const fresh = eventsToEffects(s, s.events, now, (id) => this.charmSeen.get(id));
     this.effects.push(fresh);
+    this.trackCharms(s, now);
     const T = this.layout.tile;
     for (const e of fresh) {
       if (e.kind === 'popup' && e.team !== undefined && e.burst === 'serve') {
@@ -270,11 +279,21 @@ export class WorldRenderer implements Renderer {
       if (e.kind === 'shake' && e.player !== undefined) this.refusedAt[e.player] = now;
       if (e.burst && e.pos) {
         const p = worldToScreen(this.layout, e.pos);
-        const lift = e.burst === 'knock' ? 0.3 : 0.2;
-        this.particles.burst(e.burst, p.x, p.y - T * lift, T, e.team ?? null);
+        const lift = e.burst === 'knock' ? 0.3 : e.burst === 'charmBank' ? 0.9 : 0.2;
+        this.particles.burst(e.burst, p.x, p.y - T * lift, T, e.team ?? null, e.variant ? charmArt(e.variant).glow : undefined);
       }
     }
     this.lastTick = s.tick;
+  }
+
+  /** Remember spawn times (for the pop) and last positions (for the fade puff) of live charms. */
+  private trackCharms(s: MatchState, now: number): void {
+    for (const ev of s.events) if (ev.type === 'charmSpawned') this.charmBorn.set(ev.itemId, now);
+    const seen = this.charmSeen;
+    seen.clear();
+    for (const f of s.floorItems) if (f.item.type === 'charm') seen.set(f.item.id, { x: f.pos.x, y: f.pos.y });
+    for (const p of s.players) if (p.holding?.type === 'charm') seen.set(p.holding.id, { x: p.pos.x, y: p.pos.y });
+    if (this.charmBorn.size > seen.size) for (const id of [...this.charmBorn.keys()]) if (!seen.has(id)) this.charmBorn.delete(id);
   }
 
   // ---------- static layers ----------
@@ -470,6 +489,7 @@ export class WorldRenderer implements Renderer {
       const fi = s.floorItems[e.ref];
       if (!fi) return;
       const T = this.layout.tile;
+      if (fi.item.type === 'charm') return this.drawFloorCharm(s, fi.item, e.sx, e.sy, now);
       itemShadow(this.ctx, e.sx, e.sy, T * 0.22, fi.item.type === 'plate');
       drawItem(this.ctx, this.sprites, fi.item, e.sx, e.sy - 2, T * 0.22);
       return;
@@ -477,6 +497,47 @@ export class WorldRenderer implements Renderer {
     const id = -1 - e.ref;
     const pl = s.players[id as PlayerId];
     this.drawPlayer(s, pl, this.playerPos[id]!, this.anims[id]!, now, pass, celebrating);
+  }
+
+  /**
+   * A charm resting in the market: it hovers and bobs over a pool of its own light, pops in when it
+   * appears, and in its last seconds blinks faster and faster round a shrinking lifetime ring.
+   */
+  private drawFloorCharm(s: MatchState, item: CharmItem, x: number, y: number, now: number): void {
+    const { ctx } = this;
+    const T = this.layout.tile;
+    const r = T * 0.22 * CHARM_SCALE;
+    const reduced = this.reducedMotion;
+    const born = this.charmBorn.get(item.id);
+    const pop = born === undefined || reduced ? 1 : charmPopScale(now - born);
+    const left = charmSecondsLeft(s, item);
+    const blink = charmBlink(left, CHARM_BLINK_SECONDS, reduced);
+    const bob = reduced ? 0 : Math.sin(now / 360 + item.id * 1.7);
+    const lift = T * (0.2 + 0.05 * bob) * Math.min(1, pop);
+    drawCharmPool(ctx, item.variant, x, y, r, Math.min(1, pop) * (0.55 + 0.45 * blink));
+    ellipse(ctx, x + r * 0.12, y + r * 0.2, r * (0.9 - 0.08 * bob) * Math.min(1, pop), r * 0.3 * Math.min(1, pop));
+    fill(ctx, withAlpha(PALETTE.nightDeep, 0.4));
+    if (left < CHARM_BLINK_SECONDS) {
+      // Lifetime ring: what is left of the last seconds, traced round the light pool.
+      const k = Math.max(0, left / CHARM_BLINK_SECONDS);
+      ctx.beginPath();
+      ctx.ellipse(x, y + r * 0.2, r * 1.7, r * 0.66, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k);
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = withAlpha(k < 0.4 ? PALETTE.danger : PALETTE.lantern, 0.85);
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+    }
+    const cy = y - lift;
+    ctx.save();
+    ctx.globalAlpha = blink;
+    drawCharmAura(ctx, item.variant, x, cy, r, { now, reducedMotion: reduced, strength: Math.min(1, pop), seed: item.id });
+    if (pop !== 1) {
+      ctx.translate(x, cy);
+      ctx.scale(pop, pop);
+      drawCharm(ctx, this.sprites, item.variant, 0, 0, r);
+    } else drawCharm(ctx, this.sprites, item.variant, x, cy, r);
+    ctx.restore();
   }
 
   private animate(p: PlayerState, pos: Vec2, now: number, dt: number): void {
@@ -563,6 +624,10 @@ export class WorldRenderer implements Renderer {
     ctx.lineCap = 'butt';
     ctx.save();
     ctx.translate(top.x, top.y);
+    if (fi.item.type === 'charm') {
+      // A tumbling charm keeps its glow so everyone can follow it through the air.
+      drawCharmAura(ctx, fi.item.variant, 0, 0, T * 0.22 * CHARM_SCALE, { now: this.now(), reducedMotion: this.reducedMotion, seed: fi.item.id });
+    }
     ctx.rotate(this.reducedMotion ? 0 : (fi.travelled + alpha * step) * 3.2);
     drawItem(ctx, this.sprites, fi.item, 0, 0, T * 0.22);
     ctx.restore();
