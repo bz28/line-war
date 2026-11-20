@@ -46,4 +46,10 @@ export const tileCenter = (arena: ArenaRuntime, index: number): Vec2 => {
   return { x: x + 0.5, y: y + 0.5 };
 };
 
-export const dist = (a: Vec2, b: Vec2): number => Math.hypot(a.x - b.x, a.y - b.y);
+/**
+ * Euclidean length. Uses Math.sqrt (IEEE-754 correctly rounded on every engine), not
+ * Math.hypot, whose result may differ in the last bit between JS engines.
+ */
+export const vecLength = (x: number, y: number): number => Math.sqrt(x * x + y * y);
+
+export const dist =(a: Vec2, b: Vec2): number => vecLength(a.x - b.x, a.y - b.y);

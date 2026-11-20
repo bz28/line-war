@@ -5,7 +5,7 @@
  * Players can never enter tiles of the RIVAL kitchen zone (use tileOwner); the doorway blocks them.
  * When a dashing player touches a rival, call tryKnock() from market.ts.
  */
-import { dist } from '../grid';
+import { dist, vecLength } from '../grid';
 import { secondsToTicks } from '../tuning';
 import type { MatchInputs, MatchState, PlayerState, Vec2 } from '../types';
 import { DAZED_SPEED_FACTOR, EPS, SUBSTEP } from './kitchen/constants';
@@ -27,7 +27,7 @@ export function updateMovement(state: MatchState, inputs: MatchInputs): void {
 
     const input = inputs[p.id];
     const move = clampLength(input.move);
-    const len = Math.hypot(move.x, move.y);
+    const len = vecLength(move.x, move.y);
     if (len > EPS) p.facing = { x: move.x / len, y: move.y / len };
 
     if (input.dash && p.dashTicks === 0 && p.dashCooldown === 0 && p.dazedTicks === 0) {
@@ -87,13 +87,13 @@ function clampLength(v: Vec2): Vec2 {
   // `+ 0` turns -0 into 0 so state survives a JSON round trip unchanged.
   const x = Number.isFinite(v.x) ? v.x + 0 : 0;
   const y = Number.isFinite(v.y) ? v.y + 0 : 0;
-  const len = Math.hypot(x, y);
+  const len = vecLength(x, y);
   return len > 1 ? { x: x / len, y: y / len } : { x, y };
 }
 
 /** Move in small sub-steps, pushing out of solid tiles after each so fast moves can't tunnel. */
 function moveWithCollision(state: MatchState, p: PlayerState, dx: number, dy: number): void {
-  const len = Math.hypot(dx, dy);
+  const len = vecLength(dx, dy);
   if (len <= EPS) {
     resolveWalls(state, p);
     return;
@@ -122,7 +122,7 @@ export function resolveWalls(state: MatchState, p: PlayerState): void {
         const cy = Math.min(Math.max(p.pos.y, ty), ty + 1);
         const ox = p.pos.x - cx;
         const oy = p.pos.y - cy;
-        const d = Math.hypot(ox, oy);
+        const d = vecLength(ox, oy);
         if (d >= r - EPS) continue;
         if (d > EPS) {
           const k = (r - d) / d;
@@ -159,7 +159,7 @@ function separatePlayers(state: MatchState): void {
         const b = ps[j]!;
         const ox = b.pos.x - a.pos.x;
         const oy = b.pos.y - a.pos.y;
-        const d = Math.hypot(ox, oy);
+        const d = vecLength(ox, oy);
         if (d >= min - EPS) continue;
         // Exactly overlapping: split along x (lower id goes left) so the result is deterministic.
         const nx = d > EPS ? ox / d : 1;

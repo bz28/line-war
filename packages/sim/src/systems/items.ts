@@ -5,7 +5,7 @@
  * off a rival kitchen's doorway, or coming to rest on the floor. Also plates going cold
  * (plateColdSeconds after platedAtTick) wherever they are.
  */
-import { dist, tileIndexAtPos } from '../grid';
+import { dist, tileIndexAtPos, vecLength } from '../grid';
 import { secondsToTicks } from '../tuning';
 import type { FloorItem, Item, MatchState, PlayerState } from '../types';
 import { teamOf } from '../types';
@@ -32,7 +32,7 @@ const rest = (fi: FloorItem): void => {
  */
 function fly(state: MatchState, fi: FloorItem): boolean {
   const t = state.config.tuning;
-  const speed = Math.hypot(fi.vel.x, fi.vel.y);
+  const speed = vecLength(fi.vel.x, fi.vel.y);
   const dx = fi.vel.x / speed;
   const dy = fi.vel.y / speed;
   const team = fi.thrownBy === null ? null : teamOf(fi.thrownBy);

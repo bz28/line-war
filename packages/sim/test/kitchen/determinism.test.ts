@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { step, type MatchInputs, type MatchState, type PlayerInput } from '../../src';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { step, vecLength, type MatchInputs, type MatchState, type PlayerInput } from '../../src';
 import { food, kitchenMatch, stationXY, tileAtXY } from './helpers';
 
 /** Scripted, pseudo-random inputs from a tiny LCG (independent of the sim's rng). */
@@ -30,6 +33,21 @@ function play(inputs: MatchInputs[]): MatchState {
   for (const ins of inputs) step(s, ins);
   return s;
 }
+
+describe('cross-engine determinism', () => {
+  it('sim source never uses Math.hypot (not guaranteed bit-identical across engines)', () => {
+    const root = fileURLToPath(new URL('../../src', import.meta.url));
+    const files = readdirSync(root, { recursive: true, encoding: 'utf8' }).filter((f) => f.endsWith('.ts'));
+    expect(files.length).toBeGreaterThan(10);
+    const offenders = files.filter((f) => /Math\.hypot\s*\(/.test(readFileSync(join(root, f), 'utf8')));
+    expect(offenders).toEqual([]);
+  });
+
+  it('vecLength is the plain sqrt formula', () => {
+    expect(vecLength(3, 4)).toBe(5);
+    expect(vecLength(0.1, 0.2)).toBe(Math.sqrt(0.1 * 0.1 + 0.2 * 0.2));
+  });
+});
 
 describe('kitchen determinism', () => {
   it('same scripted inputs twice → identical JSON state', () => {
