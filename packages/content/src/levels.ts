@@ -77,7 +77,7 @@ export const LEVELS: LevelDef[] = [
     recipes: menu(roofIngredients, { salad: 3, steak: 2, soup: 0, burger: 3, fish: 2 }),
     ingredients: roofIngredients,
     charms: LEVEL_CHARMS[ROOFTOP_GARDEN.id]!,
-    // Its market is already the busiest (5.4 knocks/round without charms): one charm keeps it under the bar.
+    // Its market is the busiest of the three levels: one charm per round keeps knocks in the 2-6 bar.
     charmsPerRound: 1,
   },
 ];
