@@ -66,12 +66,12 @@ describe('full bot matches', () => {
   it('knocks happen at normal and hard difficulty', () => {
     let knocks = 0;
     for (const d of ['normal', 'hard'] as const) {
-      for (const seed of [1, 2, 3, 4, 5, 6]) {
+      for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
         const s = runMatch({ seed, slots: [bot(d), bot(d), bot(d), bot(d)], config: { bestOf: 1 } });
         knocks += s.rounds.reduce((n, r) => n + r.knocks[0] + r.knocks[1], 0);
       }
     }
-    console.log('knocks in 12 normal/hard rounds:', knocks);
+    console.log('knocks in 20 normal/hard rounds:', knocks);
     expect(knocks).toBeGreaterThan(0);
   }, T);
 

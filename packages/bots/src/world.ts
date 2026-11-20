@@ -152,17 +152,24 @@ function buildKitchen(state: MatchState, team: TeamId): Kitchen {
   if (crates && door) {
     const w = nav.openTileNear({ x: (crates.x + door.x) / 2, y: (crates.y + door.y) / 2 });
     if (w >= 0 && nav.market[w]) {
-      k.watchTiles.push(w);
+      // Mostly the best spot; every third stint one step closer to their doorway.
       const [x, y] = nav.xy(w);
+      let alt = -1;
+      let altD = Infinity;
       for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]] as const) {
         const nx = x + dx;
         const ny = y + dy;
         const j = ny * nav.w + nx;
-        if (nx >= 0 && ny >= 0 && nx < nav.w && ny < nav.h && nav.open[j] && nav.market[j]) {
-          k.watchTiles.push(j);
-          break;
+        if (nx < 0 || ny < 0 || nx >= nav.w || ny >= nav.h || !nav.open[j] || !nav.market[j]) continue;
+        const c = nav.center(j);
+        const d = Math.hypot(c.x - door.x, c.y - door.y);
+        if (d < altD) {
+          altD = d;
+          alt = j;
         }
       }
+      k.watchTiles.push(w, w);
+      if (alt >= 0) k.watchTiles.push(alt);
     }
   }
   const accessTile = (t: number): number => nav.access.get(t)?.[0]?.tile ?? -1;
