@@ -151,7 +151,7 @@ function useIngredientOn(state: MatchState, p: PlayerState, ing: IngredientItem,
       st.workTicks = 0;
       p.holding = null;
       placed(state, p, ing.id, st.tile);
-    } else if (st.item.type === 'plate' && plateFits(st.item, [ing], state.recipes)) {
+    } else if (st.item.type === 'plate' && plateFits(state, st.item, [ing])) {
       addToPlate(state, st.item, [ing]);
       p.holding = null;
       placed(state, p, ing.id, st.tile);
@@ -181,7 +181,7 @@ function usePlateOn(state: MatchState, p: PlayerState, plate: PlateItem, st: Sta
       st.workTicks = 0;
       p.holding = null;
       placed(state, p, plate.id, st.tile);
-    } else if (st.item.type === 'ingredient' && plateFits(plate, [st.item], state.recipes)) {
+    } else if (st.item.type === 'ingredient' && plateFits(state, plate, [st.item])) {
       const ing = st.item;
       addToPlate(state, plate, [ing]);
       st.item = null;
@@ -190,7 +190,7 @@ function usePlateOn(state: MatchState, p: PlayerState, plate: PlateItem, st: Sta
     }
   } else if (kind === 'stove') {
     const v = st.vessel;
-    if (v && v.status === 'done' && plateFits(plate, v.contents, state.recipes)) {
+    if (v && v.status === 'done' && plateFits(state, plate, v.contents)) {
       addToPlate(state, plate, v.contents);
       resetVessel(v);
       emit(state, { type: 'grab', player: p.id, itemId: plate.id });

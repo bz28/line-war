@@ -10,6 +10,7 @@ import { secondsToTicks } from '../tuning';
 import type { FloorItem, Item, MatchState, PlayerState } from '../types';
 import { teamOf } from '../types';
 import { CATCH_MARGIN, EPS, SELF_CATCH_SECONDS, SUBSTEP } from './kitchen/constants';
+import { isPlateCold } from './kitchen/plate';
 import { actingOrder, emit, fireAt, isResting, isRivalTile, kindAt, stationAt } from './kitchen/world';
 
 export function updateFloorItems(state: MatchState): void {
@@ -103,10 +104,9 @@ function findCatcher(state: MatchState, fi: FloorItem): PlayerState | null {
 
 /** §5: a plate with food goes cold plateColdSeconds after platedAtTick, wherever it is. */
 function updateColdPlates(state: MatchState): void {
-  const coldTicks = secondsToTicks(state.config, state.config.tuning.plateColdSeconds);
   const check = (item: Item | null): void => {
-    if (!item || item.type !== 'plate' || item.cold || item.platedAtTick === null || item.contents.length === 0) return;
-    if (state.tick >= item.platedAtTick + coldTicks) {
+    if (!item || item.type !== 'plate' || item.cold) return;
+    if (isPlateCold(state, item)) {
       item.cold = true;
       emit(state, { type: 'plateCold', itemId: item.id });
     }

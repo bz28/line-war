@@ -120,6 +120,15 @@ describe('deliverPlate refusals (no penalty)', () => {
     expectRefused(s, deliverPlate(s, 0, plate(s, SALAD_FOOD, { cold: true })), 'cold');
   });
 
+  it('refuses a plate on the exact tick it goes cold, even before the cold flag is set', () => {
+    const s = inService();
+    addTicket(s, SALAD);
+    const coldTicks = s.config.tuning.plateColdSeconds * s.config.tuning.tickRate;
+    expectRefused(s, deliverPlate(s, 0, plate(s, SALAD_FOOD, { platedAtTick: s.tick - coldTicks })), 'cold');
+    // One tick earlier it is still warm.
+    expect(deliverPlate(s, 0, plate(s, SALAD_FOOD, { platedAtTick: s.tick - coldTicks + 1 })).ok).toBe(true);
+  });
+
   it('refuses a plate with no matching ticket', () => {
     const s = inService();
     addTicket(s, STEAK);

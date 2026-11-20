@@ -313,23 +313,33 @@ describe('plate fits', () => {
   const s = kitchenMatch();
   const R = KITCHEN_RECIPES;
   it('accepts sub-multisets of at least one recipe', () => {
-    expect(plateFits(plate(s), [food('lettuce', 'chopped')], R)).toBe(true); // salad, steak
-    expect(plateFits(plate(s, [food('steak', 'cooked')]), [food('lettuce', 'chopped')], R)).toBe(true);
-    expect(plateFits(plate(s, [food('tomato', 'cooked'), food('tomato', 'cooked')]), [food('tomato', 'cooked')], R)).toBe(true);
-    expect(plateFits(plate(s), Array(3).fill(food('tomato', 'cooked')), R)).toBe(true);
+    expect(plateFits(s, plate(s), [food('lettuce', 'chopped')], R)).toBe(true); // salad, steak
+    expect(plateFits(s, plate(s, [food('steak', 'cooked')]), [food('lettuce', 'chopped')], R)).toBe(true);
+    expect(plateFits(s, plate(s, [food('tomato', 'cooked'), food('tomato', 'cooked')]), [food('tomato', 'cooked')], R)).toBe(true);
+    expect(plateFits(s, plate(s), Array(3).fill(food('tomato', 'cooked')), R)).toBe(true);
   });
 
   it('rejects over-counts, cross-recipe mixes and wrong states', () => {
-    expect(plateFits(plate(s, Array(3).fill(food('tomato', 'cooked'))), [food('tomato', 'cooked')], R)).toBe(false);
-    expect(plateFits(plate(s, [food('lettuce', 'chopped')]), [food('lettuce', 'chopped')], R)).toBe(false);
-    expect(plateFits(plate(s, [food('lettuce', 'chopped')]), [food('bun', 'raw')], R)).toBe(false);
-    expect(plateFits(plate(s), [food('meat', 'raw')], R)).toBe(false);
-    expect(plateFits(plate(s), [food('meat', 'burnt')], R)).toBe(false);
+    expect(plateFits(s, plate(s, Array(3).fill(food('tomato', 'cooked'))), [food('tomato', 'cooked')], R)).toBe(false);
+    expect(plateFits(s, plate(s, [food('lettuce', 'chopped')]), [food('lettuce', 'chopped')], R)).toBe(false);
+    expect(plateFits(s, plate(s, [food('lettuce', 'chopped')]), [food('bun', 'raw')], R)).toBe(false);
+    expect(plateFits(s, plate(s), [food('meat', 'raw')], R)).toBe(false);
+    expect(plateFits(s, plate(s), [food('meat', 'burnt')], R)).toBe(false);
+  });
+
+  it('a plate whose cold time has arrived accepts nothing, even before the flag is set', () => {
+    const t = kitchenMatch();
+    t.tick = 1000;
+    const coldTicks = t.config.tuning.plateColdSeconds * t.config.tuning.tickRate;
+    expect(plateFits(t, plate(t, [food('bun', 'raw')], { platedAtTick: t.tick - coldTicks }), [food('meat', 'cooked')], R)).toBe(false);
+    expect(plateFits(t, plate(t, [food('bun', 'raw')], { platedAtTick: t.tick - coldTicks + 1 }), [food('meat', 'cooked')], R)).toBe(true);
+    // An empty plate never goes cold.
+    expect(plateFits(t, plate(t, [], { platedAtTick: 0 }), [food('bun', 'raw')], R)).toBe(true);
   });
 
   it('dirty and cold plates accept nothing', () => {
-    expect(plateFits(plate(s, [], { dirty: true }), [food('bun', 'raw')], R)).toBe(false);
-    expect(plateFits(plate(s, [food('bun', 'raw')], { cold: true }), [food('meat', 'cooked')], R)).toBe(false);
+    expect(plateFits(s, plate(s, [], { dirty: true }), [food('bun', 'raw')], R)).toBe(false);
+    expect(plateFits(s, plate(s, [food('bun', 'raw')], { cold: true }), [food('meat', 'cooked')], R)).toBe(false);
   });
 });
 

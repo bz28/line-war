@@ -10,6 +10,7 @@ import { weightedIndex } from '../rng';
 import { secondsToTicks, timerTicks } from '../tuning';
 import type { MatchState, PlateItem, PlayerId, RecipeDef, TeamId, Ticket } from '../types';
 import { roundTimes } from './rules/timing';
+import { isPlateCold } from './kitchen/plate';
 import { registerCleanDelivery, scoreDelivery } from './scoring';
 
 /** RULES §1: the interaction target is the tile containing pos + facing × 0.75. */
@@ -140,7 +141,7 @@ export function deliverPlate(state: MatchState, player: PlayerId, plate: PlateIt
   if (!isPlaying(state) || state.round.phase === 'prep') return refuse(state, player, 'notPlaying');
   if (!facesOwnPass(state, player)) return refuse(state, player, 'notOwnPass');
   if (plate.dirty || plate.contents.length === 0) return refuse(state, player, 'dirtyOrEmpty');
-  if (plate.cold) return refuse(state, player, 'cold');
+  if (isPlateCold(state, plate)) return refuse(state, player, 'cold');
   const team = state.players[player].team;
   const ticket = findTicketFor(state, team, plate);
   if (!ticket) return refuse(state, player, 'noMatchingTicket');
