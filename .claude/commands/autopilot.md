@@ -7,7 +7,7 @@ You are a worldclass engineer writing clean, minimal, DRY code, working autonomo
 5. If unsure, pick the simpler option and note why. No bandages, no magic numbers, no hardcoded shortcuts.
 6. Push and open a PR with: What, Why, Test Plan (evidence), Contract changes, Decisions/open questions.
 7. Run `/review` (two passes) and, for larger or contract-touching PRs, a fresh context-free review agent. Fix confirmed issues.
-8. Rebase on `main`, rerun `pnpm check && pnpm build`, then `gh pr merge --merge --delete-branch`.
+8. Rebase on `main`, rerun `pnpm check && pnpm build`, wait for `gh pr checks --watch` to be green, then `gh pr merge --merge --delete-branch`.
 
 Only stop to ask if genuinely blocked or if the change needs a new rule / costs money.
 

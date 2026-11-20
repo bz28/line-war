@@ -28,12 +28,13 @@
 
 - Feature branches → PR → merge to main. **Never push directly to main.** Branches: `track/<name>` for build-plan tracks, `feat|fix|chore/<slug>` otherwise.
 - Merge with `gh pr merge --merge` (no squash — keep history). Delete the branch after merge.
-- **No CI** (GitHub Actions is disabled on this account and we don't rely on it). The gate is **local**: run `pnpm check && pnpm build` on the PR branch rebased on current `main` right before merging, and paste the result in the PR.
+- **CI gate:** GitHub Actions (`.github/workflows/ci.yml`) runs typecheck, tests and build on every PR. Run `pnpm check && pnpm build` locally before pushing, then monitor `gh pr checks <n> --watch` until green. If a check fails, tell the user which check, why, and the fix, push the fix, and repeat. Never merge red.
 - **Autonomy:** the user has authorized autonomous building — commit, push, open PRs, review and merge without asking, following this file. Still stop and ask for: design/rule changes not in `docs/RULES.md`, anything that costs money (hosting, paid services), making the repo public, or destructive git operations.
 - **Every PR description includes a Test Plan with evidence** — each check run (`pnpm check`, `pnpm build`, botsim) with its pass/fail and counts, plus a note on manual verification.
   - **Visual/UI PRs:** attach a real screenshot of the changed surface, committed under `docs/design/` and embedded with `![label](https://github.com/bz28/line-war/blob/<branch>/docs/design/<file>?raw=true)`. Capture it by running `pnpm dev` and driving the browser. If it truly can't be captured, the Test Plan says why and what was verified instead, and you flag the gap to the user. Prose descriptions are not screenshots.
   - **Gameplay/balance PRs:** include the botsim report (before → after when tuning).
 - **Verify the blast radius.** A change to a shared contract (`packages/sim/src/types.ts`, `step.ts`, `tuning.ts`, `match.ts`) can break every track. Run the full suite, check every caller, and note the contract change in the PR description. Keep such changes minimal and additive.
+- The repo is **public**: never commit secrets, personal emails or private data.
 - Small, cohesive commits (~150 lines when cohesive). Conventional prefixes with scope: `feat(sim):`, `fix(client):`, `docs:`, `chore:`, `refactor:`, `test:`.
 
 ## Development process
