@@ -83,7 +83,7 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
         arena: level.arena,
         recipes: level.recipes,
         ingredients: level.ingredients,
-        charms: level.charms, charmsPerRound: level.charmsPerRound,
+        charms: level.charms, charmsPerRound: level.charmsPerRound, tuning: level.tuning,
         config: makeConfig({ ...settings.match, seed: (Math.random() * 2 ** 31) | 0 }),
       });
   const keyboard = new KeyboardState();

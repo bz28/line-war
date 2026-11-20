@@ -63,6 +63,8 @@ Adding food sets `platedAtTick = tick`. Dirty plates accept nothing.
   `burnt` at cook + burn time (contents become `burnt`, emit `burnt`, call `registerMistake(team)`);
   `fire` at + `fireAfterBurnSeconds` (create `FireState` on that tile, emit `fireStart`).
   Pan: `panCookSeconds` / `panBurnSeconds`. Pot: `potCookSeconds` / `potBurnSeconds`.
+  A level may override tuning values in content (`LevelDef.tuning`, passed to `createMatch({ tuning })` and applied over
+  `config.tuning`): Rooftop Garden sets `panBurnSeconds: 6` (default 4).
 - Fire spreads every `fireSpreadSeconds` to one random (rng) orthogonally adjacent interactive tile that isn't burning.
   A burning tile can't be used for anything except extinguishing.
 

@@ -3,6 +3,7 @@ import { BASE_LEGEND } from './legend';
 
 /**
  * Rooftop Garden. The produce war: lettuce and tomatoes grow only in the shared garden, so most dishes need a raid. Two doors per kitchen, so watch your flank.
+ * Two tomato beds, one either side of a centre planter, split the garden's busiest crate.
  * Must stay left-right mirrored. Kitchens are columns 1-7 and 17-23, the market 9-15.
  */
 export const ROOFTOP_GARDEN: ArenaDef = {
@@ -15,7 +16,7 @@ export const ROOFTOP_GARDEN: ArenaDef = {
     '#K.....................K#',
     '#K.CC..C#.#...#.#C..CC.K#',
     '#C.....W#.......#W.....C#',
-    '#b.....D#.#.T.#.#D.....b#',
+    '#b.....D#.#T#T#.#D.....b#',
     '#m.CC..C#.......#C..CC.m#',
     '#s.....C#.#...#.#C.....s#',
     '#f.....................f#',
