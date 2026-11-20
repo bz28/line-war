@@ -193,10 +193,7 @@ export class App {
           saveCollection(setDisplay(now, now.display === id ? null : id), this.storage);
           this.showCharms(id);
         },
-        back: () => {
-          this.showTitle();
-          this.overlay.querySelector<HTMLElement>('[data-key="menu-Charms"]')?.focus();
-        },
+        back: () => this.returnToTitle('Charms'),
       }),
     );
     if (focus) this.overlay.querySelector<HTMLElement>(`[data-charm="${focus}"]`)?.focus();
@@ -213,7 +210,17 @@ export class App {
 
   private showHowTo(): void {
     this.screen = 'howto';
-    this.showPanel(howToScreen(this.settings, { back: () => this.showTitle() }));
+    this.showPanel(howToScreen(this.settings, { back: () => this.returnToTitle('How to play') }));
+  }
+
+  /** Back to the title with focus on the menu button the player came from. */
+  private returnToTitle(from: string): void {
+    this.showTitle();
+    this.focusMenu(from);
+  }
+
+  private focusMenu(label: string): void {
+    this.overlay.querySelector<HTMLElement>(`[data-key="menu-${label}"]`)?.focus();
   }
 
   private showMatchOver(): void {
@@ -271,11 +278,8 @@ export class App {
   private back(): void {
     if (this.settingsMenu) return this.settingsMenu.back();
     if (this.screen === 'paused') this.resume();
-    else if (this.screen === 'howto') this.showTitle();
-    else if (this.screen === 'charms') {
-      this.showTitle();
-      this.overlay.querySelector<HTMLElement>('[data-key="menu-Charms"]')?.focus();
-    }
+    else if (this.screen === 'howto') this.returnToTitle('How to play');
+    else if (this.screen === 'charms') this.returnToTitle('Charms');
   }
 
   // ---------- settings ----------
@@ -295,6 +299,7 @@ export class App {
         this.closeSettings();
         if (from === 'title') this.showTitle();
         else this.showPauseMenu();
+        this.focusMenu('Settings');
       },
     });
     this.showPanel(this.settingsMenu.el);

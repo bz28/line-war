@@ -125,12 +125,16 @@ export function charmShelfScreen(col: Collection, actions: ShelfActions): HTMLEl
       );
     }),
   );
-  const onFocus = (e: Event) => {
-    const id = (e.target as HTMLElement | null)?.closest?.('[data-charm]')?.getAttribute('data-charm') ?? null;
+  const slotOf = (e: Event) => (e.target as HTMLElement | null)?.closest?.<HTMLElement>('[data-charm]') ?? null;
+  // The card always describes the focused slot; hovering a slot moves focus to it.
+  shelves.addEventListener('focusin', (e) => {
+    const id = slotOf(e)?.getAttribute('data-charm');
     if (id) info.show(id);
-  };
-  shelves.addEventListener('focusin', onFocus);
-  shelves.addEventListener('pointerover', onFocus);
+  });
+  shelves.addEventListener('pointerover', (e) => {
+    const s = slotOf(e);
+    if (s && document.activeElement !== s) s.focus({ preventScroll: true });
+  });
   info.show(col.display);
   return h(
     'div',
