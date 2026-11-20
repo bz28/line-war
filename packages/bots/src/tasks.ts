@@ -6,6 +6,7 @@
  */
 import { plateFits, type IngredientKind, type Item, type MatchState, type PlateItem, type PlayerState, vesselTimeline } from '@line-war/sim';
 import type { Crew, Order, Slot } from './crew';
+import { BOT_TUNING } from './tuning';
 import type { Kitchen, Loc } from './world';
 import { canBecome, pipeline, sameBag, subBag } from './world';
 import { isPlateCold } from '@line-war/sim';
@@ -166,15 +167,13 @@ function plateOnSurface(ctx: Ctx, o: Order): { tile: number; plate: PlateItem } 
   return { tile: loc.tile, plate: loc.item };
 }
 
-/** Ticks to wait for a counter to free up before getting rid of what we hold another way. */
-const NO_SURFACE_WAIT_TICKS = 60;
 
 /**
  * Holding something with no free counter: wait a little (a crewmate may clear one), then trash an
  * ingredient (cheap to replace) or set a plate down on our kitchen floor. Never waits forever.
  */
 export function noSurface(ctx: Ctx, wait: { stalled: number }): StepResult {
-  if (++wait.stalled < NO_SURFACE_WAIT_TICKS) return { kind: 'wait' };
+  if (++wait.stalled < BOT_TUNING.noSurfaceWaitTicks) return { kind: 'wait' };
   if (ctx.me.holding?.type === 'ingredient') {
     const tr = nearest(ctx, ctx.k.trash, () => true);
     if (tr !== null) return { kind: 'use', tile: tr };
@@ -317,7 +316,7 @@ export class PrepSlotTask extends Task {
 
   /** Nowhere to put it right now: wait a moment, then park it on a counter. */
   private waitOrPark(ctx: Ctx): StepResult {
-    if (++this.waited < 45) return { kind: 'wait' };
+    if (++this.waited < BOT_TUNING.prepWaitTicks) return { kind: 'wait' };
     return this.park(ctx);
   }
 
@@ -415,7 +414,7 @@ export class PlateRunTask extends Task {
     }
     if (waitAt !== null) {
       const travel = (k.nav.toStation(ctx.tile, waitAt) / state.config.tuning.playerSpeed) * state.config.tuning.tickRate;
-      if (soonest <= ctx.stoveLeadTicks + travel + 90) return { kind: 'face', tile: waitAt };
+      if (soonest <= ctx.stoveLeadTicks + travel + BOT_TUNING.stoveWaitMarginTicks) return { kind: 'face', tile: waitAt };
     }
     return this.putDownPlate(ctx);
   }
@@ -617,7 +616,7 @@ export class StockTask extends Task {
       if (state.arena.tiles[loc.tile]?.kind === 'board') {
         if (it.state === 'raw' && choppable) return { kind: 'work', tile: loc.tile };
         if (me.holding) return FAIL;
-        if (countFreeCounters(ctx) < 2) return DONE;
+        if (countFreeCounters(ctx) < BOT_TUNING.tidyMinFreeCounters) return DONE;
         this.board = null;
         return { kind: 'use', tile: loc.tile };
       }
@@ -736,7 +735,7 @@ export class WatchTask extends Task {
     this.claims = [this.key];
   }
   step(ctx: Ctx): StepResult {
-    if (++this.ticks > 90) return DONE;
+    if (++this.ticks > BOT_TUNING.watchTicks) return DONE;
     return ctx.tile === this.tile ? { kind: 'wait' } : { kind: 'goto', tile: this.tile };
   }
 }
@@ -748,7 +747,7 @@ export class IdleTask extends Task {
     super();
   }
   step(ctx: Ctx): StepResult {
-    if (++this.ticks > 20) return DONE;
+    if (++this.ticks > BOT_TUNING.idleTicks) return DONE;
     return ctx.tile === this.tile ? { kind: 'wait' } : { kind: 'goto', tile: this.tile };
   }
 }

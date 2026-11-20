@@ -19,28 +19,27 @@ import { STEP_COST, type Nav } from './nav';
 import { BotRng } from './rng';
 import type { SkillParams } from './skill';
 import { DONE, FAIL, type Act, type Ctx, type Task } from './tasks';
+import { BOT_TUNING } from './tuning';
 import { itemIndex, kitchenFor } from './world';
 
-const ARRIVE_DIST = 0.18;
+const {
+  arriveDist: ARRIVE_DIST,
+  arriveMargin: ARRIVE_MARGIN,
+  waypointDist: WAYPOINT_DIST,
+  stuckTicks: STUCK_TICKS,
+  giveUpLevel: GIVE_UP_LEVEL,
+  repathTicks: REPATH_TICKS,
+  grabGapTicks: GRAB_GAP_TICKS,
+  maxPresses: MAX_PRESSES,
+  maxTaskTicks: MAX_TASK_TICKS,
+  urgentPriority: URGENT_PRIORITY,
+  huntRange: HUNT_RANGE,
+  huntTicks: HUNT_TICKS,
+  cutMarginSeconds: CUT_MARGIN_SECONDS,
+  episodeTtlTicks: EPISODE_TTL_TICKS,
+} = BOT_TUNING;
 /** Interaction target offset (RULES §1: pos + facing × 0.75). */
 const TARGET_OFFSET = 0.75;
-const ARRIVE_MARGIN = 0.08;
-const WAYPOINT_DIST = 0.3;
-const STUCK_TICKS = 18;
-const GIVE_UP_LEVEL = 5;
-const REPATH_TICKS = 40;
-const GRAB_GAP_TICKS = 3;
-const MAX_PRESSES = 6;
-const MAX_TASK_TICKS = 30 * 30;
-const URGENT_PRIORITY = 74;
-
-/** Tiles: how far away a carrier can be for a bot to go after them. */
-const HUNT_RANGE = 7;
-const HUNT_TICKS = 120;
-/** Seconds we want to be in place before the rival reaches their doorway. */
-const CUT_MARGIN_SECONDS = 0.4;
-/** An encounter not seen for this long is forgotten (its decision may be rolled again). */
-const EPISODE_TTL_TICKS = 300;
 
 const BODY_OFFSETS: readonly [number, number][] = [
   [0, 0],
@@ -199,7 +198,7 @@ export class Bot {
     if (!this.task || me.holding || state.tick < this.nextGlance) return;
     this.nextGlance = state.tick + Math.max(1, Math.round(this.params.glanceTicks * (0.75 + 0.5 * this.rng.next())));
     const cand = this.crew.chooseTask(ctx);
-    if (cand.key === this.task.key || cand.priority < URGENT_PRIORITY || cand.priority < this.task.priority + 15) return;
+    if (cand.key === this.task.key || cand.priority < URGENT_PRIORITY || cand.priority < this.task.priority + BOT_TUNING.preemptMargin) return;
     this.endTask();
     this.startTask(ctx, cand);
   }
@@ -496,7 +495,7 @@ export class Bot {
       for (const [ox, oy] of BODY_OFFSETS) {
         const t = nav.tileAt({ x: p.pos.x + ox * r, y: p.pos.y + oy * r });
         if (t < 0 || (ox !== 0 || oy !== 0 ? t === nav.tileAt(p.pos) : false)) continue;
-        extra[t] = extra[t]! + (slow ? 6 * STEP_COST : 2 * STEP_COST);
+        extra[t] = extra[t]! + (slow ? BOT_TUNING.playerTileCostSlow : BOT_TUNING.playerTileCostMoving) * STEP_COST;
         if (avoidPlayers && t !== ctx.tile) blocked[t] = 1;
       }
     }
@@ -532,7 +531,7 @@ export class Bot {
     if (!emptyHanded) return; // carrying: we only denied it
     this.endTask();
     this.chase = itemId;
-    this.chaseUntil = state.tick + 75;
+    this.chaseUntil = state.tick + BOT_TUNING.chaseTicks;
   }
 
   /** Knocks, stealing the popped item, hunting carriers, evasive dashes. Returns an input to override the task. */
@@ -572,7 +571,7 @@ export class Bot {
         if ((ahead < 0.5 && this.huntTarget !== r.id) || !this.dashLaneClear(nav, me.pos, ux, uy, Math.min(al, t.dashDistance))) continue;
         const episode = r.id * 100000 + (r.holding.id % 100000);
         // Empty-handed we can steal the popped item; carrying we can still deny it (less tempting).
-        const chance = this.params.knockChance * (me.holding ? 0.5 : 1);
+        const chance = this.params.knockChance * (me.holding ? BOT_TUNING.knockWhileCarrying : 1);
         if (this.huntTarget === r.id || this.decideOnce(episode, chance, state.tick)) return { ...NO_INPUT, move: { x: ux, y: uy }, dash: true };
       }
     }
@@ -650,7 +649,7 @@ export class Bot {
         if (l < 1e-6) continue;
         const away = (dx * (me.pos.x - r.pos.x) + dy * (me.pos.y - r.pos.y)) / (l * d);
         const episode = -1e9 - r.id * 1000 - (state.tick >> 5);
-        if (away > 0.3 && this.decideOnce(episode, this.params.defend * 0.6, state.tick) && this.dashLaneClear(nav, me.pos, dx / l, dy / l, t.dashDistance)) {
+        if (away > 0.3 && this.decideOnce(episode, this.params.defend * BOT_TUNING.evadeShare, state.tick) && this.dashLaneClear(nav, me.pos, dx / l, dy / l, t.dashDistance)) {
           return { ...NO_INPUT, move: { x: dx / l, y: dy / l }, dash: true };
         }
       }

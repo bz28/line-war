@@ -6,6 +6,7 @@
  */
 import {
   isPlateCold,
+  timerTicks,
   vesselTimeline,
   type Food,
   type Item,
@@ -17,6 +18,7 @@ import {
   type Ticket,
 } from '@line-war/sim';
 import { BotRng } from './rng';
+import { BOT_TUNING } from './tuning';
 import { skillParams, type SkillParams } from './skill';
 import {
   ClearBurntTask,
@@ -72,10 +74,8 @@ export interface Order {
   unbackedSince: number | null;
 }
 
-/** How long a dish with progress but no ticket left is kept, hoping a matching ticket spawns. */
-const UNBACKED_PATIENCE_SECONDS = 12;
-/** Fraction of hunt-willing bots that also go out to watch the market when idle. */
-const WATCH_SHARE = 0.6;
+const T = BOT_TUNING;
+const S = BOT_TUNING.score;
 
 interface Estimate {
   /** Seconds of a bot's hands-on work. */
@@ -149,7 +149,7 @@ export class Crew {
   }
   /** Remember a failed task so it isn't picked again straight away. */
   noteFailed(key: string, tick: number): void {
-    this.failed.set(key, tick + 45);
+    this.failed.set(key, tick + T.failBlacklistTicks);
   }
   private recentlyFailed(key: string, tick: number): boolean {
     const t = this.failed.get(key);
@@ -191,7 +191,7 @@ export class Crew {
       this.extraOrders = this.rollExtraOrders();
       this.watchers.clear();
       this.members.forEach((id, i) => {
-        if (this.rng.chance(skillParams(this.memberSkill[i]!).huntChance * WATCH_SHARE)) this.watchers.add(id);
+        if (this.rng.chance(skillParams(this.memberSkill[i]!).huntChance * T.watchShare)) this.watchers.add(id);
       });
     }
     const k = kitchenFor(state, this.team);
@@ -331,7 +331,7 @@ export class Crew {
       }
       // Hold on for a while (tickets come every few seconds); give up once the plate is spoilt or it's been too long.
       const plateBad = o.plate !== null && !o.plateComplete && o.slots.every((s) => !s.onPlate) && this.plateHasFood(state, o.plate);
-      const waited = state.tick - o.unbackedSince > UNBACKED_PATIENCE_SECONDS * state.config.tuning.tickRate;
+      const waited = state.tick - o.unbackedSince > T.unbackedPatienceSeconds * state.config.tuning.tickRate;
       if (plateBad || waited) o.cancelled = true;
       else next.push(o);
     }
@@ -430,14 +430,14 @@ export class Crew {
     const t = state.config.tuning;
     const speed = t.playerSpeed;
     const hub = k.nav.access.get(k.assembly[0] ?? -1)?.[0]?.tile ?? k.idleTile;
-    const trip = (st: number | undefined): number => (st === undefined ? 20 : (2 * k.nav.toStation(hub, st)) / speed + 0.6);
+    const trip = (st: number | undefined): number => (st === undefined ? T.unknownTripSeconds : (2 * k.nav.toStation(hub, st)) / speed + T.tripOverheadSeconds);
     let busy = trip(k.racks[0]) + trip(k.passes[0]);
     let wait = 0;
     let pot = false;
     for (const f of r.ingredients) {
       const p = pipeline(state, f);
       busy += trip(k.pantry.get(f.kind) ?? k.crate.get(f.kind));
-      if (p.chop) busy += t.chopSeconds * (state.config.brunchSpeed ? 1.5 : 1) + 0.5;
+      if (p.chop) busy += timerTicks(state.config, t.chopSeconds) / t.tickRate + T.chopOverheadSeconds;
       if (p.vessel === 'pan') {
         busy += trip(k.pans[0]) * 0.5;
         wait = Math.max(wait, vesselTimeline(state, 'pan').done / t.tickRate);
@@ -500,7 +500,7 @@ export class Crew {
     let lastGaspBusy = Infinity;
     for (const r of state.recipes) {
       const e = this.estimate(state, k, r);
-      const slack = this.orders.length * 3;
+      const slack = this.orders.length * T.slackPerOrderSeconds;
       if (e.busy + slack > roundLeft) {
         if (this.orders.length === 0 && e.busy < lastGaspBusy && tickets.some((x) => x.recipe === r.id)) {
           lastGasp = r;
@@ -519,15 +519,15 @@ export class Crew {
       const life = Math.max(1, tk.expireTick - tk.spawnTick);
       const fresh = 1 - (1 - t.freshnessFloor) * Math.min(1, Math.max(0, finishTick - tk.spawnTick) / life);
       // Work-rate value: points per second of hands-on time, with a nudge for tickets about to lapse.
-      let score = (tk.baseValue * fresh) / (e.busy + 0.25 * (e.latency - e.busy));
-      if (this.hasLeftovers(state, k, r)) score *= 1.6;
+      let score = (tk.baseValue * fresh) / (e.busy + T.waitWeight * (e.latency - e.busy));
+      if (this.hasLeftovers(state, k, r)) score *= T.leftoverBonus;
       score *= 1 + this.params.ticketNoise * (this.rng.next() * 2 - 1);
       if (score > bestScore) {
         bestScore = score;
         best = r;
       }
     }
-    return best ?? (roundLeft > 2 ? lastGasp : null);
+    return best ?? (roundLeft > T.lastGaspMinSeconds ? lastGasp : null);
   }
 
   /** Some unclaimed food in the kitchen (a cooking vessel, a plated part) already belongs to this recipe. */
@@ -573,7 +573,7 @@ export class Crew {
     const offer = (task: Task, score: number, at: number | null): void => {
       if (this.claimedByOther(task.key, me.id) || this.recentlyFailed(task.key, state.tick)) return;
       const d = at === null ? 0 : k.nav.toStation(ctx.tile, at);
-      const s = score - (Number.isFinite(d) ? d : 99) * 0.8;
+      const s = score - (Number.isFinite(d) ? d : 99) * T.distancePenaltyPerTile;
       if (s > bestScore) {
         bestScore = s;
         best = task;
@@ -582,24 +582,24 @@ export class Crew {
     };
 
     // Emergencies.
-    for (const f of state.fires) if (k.owned.includes(f.tile)) offer(new ExtinguishTask(f.tile), 100, f.tile);
+    for (const f of state.fires) if (k.owned.includes(f.tile)) offer(new ExtinguishTask(f.tile), S.fire, f.tile);
     for (const t of [...k.pans, ...k.pots]) {
       const v = stationOf(state, t)?.vessel;
-      if (v && v.status === 'burnt' && !onFire(state, t)) offer(new ClearBurntTask(t), 95, t);
+      if (v && v.status === 'burnt' && !onFire(state, t)) offer(new ClearBurntTask(t), S.burnt, t);
     }
 
     // Food cooking for no dish: save it before it burns.
     for (const t of this.orphanVessels(state, k)) {
       const v = stationOf(state, t)!.vessel!;
       const left = vesselTimeline(state, v.kind).done - v.cookTicks;
-      if (v.status === 'done') offer(new RescueTask(t), 88, t);
-      else if (left <= ctx.stoveLeadTicks + this.plateTravelTicks(ctx, null, t)) offer(new RescueTask(t), 74, t);
+      if (v.status === 'done') offer(new RescueTask(t), S.rescueDone, t);
+      else if (left <= ctx.stoveLeadTicks + this.plateTravelTicks(ctx, null, t)) offer(new RescueTask(t), S.rescueSoon, t);
     }
 
     // Dishes, oldest first.
     const rackStock = k.racks.reduce((n, t) => n + (stationOf(state, t)?.stock ?? 0), 0);
     this.orders.forEach((o, rank) => {
-      const base = (o.backed ? 0 : -20) - rank * 6;
+      const base = (o.backed ? 0 : S.unbacked) + rank * S.perRank;
       const run = this.plateRunNeed(ctx, o);
       if (run !== null) offer(new PlateRunTask(o), run + base, this.plateTile(ctx, o));
       o.slots.forEach((s, i) => {
@@ -607,7 +607,7 @@ export class Crew {
         if (need === null) return;
         offer(new PrepSlotTask(o, i), need + base, need >= 0 ? this.slotTile(ctx, s) : null);
       });
-      if (o.plate === null && run === null && (rackStock > 0 || findSparePlate(ctx, o) !== null)) offer(new PlateRunTask(o), 44 + base, k.racks[0] ?? null);
+      if (o.plate === null && run === null && (rackStock > 0 || findSparePlate(ctx, o) !== null)) offer(new PlateRunTask(o), S.getPlate + base, k.racks[0] ?? null);
     });
 
     // Plates and tidying.
@@ -615,7 +615,7 @@ export class Crew {
       const st = stationOf(state, sink);
       if (!st || st.dirtyPlates <= 0) continue;
       const waiting = this.orders.some((o) => o.plate === null);
-      const score = rackStock === 0 ? (waiting ? 70 : 45) : rackStock === 1 ? 30 : 12;
+      const score = rackStock === 0 ? (waiting ? S.washUrgent : S.washEmpty) : rackStock === 1 ? S.washLow : S.washSome;
       offer(new WashTask(sink, rackStock === 0 && waiting ? 1 : 3), score, sink);
     }
     for (const [id, loc] of ctx.items) {
@@ -625,23 +625,23 @@ export class Crew {
       if (at !== null && !k.owned.includes(at)) continue;
       if (it.type === 'plate') {
         if (it.contents.length > 0 && (isPlateCold(state, it) || !state.recipes.some((r) => subBag(it.contents, r.ingredients)))) {
-          offer(new TrashTask(id), 30, at);
+          offer(new TrashTask(id), S.trash, at);
         }
       } else if (it.state === 'burnt') {
-        offer(new TrashTask(id), 30, at);
+        offer(new TrashTask(id), S.trash, at);
       } else if (at !== null && state.arena.tiles[at]?.kind === 'board' && !this.claimedByOther(`tile:${at}`, me.id)) {
-        if (state.ingredients[it.kind]?.choppable && it.state === 'raw') offer(new StockTask(it.kind, id), 22, at);
-        else if (countFreeCounters(ctx) >= 2) offer(new StockTask(it.kind, id), 15, at);
+        if (state.ingredients[it.kind]?.choppable && it.state === 'raw') offer(new StockTask(it.kind, id), S.clearBoardRaw, at);
+        else if (countFreeCounters(ctx) >= T.tidyMinFreeCounters) offer(new StockTask(it.kind, id), S.clearBoard, at);
       }
     }
 
     // Idle time: stock basic chopped ingredients for later dishes, or (bolder bots) go and
     // contest the market while premium tickets are up.
-    if (bestScore < 12) {
+    if (bestScore < S.idleThreshold) {
       const stock = this.stockNeed(ctx);
-      if (stock) offer(new StockTask(stock), 10, k.pantry.get(stock) ?? null);
+      if (stock) offer(new StockTask(stock), S.stock, k.pantry.get(stock) ?? null);
       const premiumUp = visibleTickets(state, this.team).some((t) => state.recipes.find((r) => r.id === t.recipe)?.premium);
-      if (this.watchers.has(me.id) && premiumUp && k.watchTile >= 0) offer(new WatchTask(k.watchTile), 11, null);
+      if (this.watchers.has(me.id) && premiumUp && k.watchTile >= 0) offer(new WatchTask(k.watchTile), S.watch, null);
     }
     return best ?? new IdleTask(k.idleTile);
   }
@@ -653,7 +653,7 @@ export class Crew {
     {
       // Free my hands if food is about to burn (or burnt food is about to catch fire) and nobody is on it.
       const risk = this.burnRisk(ctx);
-      const limit = held.type === 'ingredient' ? 3.5 : 2;
+      const limit = held.type === 'ingredient' ? T.parkIngredientRiskSeconds : T.parkPlateRiskSeconds;
       if (risk !== null && risk < limit && countFreeCounters(ctx) > 0 && ok(new ParkTask())) return new ParkTask();
     }
     for (const o of this.orders) {
@@ -695,10 +695,10 @@ export class Crew {
   /** Score for running the plate now (scoop / deliver / trash), or null. */
   private plateRunNeed(ctx: Ctx, o: Order): number | null {
     const { state } = ctx;
-    if (o.plateComplete) return this.ticketFor(state, o.recipe.id) ? 80 : null;
+    if (o.plateComplete) return this.ticketFor(state, o.recipe.id) ? S.deliver : null;
     if (o.plate !== null) {
       const loc = ctx.items.get(o.plate);
-      if (loc && loc.item.type === 'plate' && loc.item.contents.length > 0 && !plateUsableFor(state, loc.item, o)) return 70;
+      if (loc && loc.item.type === 'plate' && loc.item.contents.length > 0 && !plateUsableFor(state, loc.item, o)) return S.badPlate;
     }
     let need: number | null = null;
     for (const s of o.slots) {
@@ -708,11 +708,11 @@ export class Crew {
       if (v.status === 'done') {
         const tl = vesselTimeline(state, v.kind);
         const urgency = 1 - (tl.burnt - v.cookTicks) / Math.max(1, tl.burnt - tl.done);
-        need = Math.max(need ?? 0, 85 + urgency * 10);
+        need = Math.max(need ?? 0, S.scoopBase + urgency * S.scoopUrgency);
       } else if (v.status === 'cooking') {
         const left = vesselTimeline(state, v.kind).done - v.cookTicks;
         const travel = this.plateTravelTicks(ctx, o, s.vessel);
-        if (left <= ctx.stoveLeadTicks + travel) need = Math.max(need ?? 0, 78);
+        if (left <= ctx.stoveLeadTicks + travel) need = Math.max(need ?? 0, S.scoopSoon);
       }
     }
     return need;
@@ -727,8 +727,8 @@ export class Crew {
     const a = k.nav.toStation(ctx.tile, plateTile);
     const acc = k.nav.access.get(plateTile)?.[0]?.tile ?? ctx.tile;
     tiles = a + k.nav.toStation(acc, stove);
-    if (!Number.isFinite(tiles)) tiles = 10;
-    return (tiles / t.playerSpeed) * t.tickRate + 10;
+    if (!Number.isFinite(tiles)) tiles = T.unknownTravelTiles;
+    return (tiles / t.playerSpeed) * t.tickRate + T.stoveTravelPadTicks;
   }
 
   /** Own stoves cooking food that no dish has claimed. */
@@ -774,27 +774,27 @@ export class Crew {
     const { state, k } = ctx;
     if (s.onPlate || s.vessel !== null) return null;
     const p = pipeline(state, s.food);
-    const vesselBonus = p.vessel === 'pan' ? 10 : p.vessel === 'pot' ? 6 : 0;
+    const vesselBonus = p.vessel === 'pan' ? S.panBonus : p.vessel === 'pot' ? S.potBonus : 0;
     if (s.item === null) {
       if (o.cancelled || !o.backed) return null;
       if (p.vessel === 'pan' && freeVessel(ctx, k.pans) === null && findAdoptable(ctx, s.food) === null) return null;
       if (p.vessel === 'pot' && o.pot === null && freeVessel(ctx, k.pots) === null) return null;
-      return 50 + vesselBonus;
+      return S.fetch + vesselBonus;
     }
     const loc = ctx.items.get(s.item);
-    if (!loc || loc.item.type !== 'ingredient') return 50;
-    if (loc.at === 'held') return loc.player === ctx.me.id ? 60 : null;
+    if (!loc || loc.item.type !== 'ingredient') return S.fetch;
+    if (loc.at === 'held') return loc.player === ctx.me.id ? S.holdingSlot : null;
     const it = loc.item;
-    if (it.state === 'raw' && p.chop) return 55 + vesselBonus;
+    if (it.state === 'raw' && p.chop) return S.chop + vesselBonus;
     const needsVessel = p.vessel !== null && it.state === (p.chop ? 'chopped' : 'raw');
     if (needsVessel) {
       const ok = p.vessel === 'pot' ? o.pot !== null || freeVessel(ctx, k.pots) !== null : freeVessel(ctx, k.pans) !== null;
-      return ok ? 56 + vesselBonus : null;
+      return ok ? S.choppedToVessel + vesselBonus : null;
     }
     if (it.state === s.food.state) {
       if (o.plate === null) return null;
       const pl = ctx.items.get(o.plate);
-      return pl?.at === 'station' ? 54 : null;
+      return pl?.at === 'station' ? S.toPlate : null;
     }
     return null;
   }
@@ -811,7 +811,7 @@ export class Crew {
   /** A basic ingredient worth pre-chopping, if the counters have room. */
   private stockNeed(ctx: Ctx): Food['kind'] | null {
     const { state, k } = ctx;
-    if (countFreeCounters(ctx) < 4) return null;
+    if (countFreeCounters(ctx) < T.stockMinFreeCounters) return null;
     const have = new Map<string, number>();
     for (const [id, loc] of ctx.items) {
       if (this.assigned.has(id) || loc.item.type !== 'ingredient' || loc.at === 'floor') continue;
@@ -820,13 +820,30 @@ export class Crew {
       have.set(loc.item.kind, (have.get(loc.item.kind) ?? 0) + 1);
     }
     for (const key of this.claims.keys()) if (key.startsWith('stock:')) have.set(key.slice(6), (have.get(key.slice(6)) ?? 0) + 1);
-    const want: [Food['kind'], number][] = [
-      ['tomato', 2],
-      ['lettuce', 2],
-    ];
-    for (const [kind, n] of want) if (k.pantry.has(kind) && state.ingredients[kind]?.choppable && (have.get(kind) ?? 0) < n) return kind;
+    for (const kind of stockKinds(state, k)) if ((have.get(kind) ?? 0) < T.stockPerKind) return kind;
     return null;
   }
+}
+
+const stockCache = new WeakMap<Kitchen, Food['kind'][]>();
+
+/**
+ * Basic ingredients worth pre-chopping when idle: pantry items (free, unlimited) that recipes use
+ * chopped, directly or as the first step before cooking. Most used first.
+ */
+export function stockKinds(state: MatchState, k: Kitchen): Food['kind'][] {
+  const cached = stockCache.get(k);
+  if (cached) return cached;
+  const uses = new Map<Food['kind'], number>();
+  for (const r of state.recipes) {
+    for (const f of r.ingredients) {
+      if (!k.pantry.has(f.kind) || !state.ingredients[f.kind]?.choppable || !pipeline(state, f).chop) continue;
+      uses.set(f.kind, (uses.get(f.kind) ?? 0) + 1);
+    }
+  }
+  const out = [...uses.keys()].sort((a, b) => uses.get(b)! - uses.get(a)! || (a < b ? -1 : a > b ? 1 : 0));
+  stockCache.set(k, out);
+  return out;
 }
 
 /** Pot contents that belong to this dish's recipe. */
