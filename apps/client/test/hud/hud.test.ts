@@ -232,7 +232,7 @@ describe('HUD clock and phase moments', () => {
     frame();
     expect(clock.dataset.phase).toBe('rush');
     expect(clock.querySelector('.lw-clock-time')!.textContent).toBe('2:20');
-    expect(clock.querySelector('.lw-clock-tag')!.textContent).toBe('Dinner Rush ×1.5');
+    expect(clock.querySelector('.lw-clock-tag')!.textContent).toBe(`Dinner Rush ×${s.config.tuning.rushMultiplier}`);
     expect(clock.querySelector('.lw-clock-round')!.textContent).toBe('Round 1 of 3');
   });
 

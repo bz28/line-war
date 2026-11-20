@@ -51,6 +51,18 @@ export interface RoundRecord {
   contested: number;
   /** Plated food lost, by crew: went cold, trashed while still warm, or still on a plate at round end. */
   wasted: { cold: Pair; trashed: Pair; leftover: Pair };
+  /**
+   * Why plates went cold, by crew (sums to wasted.cold): `sniped` = a finished dish with no ticket left for it
+   * (the rival took it, or it expired); `slow` = a finished dish that still had a ticket; `partialSniped` /
+   * `partialSlow` = an unfinished dish with no / some ticket it could still fill.
+   */
+  coldCause: { sniped: Pair; slow: Pair; partialSniped: Pair; partialSlow: Pair };
+  /**
+   * Points by source, by crew (sums to the round score). Each delivery is split multiplicatively in the order
+   * of the formula: `base` = baseValue × freshness, then the Critic premium, then the Heat bonus, then the
+   * rush bonus (rounding goes to base). `charm` = charmPoints per banked charm.
+   */
+  points: { base: Pair; critic: Pair; heat: Pair; rush: Pair; charm: Pair };
   /** Knocks landed, by the knocker's crew. */
   knocks: Pair;
   /** Knocks where the knocker's crew was the next to pick up the popped item. */
@@ -58,6 +70,8 @@ export interface RoundRecord {
   burns: Pair;
   /** fireStart events (spreads included), by owning crew of the tile. */
   fires: Pair;
+  /** heatChange events that lowered Heat (burns), by crew. */
+  heatDrops: Pair;
   /** Ticks spent at each Heat tier (service, rush and last call only), per crew. */
   heatTicks: [number[], number[]];
   critic: CriticRecord | null;
