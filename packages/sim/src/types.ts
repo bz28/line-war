@@ -169,6 +169,10 @@ export interface FloorItem {
   vel: Vec2;
   /** Player who threw/knocked it (for events); null if dropped by the world. */
   thrownBy: PlayerId | null;
+  /** Tick it was thrown (thrower can't catch it for 0.2 s); null if not thrown. */
+  thrownAtTick: number | null;
+  /** Tiles travelled so far in flight (stops at tuning.throwRange). */
+  travelled: number;
 }
 
 export interface PlayerState {
@@ -183,6 +187,10 @@ export interface PlayerState {
   dashCooldown: number;
   /** Ticks remaining in an active dash. */
   dashTicks: number;
+  /** Unit direction of the current/last dash (knocks pop items this way). */
+  dashDir: Vec2;
+  /** True once this dash has already triggered a knock attempt. */
+  dashHit: boolean;
   /** Ticks remaining of immunity to being knocked. */
   knockImmuneTicks: number;
   /** Ticks remaining dazed after being knocked: half speed, cannot grab or dash. */

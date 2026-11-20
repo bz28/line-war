@@ -88,6 +88,8 @@ export function spawnPlayers(arena: ArenaRuntime, swapped: boolean): MatchState[
       holding: null,
       dashCooldown: 0,
       dashTicks: 0,
+      dashDir: { x: 0, y: -1 },
+      dashHit: false,
       knockImmuneTicks: 0,
       dazedTicks: 0,
       working: false,
