@@ -8,10 +8,12 @@ export const ACTIONS: readonly Action[] = ['up', 'down', 'left', 'right', 'grab'
 /** KeyboardEvent.code values per action, e.g. 'KeyW', 'Space', 'ShiftLeft'. */
 export type KeyBindings = Record<Action, string>;
 
+export type BotDifficulty = 'easy' | 'normal' | 'hard';
+
 export type SlotController =
   | { kind: 'keyboard'; bindings: KeyBindings }
   | { kind: 'gamepad'; index: number }
-  | { kind: 'bot'; difficulty: 'easy' | 'normal' | 'hard' }
+  | { kind: 'bot'; difficulty: BotDifficulty }
   | { kind: 'none' };
 
 export interface Settings {
