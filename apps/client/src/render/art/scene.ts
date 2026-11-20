@@ -53,3 +53,28 @@ export function rowBounds(sc: Scene, row: number): Rect {
   const bottom = row === H - 1 ? layout.height : py(sc, row + 1) + T * 0.1;
   return { x: 0, y: top, w: layout.width, h: bottom - top };
 }
+
+/**
+ * Rects to bake for a row: the full row strip for the back and front rows, otherwise one rect per
+ * run of consecutive blocks, so per-frame blits skip empty floor (cheap on software rasterizers).
+ */
+export function rowRuns(sc: Scene, row: number): Rect[] {
+  const b = rowBounds(sc, row);
+  if (row === 0 || row === sc.H - 1) return [b];
+  const out: Rect[] = [];
+  let c = 0;
+  while (c < sc.W) {
+    const k = kindAt(sc, c, row);
+    if (k === null || k === 'floor') {
+      c++;
+      continue;
+    }
+    let e = c;
+    while (e + 1 < sc.W && kindAt(sc, e + 1, row) !== 'floor') e++;
+    const x0 = Math.max(0, px(sc, c) - 2);
+    const x1 = Math.min(sc.layout.width, px(sc, e + 1) + 2);
+    out.push({ x: x0, y: b.y, w: x1 - x0, h: b.h });
+    c = e + 1;
+  }
+  return out;
+}

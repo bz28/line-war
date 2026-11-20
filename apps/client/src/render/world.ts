@@ -1,12 +1,12 @@
 import { interactTarget, tileOwner } from '@line-war/sim';
 import type { FireState, FloorItem, MatchState, PlayerState, TeamId, Vec2 } from '@line-war/sim';
 import { PALETTE } from '../art/tokens';
-import { drawChef, newChefAnim, type ChefAnim } from './art/chef';
+import { drawChef, newChefAnim, type ChefAnim, type ChefPass } from './art/chef';
 import { ellipse, fill } from './art/draw';
 import { drawItem, itemShadow } from './art/food';
 import { drawEffect, Particles } from './art/fx';
-import { makeScene, rowBounds, topCenter, type Scene } from './art/scene';
-import { paintBase, paintLights, paintRow } from './art/static';
+import { makeScene, rowRuns, topCenter, type Scene } from './art/scene';
+import { lightRects, paintBase, paintLights, paintRow } from './art/static';
 import { drawFire, drawStation, type FrameCtx } from './art/stations';
 import { EffectQueue, effectAge, eventsToEffects, type Effect } from './effects';
 import { dashCooldownFraction } from './format';
@@ -75,13 +75,15 @@ export class WorldRenderer implements Renderer {
   private refusedAt = [-1e9, -1e9, -1e9, -1e9];
   private staticKey = '';
   private base: Layer | null = null;
-  private rows: (Layer | null)[] = [];
-  private lights: Layer | null = null;
-  private vignette: CanvasGradient | null = null;
+  /** Baked block runs per row; null when there is no offscreen canvas (paint live instead). */
+  private rows: Layer[][] | null = null;
+  private lights: Layer[] | null = null;
   private stationRows: number[][] = [];
   private reducedMotion: boolean;
   private screenShake: boolean;
   private cleanup: (() => void)[] = [];
+  /** Chef parts drawn after the whole world (held items, tags), filled per frame. */
+  private front: (() => void)[] = [];
 
   constructor(
     private canvas: CanvasLike,
@@ -184,7 +186,7 @@ export class WorldRenderer implements Renderer {
     this.effects.clear();
     this.particles.clear();
     this.base = null;
-    this.rows = [];
+    this.rows = null;
     this.lights = null;
   }
 
@@ -234,21 +236,26 @@ export class WorldRenderer implements Renderer {
     const { layout } = this;
     const scale = this.vp.scale;
     this.base = bakeLayer(this.factory, scale, 0, 0, layout.width, layout.height, (c) => paintBase(c, sc));
+    const bakeAll = (rects: { x: number; y: number; w: number; h: number }[], paint: (c: Ctx) => void): Layer[] | null => {
+      const out: Layer[] = [];
+      for (const b of rects) {
+        const l = bakeLayer(this.factory, scale, b.x, b.y, b.w, b.h, paint);
+        if (!l) return null;
+        out.push(l);
+      }
+      return out;
+    };
     this.rows = [];
-    for (let r = 0; r < sc.H; r++) {
-      const b = rowBounds(sc, r);
-      this.rows.push(bakeLayer(this.factory, scale, b.x, b.y, b.w, b.h, (c) => paintRow(c, sc, r)));
+    for (let r = 0; r < sc.H && this.rows; r++) {
+      const runs = bakeAll(rowRuns(sc, r), (c) => paintRow(c, sc, r));
+      if (runs) this.rows.push(runs);
+      else this.rows = null;
     }
-    this.lights = bakeLayer(this.factory, scale, 0, 0, layout.width, layout.height, (c) => paintLights(c, sc));
+    this.lights = bakeAll(lightRects(sc), (c) => paintLights(c, sc));
     this.stationRows = Array.from({ length: sc.H }, () => []);
     s.arena.tiles.forEach((t, i) => {
       if (t.kind !== 'floor' && t.kind !== 'wall') this.stationRows[Math.floor(i / sc.W)]!.push(i);
     });
-    const { pixelWidth: w, pixelHeight: h } = this.vp;
-    const g = this.ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.38, w / 2, h / 2, Math.hypot(w, h) * 0.6);
-    g.addColorStop(0, withAlpha(PALETTE.nightDeep, 0));
-    g.addColorStop(1, withAlpha(PALETTE.nightDeep, 0.6));
-    this.vignette = g;
     return sc;
   }
 
@@ -264,10 +271,8 @@ export class WorldRenderer implements Renderer {
     const T = layout.tile;
     const fx = this.effects.active(now);
 
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = PALETTE.nightDeep;
-    ctx.fillRect(0, 0, vp.pixelWidth, vp.pixelHeight);
     const shake = this.cameraShake(fx, now);
+    this.fillLetterbox(shake.x !== 0 || shake.y !== 0);
     ctx.setTransform(vp.scale, 0, 0, vp.scale, vp.offsetX + shake.x * vp.scale, vp.offsetY + shake.y * vp.scale);
 
     if (this.base) drawLayer(ctx, this.base);
@@ -285,8 +290,7 @@ export class WorldRenderer implements Renderer {
     const byRow = this.entitiesByRow(s, sc, alpha, now, dt);
 
     for (let r = 0; r < sc.H; r++) {
-      const layer = this.rows[r];
-      if (layer) drawLayer(ctx, layer);
+      if (this.rows) for (const l of this.rows[r] ?? []) drawLayer(ctx, l);
       else paintRow(ctx, sc, r);
       for (const i of this.stationRows[r] ?? []) {
         const def = s.arena.tiles[i]!;
@@ -301,9 +305,11 @@ export class WorldRenderer implements Renderer {
       }
     }
 
+    for (const f of this.front) f();
+    this.front = [];
     for (const fi of s.floorItems) if (fi.vel.x !== 0 || fi.vel.y !== 0) this.drawFlying(s, fi, alpha);
 
-    if (this.lights) drawLayer(ctx, this.lights);
+    if (this.lights) for (const l of this.lights) drawLayer(ctx, l);
     else paintLights(ctx, sc);
 
     this.emitAmbient(s, sc, dt);
@@ -315,11 +321,26 @@ export class WorldRenderer implements Renderer {
       const p = worldToScreen(layout, e.pos);
       drawEffect(ctx, e, p.x, p.y, T, now);
     }
+  }
 
+  /** Night backdrop around the diorama (only the strips the base layer does not cover). */
+  private fillLetterbox(all: boolean): void {
+    const { ctx, vp } = this;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    if (this.vignette) {
-      ctx.fillStyle = this.vignette;
+    ctx.fillStyle = PALETTE.nightDeep;
+    if (all) {
       ctx.fillRect(0, 0, vp.pixelWidth, vp.pixelHeight);
+      return;
+    }
+    const w = Math.ceil(this.layout.width * vp.scale);
+    const h = Math.ceil(this.layout.height * vp.scale);
+    if (vp.offsetX > 0) {
+      ctx.fillRect(0, 0, vp.offsetX, vp.pixelHeight);
+      ctx.fillRect(vp.offsetX + w - 1, 0, vp.pixelWidth - vp.offsetX - w + 1, vp.pixelHeight);
+    }
+    if (vp.offsetY > 0) {
+      ctx.fillRect(0, 0, vp.pixelWidth, vp.offsetY);
+      ctx.fillRect(0, vp.offsetY + h - 1, vp.pixelWidth, vp.pixelHeight - vp.offsetY - h + 1);
     }
   }
 
@@ -364,7 +385,8 @@ export class WorldRenderer implements Renderer {
     for (const pl of s.players) {
       const pos = this.players.get(pl.id, alpha, pl.pos);
       const anim = this.animate(pl, pos, now, dt);
-      put(pos.y, { y: pos.y, draw: () => this.drawPlayer(s, pl, pos, anim, now) });
+      put(pos.y, { y: pos.y, draw: () => this.drawPlayer(s, pl, pos, anim, now, 'body') });
+      this.front.push(() => this.drawPlayer(s, pl, pos, anim, now, 'front'));
     }
     return rows;
   }
@@ -391,7 +413,7 @@ export class WorldRenderer implements Renderer {
     return a;
   }
 
-  private drawPlayer(s: MatchState, p: PlayerState, pos: Vec2, anim: ChefAnim, now: number): void {
+  private drawPlayer(s: MatchState, p: PlayerState, pos: Vec2, anim: ChefAnim, now: number, pass: ChefPass): void {
     const T = this.layout.tile;
     let { x, y } = worldToScreen(this.layout, pos);
     const refusedAge = now - this.refusedAt[p.id]!;
@@ -415,6 +437,7 @@ export class WorldRenderer implements Renderer {
       x,
       y,
       anim,
+      pass,
     );
   }
 

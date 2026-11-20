@@ -1,6 +1,7 @@
 import type { IngredientKind, TeamId, Zone } from '@line-war/sim';
 import { LIGHT, PALETTE, TEAMS, WORLD } from '../../art/tokens';
 import { mix, withAlpha } from '../palette';
+import type { Rect } from '../layout';
 import type { Ctx } from '../sprites';
 import { circle, ellipse, fill, glow, hash, rrect, softShadow, stroke } from './draw';
 import { paintFood } from './food';
@@ -305,6 +306,13 @@ export function paintBase(ctx: Ctx, sc: Scene): void {
   lightPools(ctx, sc, market);
   doorMats(ctx, sc);
   blockShadows(ctx, sc);
+  // Vignette, baked into the floor so chefs and food stay at full contrast at the edges.
+  const { layout } = sc;
+  const g = ctx.createRadialGradient(layout.width / 2, layout.height / 2, layout.height * 0.42, layout.width / 2, layout.height / 2, Math.hypot(layout.width, layout.height) * 0.58);
+  g.addColorStop(0, withAlpha(PALETTE.nightDeep, 0));
+  g.addColorStop(1, withAlpha(PALETTE.nightDeep, 0.62));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, layout.width, layout.height);
 }
 
 // ---------------------------------------------------------------- row layers
@@ -455,6 +463,20 @@ function stoveTop(ctx: Ctx, cx: number, cy: number, T: number, x: number, y: num
     circle(ctx, cx + k * T * 0.22 - 0.6, y + T - L / 2 - 1, L * 0.12);
     fill(ctx, PALETTE.paper);
   }
+}
+
+/** Wooden dish rack: a base tray with two rows of pegs, readable even when empty. */
+function dishRack(ctx: Ctx, cx: number, cy: number, T: number): void {
+  rrect(ctx, cx - T * 0.38, cy - T * 0.3, T * 0.76, T * 0.62, 6);
+  fill(ctx, PALETTE.bambooDark);
+  rrect(ctx, cx - T * 0.34, cy - T * 0.27, T * 0.68, T * 0.54, 5);
+  fill(ctx, mix(PALETTE.bambooDark, PALETTE.nightDeep, 0.35));
+  for (const row of [-0.24, 0.22])
+    for (let k = 0; k < 5; k++) {
+      const x = cx - T * 0.26 + k * T * 0.13;
+      rrect(ctx, x - 1.6, cy + row * T - 3, 3.2, 7, 1.6);
+      fill(ctx, WORLD.woodLight);
+    }
 }
 
 function sinkBasin(ctx: Ctx, cx: number, cy: number, T: number): void {
@@ -699,7 +721,7 @@ function marketBackWall(ctx: Ctx, sc: Scene, c0: number, c1: number): void {
 function wallBlock(ctx: Ctx, sc: Scene, x: number, y: number): void {
   const { T } = sc;
   const z = zoneAt(sc, x, y);
-  const style = z === 'market' ? STONE : FRAME;
+  const style = z === 'market' && y !== sc.H - 1 ? STONE : FRAME;
   const L = liftAt(sc, x, y);
   const joinL = kindAt(sc, x - 1, y) === 'wall';
   const joinR = kindAt(sc, x + 1, y) === 'wall';
@@ -782,10 +804,7 @@ export function paintRow(ctx: Ctx, sc: Scene, row: number): void {
       case 'counter':
       case 'plates':
         counterGrain(ctx, X, Y - L, T, T, x * 31 + row);
-        if (def.kind === 'plates') {
-          ellipse(ctx, cx, cy + 2, T * 0.34, T * 0.28);
-          fill(ctx, withAlpha(PALETTE.bambooDark, 0.55));
-        }
+        if (def.kind === 'plates') dishRack(ctx, cx, cy, T);
         break;
       case 'pantry':
         counterGrain(ctx, X, Y - L, T, T, x * 31 + row);
@@ -877,6 +896,14 @@ function doorLanterns(sc: Scene): [number, number][] {
       const above = kindAt(sc, x, y - 1) === 'floor' && zoneAt(sc, x, y - 1) === 'none';
       if (below || above) out.push([px(sc, x) + sc.T / 2, py(sc, y) + (below ? sc.T * 0.55 : sc.T * 0.1)]);
     }
+  return out;
+}
+
+/** Rects that hold everything paintLights draws (baked separately so blits stay small). */
+export function lightRects(sc: Scene): Rect[] {
+  const { T, layout } = sc;
+  const out: Rect[] = [{ x: 0, y: 0, w: layout.width, h: py(sc, 0) + T * 1.9 }];
+  for (const [x, y] of doorLanterns(sc)) out.push({ x: x - T, y: y - T * 1.2, w: T * 2, h: T * 2 });
   return out;
 }
 
