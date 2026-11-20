@@ -7,7 +7,14 @@
  * - Bots never mutate MatchState. They are deterministic: same state history + seed => same inputs.
  * - `createBots` builds every bot of a match at once so crewmates can share a plan.
  */
-import { NO_INPUT, type MatchState, type PlayerId, type PlayerInput } from '@line-war/sim';
+import { NO_INPUT, teamOf, type MatchState, type PlayerId, type PlayerInput } from '@line-war/sim';
+import { Bot } from './bot';
+import { Crew } from './crew';
+import { BotRng, mixSeed } from './rng';
+import { DIFFICULTY_SKILL, skillParams } from './skill';
+
+export { DIFFICULTY_SKILL, skillParams, type SkillParams } from './skill';
+export { navFor, Nav, type Access } from './nav';
 
 export type BotDifficulty = 'easy' | 'normal' | 'hard';
 
@@ -28,5 +35,31 @@ export const idleBot: BotBrain = { decide: () => NO_INPUT };
 
 /** One entry per player slot (index = PlayerId); null = not a bot. */
 export function createBots(slots: readonly (BotOptions | null)[]): (BotBrain | null)[] {
-  return slots.map((s) => (s ? idleBot : null));
+  const seedOf = (i: number): number => slots[i]?.seed ?? 0x5eed + i * 7919;
+  const crews = [0, 1].map((team) => {
+    const mates = slots.map((_, i) => i).filter((i) => slots[i] && teamOf(i as PlayerId) === team);
+    return new Crew(team as 0 | 1, mixSeed(mates.reduce((a, i) => a ^ seedOf(i), 0x1234 + team), 99));
+  });
+  const bots = slots.map((s, i) => {
+    if (!s) return null;
+    const id = i as PlayerId;
+    const skill = s.skill ?? DIFFICULTY_SKILL[s.difficulty];
+    const crew = crews[teamOf(id)]!;
+    crew.addMember(id, skill);
+    return new Bot(id, crew, skillParams(skill), new BotRng(mixSeed(seedOf(i), i)));
+  });
+  return bots.map((b): BotBrain | null => {
+    if (!b) return null;
+    const brain: BotBrain = { decide: (state: MatchState, self: PlayerId): PlayerInput => (self === b.id ? b.decide(state) : NO_INPUT) };
+    botOf.set(brain, b);
+    return brain;
+  });
+}
+
+const botOf = new WeakMap<BotBrain, Bot>();
+
+/** Internal handle for tests and tools: the Bot objects behind createBots (same order). */
+export function createBotsDebug(slots: readonly (BotOptions | null)[]): { brains: (BotBrain | null)[]; bots: (Bot | null)[] } {
+  const brains = createBots(slots);
+  return { brains, bots: brains.map((b) => (b ? botOf.get(b) ?? null : null)) };
 }
