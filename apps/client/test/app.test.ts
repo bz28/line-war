@@ -103,7 +103,7 @@ describe('App flow', () => {
     click('Play');
     sessions[0]!.over();
     expect(app.currentScreen).toBe('over');
-    expect(root.textContent).toContain('Crew B wins');
+    expect(root.textContent).toContain('Ember wins');
     click('Play again');
     expect(sessions).toHaveLength(2);
     sessions[1]!.over();

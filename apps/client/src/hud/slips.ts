@@ -176,7 +176,10 @@ export class TicketLine {
     const value = ticketValue(s, t);
     if (value !== sh.value) {
       sh.value = value;
-      v.value.textContent = formatScore(value);
+      const txt = formatScore(value);
+      const size = txt.length >= 3 ? 's' : 'm';
+      if (v.value.dataset.size !== size) v.value.dataset.size = size;
+      v.value.textContent = txt;
     }
     const secs = Math.max(0, Math.ceil((t.expireTick - s.tick) / s.config.tuning.tickRate));
     if (secs !== sh.secs) {
