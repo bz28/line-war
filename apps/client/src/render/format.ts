@@ -1,5 +1,5 @@
 import { secondsToTicks, timerTicks } from '@line-war/sim';
-import type { MatchState, Phase, TeamId, Ticket, VesselState } from '@line-war/sim';
+import type { CharmItem, MatchState, Phase, TeamId, Ticket, VesselState } from '@line-war/sim';
 import { PALETTE, WORLD } from '../art/tokens';
 
 /** Pure formatting / derived-number helpers for the renderer. Never mutate state. */
@@ -187,3 +187,13 @@ export const extinguishProgress = (s: MatchState, extinguishTicks: number): numb
 /** Dash cooldown remaining as a fraction (1 = just used, 0 = ready). */
 export const dashCooldownFraction = (s: MatchState, cooldownTicks: number): number =>
   clamp01(cooldownTicks / secondsToTicks(s.config, s.config.tuning.dashCooldownSeconds));
+
+/** A floor charm starts blinking this many seconds before it fades (client feedback, not a rule). */
+export const CHARM_BLINK_SECONDS = 5;
+
+/** Seconds until a charm on the floor fades (RULES §10); the full lifetime while held or flying. */
+export function charmSecondsLeft(s: MatchState, item: CharmItem): number {
+  const life = s.config.tuning.charmLifetimeSeconds;
+  if (item.floorSinceTick === null) return life;
+  return Math.max(0, life - (s.tick - item.floorSinceTick) / s.config.tuning.tickRate);
+}
