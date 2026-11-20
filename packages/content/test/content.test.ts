@@ -35,6 +35,55 @@ describe('Night Market', () => {
     }
   });
 
+  it('lets the owning team (both teams for the market) face every station straight on from a reachable floor tile', () => {
+    const arena = buildArena(NIGHT_MARKET);
+    const { width, height } = arena;
+    // Floor tiles each team can walk to from its spawns (rival kitchen floor is solid).
+    const reachable = (team: 0 | 1): Set<number> => {
+      const open = (i: number) => arena.tiles[i]?.kind === 'floor' && (arena.owners[i] === null || arena.owners[i] === team);
+      const start = NIGHT_MARKET.spawns.filter((_, id) => (id < 2 ? 0 : 1) === team).map((s) => Math.floor(s.y) * width + Math.floor(s.x));
+      const seen = new Set(start);
+      const queue = [...start];
+      while (queue.length) {
+        const i = queue.shift()!;
+        const x = i % width;
+        const y = Math.floor(i / width);
+        for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]] as const) {
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+          const n = ny * width + nx;
+          if (!seen.has(n) && open(n)) {
+            seen.add(n);
+            queue.push(n);
+          }
+        }
+      }
+      return seen;
+    };
+    const walk = [reachable(0), reachable(1)] as const;
+    const unreachable: string[] = [];
+    arena.tiles.forEach((t, i) => {
+      if (t.kind === 'floor' || t.kind === 'wall') return;
+      const x = i % width;
+      const y = Math.floor(i / width);
+      const owner = arena.owners[i] ?? null;
+      const teams: (0 | 1)[] = owner === null ? [0, 1] : [owner];
+      const neighbours = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]].map(([nx, ny]) => ny! * width + nx!);
+      for (const team of teams) {
+        if (!neighbours.some((n) => walk[team].has(n))) unreachable.push(`${t.kind}@${x},${y} for team ${team}`);
+      }
+    });
+    expect(unreachable).toEqual([]);
+  });
+
+  it('puts the corner pans in reach and one trash per kitchen (review fix)', () => {
+    const arena = buildArena(NIGHT_MARKET);
+    const at = (x: number, y: number) => arena.tiles[y * arena.width + x]?.kind;
+    expect([at(1, 10), at(23, 10)]).toEqual(['floor', 'floor']);
+    expect([at(1, 11), at(23, 11)]).toEqual(['stove', 'stove']);
+    expect([at(7, 11), at(17, 11)]).toEqual(['trash', 'trash']);
+    expect(arena.tiles.filter((t) => t.kind === 'trash')).toHaveLength(2);
+  });
+
   it('puts the crates in the market and the passes in the kitchens', () => {
     const arena = buildArena(NIGHT_MARKET);
     arena.tiles.forEach((t, i) => {
