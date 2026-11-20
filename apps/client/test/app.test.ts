@@ -13,6 +13,8 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
+const clock = { t: 0 };
+
 function setup() {
   vi.stubGlobal('requestAnimationFrame', () => 0);
   vi.stubGlobal('cancelAnimationFrame', () => {});
@@ -25,13 +27,14 @@ function setup() {
     root,
     storage,
     getGamepads: () => [],
+    now: () => clock.t,
     startSession: (settings, _host, hooks): MatchSession => {
       const rec = {
         settings,
         paused: false,
         disposed: false,
         over: hooks.onMatchOver,
-        state: { winner: 1, teams: [{ roundsWon: 0 }, { roundsWon: 2 }] } as unknown as MatchState,
+        state: { winner: 1, teams: [{ roundsWon: 0 }, { roundsWon: 2 }], totalScores: [300, 520] } as unknown as MatchState,
       };
       sessions.push(rec);
       return {
@@ -104,9 +107,11 @@ describe('App flow', () => {
     sessions[0]!.over();
     expect(app.currentScreen).toBe('over');
     expect(root.textContent).toContain('Ember wins');
+    clock.t += 1000; // past the result screen's input guard
     click('Play again');
     expect(sessions).toHaveLength(2);
     sessions[1]!.over();
+    clock.t += 1000;
     click('Title');
     expect(app.currentScreen).toBe('title');
   });

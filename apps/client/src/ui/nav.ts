@@ -3,23 +3,68 @@ import { applyDeadZone, isPressed, PAD, type GetGamepads } from '../input/gamepa
 /**
  * Menu navigation shared by every screen: arrow keys and any gamepad (D-pad / stick)
  * move focus between controls, left/right adjust selects, sliders and tabs, A / Enter
- * activates, B / Esc goes back, Start fires `onStart` (pause / resume).
+ * activates, B / Esc goes back, Start fires `onStart` (pause / resume). Q / E, PageUp /
+ * PageDown and the pad's LB / RB turn tab pages (How to play, Settings).
  */
 export interface NavHandlers {
   /** The element whose controls are navigable right now, or null when no menu is open. */
   getRoot(): HTMLElement | null;
   onBack(): void;
   onStart(): void;
+  /** Any new gamepad button press (menus or match): a chance to unlock audio. */
+  onPadButton?(): void;
 }
 
 const FOCUSABLE = 'button:not([disabled]), select:not([disabled]), input:not([disabled])';
+
+/**
+ * False for controls hidden by CSS (e.g. How to play's page tabs on tall screens), so focus
+ * never lands on something invisible. Without layout support (jsdom) everything counts as shown.
+ */
+export function isShown(el: HTMLElement): boolean {
+  return typeof el.checkVisibility === 'function' ? el.checkVisibility() : true;
+}
+
+/** Navigable controls under `root`, in document order. */
+export const focusables = (root: ParentNode): HTMLElement[] => [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(isShown);
+const PAGE_KEYS: Readonly<Record<string, 1 | -1>> = { KeyQ: -1, KeyE: 1, PageUp: -1, PageDown: 1, BracketLeft: -1, BracketRight: 1 };
+
+/**
+ * Select the tab `delta` pages from the selected one (clamped, no wrap: a manual has a first and
+ * a last page). Keeps keyboard focus on the tab strip if it was there. False when `root` has no tabs.
+ */
+export function flipTab(root: HTMLElement, delta: 1 | -1): boolean {
+  const tabs = focusables(root).filter((el) => el.getAttribute('role') === 'tab');
+  if (!tabs.length) return false;
+  const cur = Math.max(0, tabs.findIndex((t) => t.getAttribute('aria-selected') === 'true'));
+  const next = tabs[Math.max(0, Math.min(tabs.length - 1, cur + delta))]!;
+  if (next === tabs[cur]) return true;
+  const onTabs = document.activeElement?.getAttribute('role') === 'tab';
+  const key = next.dataset.key;
+  next.click();
+  // Settings re-renders its tabs on click, so find the new node by its key.
+  if (onTabs) (key ? root.querySelector<HTMLElement>(`[data-key="${key}"]`) : next)?.focus();
+  return true;
+}
+
+/** Screens whose left / right arrows always turn the page (the manual), wherever focus is. */
+const ARROWS_TURN_PAGES = '[data-arrows-turn-pages]';
+
 const REPEAT_DELAY_MS = 380;
 const REPEAT_MS = 110;
 
 type Dir = 'up' | 'down' | 'left' | 'right';
+interface Buttons {
+  a: boolean;
+  b: boolean;
+  start: boolean;
+  lb: boolean;
+  rb: boolean;
+}
+const ALL_HELD: Buttons = { a: true, b: true, start: true, lb: true, rb: true };
 
 export class MenuNav {
-  private prevButtons = new Map<number, { a: boolean; b: boolean; start: boolean }>();
+  private prevButtons = new Map<number, Buttons>();
   private held: { dir: Dir; next: number } | null = null;
 
   constructor(
@@ -36,6 +81,11 @@ export class MenuNav {
 
   private onKey = (ev: Event): void => {
     const e = ev as KeyboardEvent;
+    // Held Esc / Enter auto-repeat: one press is one action, never a pause/resume flutter.
+    if (e.repeat && (e.code === 'Escape' || e.code === 'Enter' || e.code === 'NumpadEnter')) {
+      if (this.handlers.getRoot() || e.code === 'Escape') e.preventDefault();
+      return;
+    }
     if (e.code === 'Escape') {
       e.preventDefault();
       // Esc means "back" in menus and "pause" in a match; the app decides via onBack/onStart.
@@ -46,14 +96,23 @@ export class MenuNav {
     const root = this.handlers.getRoot();
     if (!root) return;
     const dir = ({ ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' } as const)[e.code as 'ArrowUp'];
+    const page = PAGE_KEYS[e.code];
+    const typing = document.activeElement instanceof HTMLInputElement && document.activeElement.type !== 'range' && document.activeElement.type !== 'checkbox';
     if (dir) {
       e.preventDefault();
       this.move(root, dir);
+    } else if (page && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (flipTab(root, page)) e.preventDefault();
     } else if (e.code === 'Enter' && document.activeElement instanceof HTMLInputElement && document.activeElement.type === 'checkbox') {
       e.preventDefault();
       document.activeElement.click();
     }
   };
+
+  /** Treat every pad button as already held, so only a fresh press after this counts. */
+  rebaseline(): void {
+    for (const i of [...this.prevButtons.keys()]) this.prevButtons.set(i, { ...ALL_HELD });
+  }
 
   /** Call once per animation frame. */
   poll(now: number): void {
@@ -65,13 +124,22 @@ export class MenuNav {
         this.prevButtons.delete(i);
         continue;
       }
-      const prev = this.prevButtons.get(i) ?? { a: true, b: true, start: true }; // ignore buttons already held on connect
-      const cur = { a: isPressed(pad, PAD.A), b: isPressed(pad, PAD.B), start: isPressed(pad, PAD.START) };
+      const prev = this.prevButtons.get(i) ?? ALL_HELD; // ignore buttons already held on connect
+      const cur: Buttons = {
+        a: isPressed(pad, PAD.A),
+        b: isPressed(pad, PAD.B),
+        start: isPressed(pad, PAD.START),
+        lb: isPressed(pad, PAD.LB),
+        rb: isPressed(pad, PAD.RB),
+      };
       this.prevButtons.set(i, cur);
+      if ((cur.a && !prev.a) || (cur.b && !prev.b) || (cur.start && !prev.start) || (cur.lb && !prev.lb) || (cur.rb && !prev.rb)) this.handlers.onPadButton?.();
       const root = this.handlers.getRoot();
       if (cur.start && !prev.start) this.handlers.onStart();
       else if (root && cur.b && !prev.b) this.handlers.onBack();
       else if (root && cur.a && !prev.a) activate(root);
+      else if (root && cur.lb && !prev.lb) flipTab(root, -1);
+      else if (root && cur.rb && !prev.rb) flipTab(root, 1);
       dir ??= padDir(pad);
     }
     const root = this.handlers.getRoot();
@@ -89,10 +157,14 @@ export class MenuNav {
   }
 
   private move(root: HTMLElement, dir: Dir): void {
-    const items = [...root.querySelectorAll<HTMLElement>(FOCUSABLE)];
+    const items = focusables(root);
     if (!items.length) return;
     const active = document.activeElement as HTMLElement | null;
     const idx = active ? items.indexOf(active) : -1;
+    if ((dir === 'left' || dir === 'right') && (root.matches(ARROWS_TURN_PAGES) || root.querySelector(ARROWS_TURN_PAGES))) {
+      flipTab(root, dir === 'right' ? 1 : -1);
+      return;
+    }
     if (idx < 0) {
       items[0]!.focus();
       return;
@@ -162,5 +234,5 @@ function adjust(el: HTMLElement, delta: 1 | -1): boolean {
 function activate(root: HTMLElement): void {
   const el = document.activeElement as HTMLElement | null;
   if (el && root.contains(el)) el.click();
-  else root.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+  else focusables(root)[0]?.focus();
 }

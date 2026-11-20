@@ -41,7 +41,7 @@ const spec = (category: CueCategory, gainDb: number, maxConcurrent = 2, minGap =
 });
 
 export const CUES: Record<CueId, CueSpec> = {
-  grab: spec('frequent', -26, 2, 0.05),
+  grab: spec('frequent', -5, 2, 0.05),
   drop: spec('frequent', -28, 2, 0.05),
   chopKnock: spec('frequent', -25, 3, 0.06),
   washSwish: spec('frequent', -27, 2, 0.12),
@@ -63,34 +63,51 @@ export const CUES: Record<CueId, CueSpec> = {
   ticketExpired: spec('alert', -5, 1, 0.2),
   heatUp: spec('alert', -15, 2, 0.2),
   // Charms: a soft chime when one appears, a bright music-box run when your crew banks one.
-  charmSpawn: spec('alert', -13, 1, 0.3),
-  charmBank: spec('alert', -9, 1, 0.2),
-  charmBankRival: spec('alert', -14, 1, 0.2),
-  charmFade: spec('feedback', -19, 1, 0.2),
+  charmSpawn: spec('alert', -11, 1, 0.3),
+  charmBank: spec('alert', -8, 1, 0.2),
+  charmBankRival: spec('alert', -10, 1, 0.2),
+  charmFade: spec('feedback', -12, 1, 0.2),
   heatDown: spec('alert', -14, 2, 0.2),
   fireOut: spec('alert', -16, 2, 0.15),
   burnt: spec('alert', -12, 2, 0.15),
-  burnWarn: spec('alert', -9, 2, 0.05),
+  burnWarn: spec('alert', -3, 2, 0.05),
   fireStart: spec('alert', -10, 2, 0.15),
-  deliver: spec('alert', -10, 2, 0.08),
-  deliverRival: spec('alert', -11, 2, 0.08),
+  deliver: spec('alert', -8, 2, 0.08),
+  deliverRival: spec('alert', -10, 2, 0.08),
   clockTick: spec('stinger', -20, 1, 0.1),
-  critic: spec('stinger', -7, 1, 1),
+  critic: spec('stinger', -11, 1, 1),
   prepBell: spec('stinger', -10, 1, 1),
   serviceBell: spec('stinger', -11, 1, 1),
-  rushFanfare: spec('stinger', -8, 1, 1),
+  rushFanfare: spec('stinger', -10, 1, 1),
   lastCallBell: spec('stinger', -10, 1, 1),
-  roundWhistle: spec('stinger', -15, 1, 1),
+  roundWhistle: spec('stinger', -18, 1, 1),
   matchWin: spec('stinger', -9, 1, 1),
   matchEnd: spec('stinger', -11, 1, 1),
 };
 
 export const CATEGORY_PRIORITY: Record<CueCategory, number> = { frequent: 0, feedback: 1, alert: 2, stinger: 3 };
 
+/** The knock itself: routed around the hit-stop dip so the hit punches through the hush. */
+export const IMPACT_CUES: ReadonlySet<CueId> = new Set<CueId>(['knock', 'knockThud']);
+
 /** Cues that duck the music so they read. */
 export const DUCKING_CUES: ReadonlySet<CueId> = new Set<CueId>([
   'critic', 'rushFanfare', 'lastCallBell', 'prepBell', 'roundWhistle', 'matchWin', 'matchEnd', 'deliverRival',
+  // A charm appearing is news for both crews; its chime sits in the melody's register.
+  'charmSpawn',
 ]);
+
+/**
+ * Core feedback cues the music briefly dips under (dB), so each sits clearly over the bed even
+ * in Dinner Rush: a short pocket that opens on the cue and closes right after (director.ts).
+ */
+export const MUSIC_DIPS: Partial<Record<CueId, number>> = {
+  deliver: -10,
+  charmBank: -10,
+  burnWarn: -16,
+  grab: -12,
+  deliverRival: -8,
+};
 
 export interface Cue {
   id: CueId;

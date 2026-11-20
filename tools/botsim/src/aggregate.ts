@@ -47,6 +47,14 @@ export interface ScenarioAggregate {
   recipes: Record<string, RecipeAggregate>;
   /** Share of service time at each Heat tier, per crew. */
   heatShare: [number[], number[]];
+  /** Share of service time at the top Heat tier, both crews. */
+  topHeatShare: number;
+  /** Heat drops per crew per round (both crews averaged). */
+  heatDropsPerCrewRound: number;
+  /** Why plates went cold, per round (both crews). */
+  coldCausePerRound: { sniped: number; slow: number; partialSniped: number; partialSlow: number };
+  /** Share of all points by source (both crews). */
+  pointsShare: { base: number; critic: number; heat: number; rush: number; charm: number };
   critic: { spawned: number; wonA: number; wonB: number; unserved: number; trailingFirst: number; trailingWon: number };
   stuck: number;
   stuckSamples: StuckEvent[];
@@ -91,6 +99,11 @@ export function aggregate(scenario: string, records: readonly MatchRecord[]): Sc
     const total = sum(ticks);
     return ticks.map((x) => ratio(x, total));
   }) as [number[], number[]];
+
+  const allHeat = [0, 1, 2, 3].map((tier) => sum(rounds.map((r) => (r.heatTicks[0][tier] ?? 0) + (r.heatTicks[1][tier] ?? 0))));
+  const topHeatShare = ratio(allHeat[allHeat.length - 1]!, sum(allHeat));
+  const src = (k: keyof RoundRecord['points']): number => sum(rounds.map((r) => both(r.points[k])));
+  const pointsTotal = src('base') + src('critic') + src('heat') + src('rush') + src('charm');
 
   const critics = rounds.flatMap((r) => (r.critic ? [r.critic] : []));
   const served = sum(rounds.map((r) => both(r.served)));
@@ -143,6 +156,21 @@ export function aggregate(scenario: string, records: readonly MatchRecord[]): Sc
     },
     recipes,
     heatShare,
+    topHeatShare,
+    heatDropsPerCrewRound: perRound(rounds, (r) => both(r.heatDrops)) / 2,
+    coldCausePerRound: {
+      sniped: perRound(rounds, (r) => both(r.coldCause.sniped)),
+      slow: perRound(rounds, (r) => both(r.coldCause.slow)),
+      partialSniped: perRound(rounds, (r) => both(r.coldCause.partialSniped)),
+      partialSlow: perRound(rounds, (r) => both(r.coldCause.partialSlow)),
+    },
+    pointsShare: {
+      base: ratio(src('base'), pointsTotal),
+      critic: ratio(src('critic'), pointsTotal),
+      heat: ratio(src('heat'), pointsTotal),
+      rush: ratio(src('rush'), pointsTotal),
+      charm: ratio(src('charm'), pointsTotal),
+    },
     critic: {
       spawned: critics.length,
       wonA: critics.filter((c) => c.winner === 0).length,

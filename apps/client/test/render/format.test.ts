@@ -117,7 +117,7 @@ describe('tickets', () => {
     expect(ticketValue(s, ticket())).toBe(40);
     expect(ticketValue(s, ticket(), 3)).toBe(80);
     s.round.phase = 'rush';
-    expect(ticketValue(s, ticket())).toBe(60);
+    expect(ticketValue(s, ticket())).toBe(Math.round(40 * s.config.tuning.rushMultiplier));
     s.config = { ...s.config, rushEnabled: false };
     expect(ticketValue(s, ticket())).toBe(40);
   });

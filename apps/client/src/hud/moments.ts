@@ -3,6 +3,12 @@ import { formatClock, phaseStartSeconds, roundSeconds, roundsToWin } from '../re
 import { crewMark, lanternIcon } from './icons';
 import { crewName, formatMult, formatScore } from './text';
 
+/** One finished round's points and winner (the client's log of `roundEnd` events, ui/results.ts). */
+export interface RoundLine {
+  scores: readonly [number, number];
+  winner: TeamId | null;
+}
+
 /** How long the brief phase banners stay up (seconds of round time). Kept short so the market stays visible. */
 export const BRIEF_SECONDS = 2;
 /** Prep countdown stamps for the final N seconds of prep. */
@@ -17,11 +23,21 @@ export interface Moment {
   title: string;
   subtitle?: string;
   /** Round / match result cards stay up; banners and stamps are brief. */
-  card?: { winner: TeamId | null; scores: [number, number]; rounds: [number, number]; need: number; footer: string };
+  card?: {
+    winner: TeamId | null;
+    scores: [number, number];
+    rounds: [number, number];
+    need: number;
+    footer: string;
+    /** What the big numbers are: "Round 2 points" or "Match points". */
+    label: string;
+    /** From round 2 on: every round so far and the match total, like the match-over ledger. */
+    ledger?: { rounds: RoundLine[]; totals: [number, number] };
+  };
 }
 
 /** The phase moment to show now, derived from state only (so it is deterministic and testable). */
-export function currentMoment(s: MatchState): Moment | null {
+export function currentMoment(s: MatchState, log: readonly RoundLine[] = []): Moment | null {
   const phase = s.round.phase;
   const t = roundSeconds(s);
   const idx = s.round.index;
@@ -38,7 +54,9 @@ export function currentMoment(s: MatchState): Moment | null {
           key: `prep-${idx}`,
           kind: 'prep',
           title: idx === 0 ? 'Prep time' : `Round ${idx + 1}`,
-          subtitle: `Stock your stations. Tickets arrive in ${formatClock(left)}.`,
+          // No number here: the banner is built once, and a frozen "0:15" would disagree with the
+          // lantern clock ticking right above it.
+          subtitle: 'Stock your stations before the first ticket drops.',
         };
       return null;
     }
@@ -59,6 +77,8 @@ export function currentMoment(s: MatchState): Moment | null {
       const need = roundsToWin(s);
       const decided = a.roundsWon >= need || b.roundsWon >= need || idx + 1 >= s.config.bestOf;
       const secs = Math.ceil(s.round.intermissionTicks / s.config.tuning.tickRate);
+      // The earlier rounds come from the log; this one is read live, so it always matches the signs.
+      const lines: RoundLine[] = idx > 0 && log.length >= idx ? [...log.slice(0, idx), { scores: [a.score, b.score], winner: w }] : [];
       return {
         key: `round-${idx}`,
         kind: 'roundOver',
@@ -69,6 +89,8 @@ export function currentMoment(s: MatchState): Moment | null {
           rounds: [a.roundsWon, b.roundsWon],
           need,
           footer: decided ? 'Final tally coming up' : `Next round in ${secs}`,
+          label: `Round ${idx + 1} points`,
+          ledger: lines.length ? { rounds: lines, totals: [s.totalScores[0], s.totalScores[1]] } : undefined,
         },
       };
     }
@@ -84,6 +106,7 @@ export function currentMoment(s: MatchState): Moment | null {
           rounds: [a.roundsWon, b.roundsWon],
           need: roundsToWin(s),
           footer: 'Total points across every round',
+          label: 'Match points',
         },
       };
     }
@@ -129,14 +152,17 @@ export class Moments {
     return this.current?.kind ?? null;
   }
 
-  constructor(private now: () => number) {
+  constructor(
+    private now: () => number,
+    private log: () => readonly RoundLine[] = () => [],
+  ) {
     this.root = el('div', 'lw-moments');
     this.root.setAttribute('aria-live', 'polite');
   }
 
   render(s: MatchState): void {
     const now = this.now();
-    const m = currentMoment(s);
+    const m = currentMoment(s, this.log());
     if ((m?.key ?? null) !== (this.current?.key ?? null)) {
       const prev = this.current;
       if (prev) {
@@ -187,10 +213,16 @@ export class Moments {
       lanterns.innerHTML = Array.from({ length: c.need }, (_, i) => lanternIcon(`lw-mini-lantern${i < c.rounds[team] ? ' lw-lit' : ''}`)).join('');
       side.append(mark, el('span', 'lw-result-name', crewName(team)), el('span', 'lw-result-score', formatScore(c.scores[team])), lanterns);
       row.append(side);
-      if (team === 0) row.append(el('span', 'lw-result-vs', 'vs'));
+      if (team === 0) {
+        const mid = el('span', 'lw-result-vs');
+        mid.append(el('b', '', 'vs'), el('span', 'lw-result-label', c.label));
+        row.append(mid);
+      }
     });
     const footer = el('div', 'lw-moment-sub', c.footer);
-    root.append(row, footer);
+    root.append(row);
+    if (c.ledger) root.append(roundLedger(c.ledger));
+    root.append(footer);
     return { key: m.key, kind: m.kind, card: true, el: root, footer };
   }
 
@@ -199,4 +231,40 @@ export class Moments {
     this.current = null;
     this.outgoing = [];
   }
+}
+
+/**
+ * The round card's receipt: each round so far (the winner's cell stamped with their mark) and
+ * the match total. Same rows, numbers and marks as the match-over ledger (ui/results.ts).
+ */
+function roundLedger(l: { rounds: RoundLine[]; totals: [number, number] }): HTMLElement {
+  const box = el('div', 'lw-rledger');
+  box.setAttribute('role', 'table');
+  box.setAttribute('aria-label', 'Points per round');
+  const cell = (team: TeamId, v: number, won: boolean) => {
+    const c = el('span', `lw-rledger-pts ${team === 0 ? 'lw-jade' : 'lw-ember'}${won ? ' lw-won' : ''}`);
+    c.setAttribute('role', 'cell');
+    c.append(el('span', '', formatScore(v)));
+    if (won) {
+      const mark = el('span', 'lw-rledger-mark');
+      mark.innerHTML = crewMark(team);
+      c.append(mark);
+    }
+    return c;
+  };
+  const row = (label: string, a: HTMLElement, b: HTMLElement, cls = '') => {
+    const r = el('div', `lw-rledger-row${cls}`);
+    r.setAttribute('role', 'row');
+    const th = el('span', 'lw-rledger-label', label);
+    th.setAttribute('role', 'rowheader');
+    r.append(a, th, b);
+    return r;
+  };
+  l.rounds.forEach((x, i) => {
+    const r = row(`Round ${i + 1}`, cell(0, x.scores[0], x.winner === 0), cell(1, x.scores[1], x.winner === 1), i === l.rounds.length - 1 ? ' lw-now' : '');
+    r.dataset.round = String(i + 1);
+    box.append(r);
+  });
+  box.append(row('Total', cell(0, l.totals[0], false), cell(1, l.totals[1], false), ' lw-total'));
+  return box;
 }

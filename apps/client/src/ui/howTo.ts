@@ -1,4 +1,4 @@
-import { INGREDIENTS, levelById, RECIPES } from '@line-war/content';
+import { levelById, RECIPES, type LevelDef } from '@line-war/content';
 import { DEFAULT_TUNING, type IngredientDef, type IngredientKind, type RecipeDef } from '@line-war/sim';
 import { formatMult } from '../hud/text';
 
@@ -87,10 +87,12 @@ interface Step {
 }
 
 /** The core loop as four illustrated steps, like a manual's first page. */
-function loopSteps(): Step[] {
-  const t = INGREDIENTS.tomato;
+function loopSteps(level: LevelDef): Step[] {
+  const t = level.ingredients.tomato;
+  const market = marketFoods(level);
+  const grab = market ? `Food comes from your shelves. ${market} only from the market crates in the middle.` : 'Food comes from your shelves.';
   return [
-    { n: 1, title: 'Grab', body: 'Food comes from your shelves. Steak and fish only from the market crates in the middle.', icon: foodIcon('tomato', 'raw', null, 'raw tomato') },
+    { n: 1, title: 'Grab', body: grab, icon: foodIcon('tomato', 'raw', null, 'raw tomato') },
     { n: 2, title: 'Prep', body: 'Chop on a board. Pans and pots cook by themselves, so pull them before they burn.', icon: foodIcon('tomato', 'chopped', t.cook?.vessel ?? null, 'chopped tomato') },
     { n: 3, title: 'Plate', body: `Put what the ticket asks for on one plate. Plated food goes cold after ${DEFAULT_TUNING.plateColdSeconds} s.`, icon: PLATE_ICON },
     { n: 4, title: 'Serve', body: 'Bring it to the window in your crew’s colour. First crew to serve a ticket wins it.', icon: BELL_ICON },
@@ -141,13 +143,144 @@ export function charmCountSentence(levelId: string): string {
   return `In ${lv.name}, a lantern bunny charm pops up in the middle of the market ${times} a round.`;
 }
 
-const section = (n: string, title: string, ...body: (HTMLElement | HTMLElement[])[]) =>
-  h('section', { class: 'lw-howto-section' }, h('h3', {}, h('span', { class: 'lw-howto-sec-n' }, n), title), ...body);
+/** "Steak and fish": the level's market-only ingredients, or '' when every food is on the shelves. */
+export function marketFoods(level: LevelDef): string {
+  const names = Object.values(level.ingredients)
+    .filter((d) => d.premium)
+    .map((d, i) => (i === 0 ? d.name : d.name.toLowerCase()));
+  return names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
 
-export function howToScreen(settings: Settings, actions: { back(): void }): HTMLElement {
+/** How often a recipe turns up on this level: its share of the ticket weights. */
+export interface MenuOdds {
+  recipe: RecipeDef;
+  /** 0..1 share of tickets. */
+  share: number;
+  /** "About 1 in 4 tickets". */
+  label: string;
+}
+
+export function menuOdds(level: LevelDef): MenuOdds[] {
+  const total = level.recipes.reduce((t, r) => t + r.weight, 0);
+  return level.recipes.map((recipe) => {
+    const share = total > 0 ? recipe.weight / total : 0;
+    return { recipe, share, label: share > 0 ? `About 1 in ${Math.max(1, Math.round(1 / share))} tickets` : 'Not served' };
+  });
+}
+
+/** Recipes from the full cookbook that this level leaves off its menu (Rooftop has no soup). */
+export const offMenu = (level: LevelDef): RecipeDef[] => RECIPES.filter((r) => !level.recipes.some((x) => x.id === r.id));
+
+function menuSection(level: LevelDef): HTMLElement[] {
+  const odds = menuOdds(level);
+  const top = Math.max(...odds.map((o) => o.share), 0.0001);
+  const missing = offMenu(level);
+  const out: HTMLElement[] = [
+    h(
+      'div',
+      { class: 'lw-howto-recipes' },
+      odds.map(({ recipe: r, share, label }) =>
+        h(
+          'div',
+          { class: `lw-howto-recipe${r.premium ? ' lw-premium' : ''}`, 'data-recipe': r.id },
+          h('div', { class: 'lw-howto-recipe-head' }, h('b', {}, r.name), h('span', { class: 'lw-howto-value' }, `${r.baseValue}`)),
+          svg(
+            r.ingredients.map((f) => foodIcon(f.kind, f.state, level.ingredients[f.kind].cook?.vessel ?? null, `${f.state} ${f.kind}`)).join(''),
+            'lw-howto-icons',
+          ),
+          recipeSteps(r, level.ingredients).map((s) => h('div', {}, s)),
+          h(
+            'div',
+            { class: 'lw-howto-odds', title: label },
+            h('span', { class: 'lw-howto-odds-bar', 'aria-hidden': 'true' }, h('i', { style: `width:${Math.round((share / top) * 100)}%` })),
+            h('span', {}, label),
+          ),
+        ),
+      ),
+    ),
+  ];
+  if (missing.length) out.push(h('p', { class: 'lw-howto-offmenu' }, `Not on the menu in ${level.name}: ${missing.map((r) => r.name).join(', ')}.`));
+  return out;
+}
+
+const SECTIONS = ['The loop', 'How you win', 'Menu', 'Controls'] as const;
+
+const section = (n: number, title: string, tag: HTMLElement | null, ...body: (HTMLElement | HTMLElement[])[]) =>
+  h(
+    'section',
+    { class: 'lw-howto-section', id: `lw-howto-sec-${n}`, role: 'tabpanel', 'aria-labelledby': `lw-howto-tab-${n}`, 'data-sec': String(n) },
+    h('h3', {}, h('span', { class: 'lw-howto-sec-n' }, String(n)), title, tag),
+    ...body,
+  );
+
+/**
+ * Turn the manual to `page` (1-based, clamped). The tabs, the page dots and the page number
+ * follow, and `data-dir` tells the CSS which way the new page slides in.
+ */
+export function turnPage(manual: HTMLElement, page: number): void {
+  const n = Math.max(1, Math.min(SECTIONS.length, page));
+  const cur = Number(manual.dataset.page ?? '1');
+  if (n === cur) return;
+  manual.dataset.dir = n > cur ? 'next' : 'prev';
+  manual.dataset.page = String(n);
+  manual.querySelectorAll('.lw-howto-tab').forEach((t, j) => t.setAttribute('aria-selected', j + 1 === n ? 'true' : 'false'));
+  manual.querySelectorAll('.lw-howto-dot').forEach((d, j) => d.classList.toggle('lw-on', j + 1 === n));
+  const folio = manual.querySelector('.lw-howto-folio');
+  if (folio) folio.textContent = `Page ${n} of ${SECTIONS.length}`;
+}
+
+/** The manual's page tabs: one section per page, at every screen size, so nothing ever scrolls. */
+function pageTabs(page: HTMLElement): HTMLElement {
+  const tabs = SECTIONS.map((title, i) =>
+    h(
+      'button',
+      {
+        type: 'button',
+        class: 'lw-howto-tab',
+        role: 'tab',
+        id: `lw-howto-tab-${i + 1}`,
+        'aria-controls': `lw-howto-sec-${i + 1}`,
+        'aria-selected': i === 0 ? 'true' : 'false',
+        'data-key': `howto-tab-${i + 1}`,
+        onclick: () => turnPage(page, i + 1),
+      },
+      h('span', { class: 'lw-howto-sec-n' }, String(i + 1)),
+      title,
+    ),
+  );
+  return h('div', { class: 'lw-howto-tabs', role: 'tablist', 'aria-label': 'Manual pages' }, tabs);
+}
+
+/** Footer: how to turn pages (keys and pad shoulders), page dots, the folio, and Back. */
+function pageFoot(back: () => void): HTMLElement {
   return h(
     'div',
-    { class: 'lw-panel lw-howto' },
+    { class: 'lw-howto-foot' },
+    h(
+      'p',
+      { class: 'lw-howto-turn' },
+      h('kbd', {}, 'Q'),
+      h('kbd', {}, 'E'),
+      h('span', { class: 'lw-howto-or' }, 'or'),
+      h('kbd', {}, 'LB'),
+      h('kbd', {}, 'RB'),
+      h('span', {}, 'turn pages'),
+    ),
+    h(
+      'div',
+      { class: 'lw-howto-pager', 'aria-hidden': 'true' },
+      h('span', { class: 'lw-howto-dots' }, SECTIONS.map((_, i) => h('i', { class: `lw-howto-dot${i === 0 ? ' lw-on' : ''}` }))),
+      h('span', { class: 'lw-howto-folio' }, `Page 1 of ${SECTIONS.length}`),
+    ),
+    button('Back', back, { class: 'lw-btn lw-btn-primary', 'data-key': 'menu-Back' }),
+  );
+}
+
+export function howToScreen(settings: Settings, actions: { back(): void }): HTMLElement {
+  const level = levelById(settings.level);
+  const page = h(
+    'div',
+    { class: 'lw-panel lw-howto', 'data-page': '1', 'data-arrows-turn-pages': '' },
     h(
       'header',
       { class: 'lw-howto-head' },
@@ -155,29 +288,14 @@ export function howToScreen(settings: Settings, actions: { back(): void }): HTML
       h('h2', {}, 'How to play'),
       h('p', { class: 'lw-howto-lede' }, 'Two crews, one ticket line. Race the other crew to every order.'),
     ),
-    section('1', 'The loop', h('ol', { class: 'lw-howto-steps' }, loopSteps().map(stepCard))),
-    section('2', 'How you win', winTiles(settings.level)),
-    section(
-      '3',
-      'Menu',
-      h(
-        'div',
-        { class: 'lw-howto-recipes' },
-        RECIPES.map((r) =>
-          h(
-            'div',
-            { class: `lw-howto-recipe${r.premium ? ' lw-premium' : ''}` },
-            h('div', { class: 'lw-howto-recipe-head' }, h('b', {}, r.name), h('span', { class: 'lw-howto-value' }, `${r.baseValue}`)),
-            svg(
-              r.ingredients.map((f) => foodIcon(f.kind, f.state, INGREDIENTS[f.kind].cook?.vessel ?? null, `${f.state} ${f.kind}`)).join(''),
-              'lw-howto-icons',
-            ),
-            recipeSteps(r, INGREDIENTS).map((s) => h('div', {}, s)),
-          ),
-        ),
-      ),
-    ),
-    section('4', 'Controls', controls(settings)),
-    h('div', { class: 'lw-howto-foot' }, button('Back', actions.back, { class: 'lw-btn lw-btn-primary', 'data-key': 'menu-Back' })),
   );
+  page.append(
+    pageTabs(page),
+    section(1, SECTIONS[0], null, h('ol', { class: 'lw-howto-steps' }, loopSteps(level).map(stepCard))),
+    section(2, SECTIONS[1], null, winTiles(settings.level)),
+    section(3, SECTIONS[2], h('span', { class: 'lw-howto-level', 'data-level': level.id }, `Tonight at ${level.name}`), ...menuSection(level)),
+    section(4, SECTIONS[3], null, controls(settings)),
+    pageFoot(actions.back),
+  );
+  return page;
 }

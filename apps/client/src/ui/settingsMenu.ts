@@ -57,6 +57,9 @@ const ACTION_LABELS: Record<Action, string> = {
 };
 const DIFFICULTY_LABELS: Record<BotDifficulty, string> = { easy: 'Easy', normal: 'Normal', hard: 'Hard' };
 
+/** Under the volume sliders: what the levels do (sound is live; changes apply at once). */
+export const AUDIO_NOTE = 'Changes apply right away. Music sits under the effects, so serves, knocks and charms always cut through.';
+
 export const slotName = (i: number) => `P${i + 1}`;
 export const crewName = (i: number) => TEAMS[i < 2 ? 0 : 1].name;
 const actionName = (a: Action) => ACTION_LABELS[a];
@@ -373,7 +376,7 @@ export class SettingsMenu {
     const a = this.s.audio;
     const vol = (label: string, key: keyof Settings['audio']) =>
       slider(label, a[key], LIMITS.volume, pct, (v) => this.set((s) => void (s.audio[key] = v)), key);
-    return [vol('Master', 'master'), vol('Music', 'music'), vol('Effects', 'effects'), h('p', { class: 'lw-muted' }, 'Sound is coming in a later build; levels are saved now.')].map(withKey);
+    return [vol('Master', 'master'), vol('Music', 'music'), vol('Effects', 'effects'), h('p', { class: 'lw-muted' }, AUDIO_NOTE)].map(withKey);
   }
 
   private renderDisplay(): Node[] {

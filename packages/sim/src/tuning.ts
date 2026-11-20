@@ -28,13 +28,14 @@ export const DEFAULT_TUNING: Tuning = {
   freshnessFloor: 0.5,
   tipWindowSeconds: 5,
   tipPoints: 0, // tips are held for later (design doc: Rule count)
-  heatThresholds: [2, 4, 7],
+  // Heat and rush retuned with botsim on all three levels (balance pass: Heat saturated at [2, 4, 7]).
+  heatThresholds: [4, 8, 13],
   heatMultipliers: [1, 1.25, 1.5, 2],
   criticAtFraction: 0.5,
   criticMultiplier: 3,
   criticEarlySeconds: 3,
   rushSeconds: 60,
-  rushMultiplier: 1.5,
+  rushMultiplier: 1.75,
   lastCallSeconds: 10,
   marketExtraStock: 1,
   knockImmuneSeconds: 1.5,

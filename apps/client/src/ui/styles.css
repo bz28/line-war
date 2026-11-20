@@ -257,6 +257,16 @@
 .lw-pause, .lw-over { max-width: 420px; text-align: center; }
 .lw-pause-lantern { display: block; width: 34px; margin: -6px auto 8px; transform-origin: 50% 0; animation: lw-lantern-swing 3.6s ease-in-out infinite alternate; filter: drop-shadow(0 0 14px var(--lantern)); }
 .lw-pause h2 { margin-bottom: 4px; font-size: 38px; }
+/* Where the match stands: the HUD is blurred behind the pause card. */
+.lw-pause-board { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; margin: 8px 0 2px; padding: 10px 12px; border-radius: var(--lw-radius); background: color-mix(in srgb, var(--night-deep) 60%, transparent); }
+.lw-pause-crew { display: grid; justify-items: center; gap: 1px; }
+.lw-pause-mark svg { display: block; width: 22px; height: auto; }
+.lw-pause-name { font-weight: 800; font-size: 13px; }
+.lw-pause-crew.lw-crew-a .lw-pause-name { color: var(--jade-light); }
+.lw-pause-crew.lw-crew-b .lw-pause-name { color: var(--ember-light); }
+.lw-pause-pts { font: 400 26px/1.05 var(--font-display); color: var(--paper); font-variant-numeric: tabular-nums; }
+.lw-pause-rounds { font-size: 11.5px; font-weight: 700; color: var(--lantern); }
+.lw-pause-where { max-width: 9em; font-size: 12.5px; font-weight: 700; line-height: 1.3; color: var(--lw-muted); }
 .lw-eyebrow { margin: 0 0 4px; color: var(--lw-muted); font-weight: 800; font-size: 15px; }
 .lw-over { background: var(--paper); color: var(--ink); border-color: var(--bamboo); }
 .lw-over .lw-eyebrow { color: color-mix(in srgb, var(--ink) 60%, transparent); }
@@ -265,9 +275,12 @@
 .lw-over.lw-crew-b .lw-winner { color: var(--ember-dark) !important; }
 .lw-over.lw-crew-a { box-shadow: inset 0 0 0 2px var(--jade), 8px 12px 0 color-mix(in srgb, var(--night-deep) 70%, transparent), 0 0 80px color-mix(in srgb, var(--jade) 30%, transparent); }
 .lw-over.lw-crew-b { box-shadow: inset 0 0 0 2px var(--ember), 8px 12px 0 color-mix(in srgb, var(--night-deep) 70%, transparent), 0 0 80px color-mix(in srgb, var(--ember) 30%, transparent); }
-.lw-score { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 10px 0 0; }
+.lw-over { --lw-score-mid: 72px; --lw-score-crew: 120px; }
+.lw-score { display: grid; grid-template-columns: 1fr var(--lw-score-mid) 1fr; align-items: center; column-gap: 16px; margin: 10px 0 0; }
+.lw-score .lw-over-crew:first-child { justify-self: end; }
+.lw-score .lw-over-crew:last-child { justify-self: start; }
 .lw-score .lw-vs { color: color-mix(in srgb, var(--ink) 50%, transparent); font: 800 13px var(--font-ui); }
-.lw-over-crew { display: grid; justify-items: center; gap: 2px; min-width: 96px; padding: 8px 12px; border-radius: 12px; }
+.lw-over-crew { display: grid; justify-items: center; gap: 2px; width: var(--lw-score-crew); box-sizing: border-box; padding: 8px 12px; border-radius: 12px; }
 .lw-over-crew.lw-won { background: color-mix(in srgb, var(--crew-c) 16%, transparent); box-shadow: inset 0 0 0 2px var(--crew-c); }
 .lw-over-mark svg { display: block; width: 30px; height: auto; }
 .lw-over-name { font-weight: 800; font-size: 15px; }
@@ -276,10 +289,52 @@
 .lw-over-rounds { font: 400 40px/1 var(--font-display); color: var(--ink); }
 .lw-over .lw-btn:not(.lw-btn-primary) { background: color-mix(in srgb, var(--paper), var(--bamboo) 25%); }
 
+.lw-over-tiebreak { margin: 8px 0 0; font-weight: 800; font-size: 13px; color: color-mix(in srgb, var(--ink) 62%, transparent); }
+
+/* The match ledger: a receipt of each round's points, the round winner stamped with their crew mark. */
+.lw-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.lw-ledger, .lw-ledger tbody, .lw-ledger tfoot { display: block; }
+.lw-ledger {
+  margin: 12px 0 0;
+  font: 700 15px/1.2 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--ink) 72%, transparent);
+}
+/* Same three columns as the rounds row above (crew, label, crew), so each score sits under its crew. */
+.lw-ledger tr { display: grid; grid-template-columns: 1fr var(--lw-score-mid) 1fr; column-gap: 16px; align-items: center; padding: 3px 0; }
+.lw-ledger tbody tr + tr { border-top: 1.5px dashed color-mix(in srgb, var(--ink) 16%, transparent); }
+.lw-ledger tfoot tr { margin-top: 4px; padding-top: 7px; border-top: 2.5px solid color-mix(in srgb, var(--ink) 70%, transparent); }
+.lw-ledger th { display: grid; justify-items: center; gap: 1px; font-size: 12px; font-weight: 800; color: color-mix(in srgb, var(--ink) 55%, transparent); white-space: nowrap; }
+.lw-ledger tfoot th { color: var(--ink); font-size: 13px; }
+.lw-ledger-pts { position: relative; display: flex; align-items: center; justify-content: center; gap: 6px; width: var(--lw-score-crew); box-sizing: border-box; padding: 4px 8px; border-radius: 8px; }
+.lw-ledger-pts.lw-crew-a { justify-self: end; }
+.lw-ledger-pts.lw-crew-b { justify-self: start; }
+.lw-ledger-won { background: color-mix(in srgb, var(--crew-c) 16%, transparent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--crew-c) 70%, transparent); }
+.lw-ledger-won span { color: var(--ink); font-weight: 800; }
+.lw-ledger-mark { position: absolute; right: 7px; }
+.lw-ledger-mark svg { display: block; width: 16px; height: auto; }
+.lw-ledger-total span { font: 400 22px/1 var(--font-display); color: var(--ink); }
+.lw-ledger-draw { padding: 0 6px; border-radius: 6px; background: color-mix(in srgb, var(--ink) 10%, transparent); font-size: 10.5px; }
+.lw-ledger tbody tr { animation: lw-ledger-in 0.32s ease-out backwards; }
+.lw-ledger tbody tr:nth-child(2) { animation-delay: 0.08s; }
+.lw-ledger tbody tr:nth-child(3) { animation-delay: 0.16s; }
+@keyframes lw-ledger-in { from { opacity: 0; transform: translateX(-8px); } }
+
 .lw-fps { position: fixed; top: 8px; right: 10px; z-index: 5; font: 700 12px var(--font-ui); color: var(--lantern); background: color-mix(in srgb, var(--night-deep) 70%, transparent); padding: 2px 8px; border-radius: 6px; }
 
 /* ---------- how to play: a game-manual page ---------- */
-.lw-howto { max-width: 960px; max-height: calc(100vh - 48px); overflow-y: auto; padding-bottom: 0; text-align: left; scrollbar-color: var(--bamboo-dark) transparent; }
+.lw-howto {
+  display: flex;
+  flex-direction: column;
+  max-width: 960px;
+  /* One fixed page size, so turning pages never resizes the book. */
+  height: min(600px, calc(100vh - 48px));
+  overflow: hidden;
+  padding-bottom: 0;
+  text-align: left;
+  scrollbar-color: var(--bamboo-dark) transparent;
+  perspective: 1400px;
+}
 .lw-howto-head { display: grid; justify-items: start; gap: 2px; padding-bottom: 14px; border-bottom: 2px dashed var(--lw-line); }
 .lw-howto-head .lw-eyebrow { color: var(--lantern); letter-spacing: 0.12em; text-transform: uppercase; font-size: 12px; }
 .lw-howto h2 { margin: 0; font-size: 34px; }
@@ -359,16 +414,25 @@
 .lw-howto-chip-charm { background: var(--night-deep); box-shadow: 0 3px 0 var(--bamboo-dark), 0 0 16px color-mix(in srgb, var(--lantern) 35%, transparent); transform: rotate(3deg); }
 .lw-howto-chip-charm svg { width: 40px; height: 46px; margin-top: 4px; }
 
-/* Back stays in reach while the page scrolls. */
+/* Footer: how to turn pages, page dots + folio, Back. */
 .lw-howto-foot {
-  position: sticky;
-  bottom: 0;
-  display: flex;
-  justify-content: flex-end;
-  margin: 18px -32px 0;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+  margin: auto -32px 0;
   padding: 14px 32px 20px;
-  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--night) 96%, transparent) 30%);
+  border-top: 2px dashed var(--lw-line);
 }
+.lw-howto-foot > .lw-btn { justify-self: end; }
+.lw-howto-turn { display: flex; align-items: center; gap: 5px; margin: 0; font-size: 13px; font-weight: 700; color: var(--lw-muted); }
+.lw-howto-turn span:last-child { margin-left: 4px; }
+.lw-howto-or { margin: 0 2px; font-size: 12px; }
+.lw-howto-pager { display: grid; justify-items: center; gap: 5px; }
+.lw-howto-dots { display: flex; gap: 7px; }
+.lw-howto-dot { width: 8px; height: 8px; border-radius: 50%; background: color-mix(in srgb, var(--paper) 22%, transparent); transition: background-color 0.2s, transform 0.2s; }
+.lw-howto-dot.lw-on { background: var(--lantern); transform: scale(1.3); box-shadow: 0 0 8px color-mix(in srgb, var(--lantern) 60%, transparent); }
+.lw-howto-folio { font: 800 11px/1 var(--font-ui); letter-spacing: 0.1em; text-transform: uppercase; color: var(--lw-muted); }
 .lw-howto-foot .lw-btn, .lw-panel-foot .lw-btn { min-width: 140px; }
 .lw-howto-recipes, .lw-howto-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .lw-howto-recipe {
@@ -400,6 +464,66 @@
   font: 800 12px/20px var(--font-ui);
   text-align: center;
   box-shadow: 0 2px 0 var(--bamboo);
+}
+
+/* The level the Menu section describes, and how often each dish turns up there. */
+.lw-howto-level {
+  margin-left: 4px;
+  padding: 2px 10px 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--lantern) 18%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--lantern) 55%, transparent);
+  color: var(--lantern);
+  font: 800 13px/1.3 var(--font-ui);
+}
+.lw-howto-odds { display: grid; gap: 3px; margin-top: 8px; padding-top: 7px; border-top: 1.5px dashed color-mix(in srgb, var(--ink) 18%, transparent); font-size: 12px; font-weight: 700; color: color-mix(in srgb, var(--ink) 62%, transparent); }
+.lw-howto-odds-bar { display: block; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 10%, transparent); overflow: hidden; }
+.lw-howto-odds-bar i { display: block; height: 100%; border-radius: 3px; background: var(--lantern-hot); }
+.lw-howto-offmenu { margin: 10px 2px 0 !important; font-size: 13px; font-weight: 700; color: var(--lw-muted); }
+
+/* Page tabs: one section per page at every size, like flipping through a game manual. */
+.lw-howto-tabs { display: flex; gap: 8px; margin: 16px 0 0; }
+.lw-howto-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px 7px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--lw-row);
+  color: var(--paper);
+  font: 800 14px/1.2 var(--font-ui);
+  cursor: pointer;
+  transition: background-color 0.12s, transform 0.12s;
+}
+.lw-howto-tab .lw-howto-sec-n { width: 22px; height: 22px; font-size: 12px; background: color-mix(in srgb, var(--paper) 22%, transparent); color: var(--paper); box-shadow: none; }
+.lw-howto-tab:hover { background: color-mix(in srgb, var(--slate-light) 80%, transparent); }
+.lw-howto-tab[aria-selected='true'] { background: var(--paper); color: var(--ink); box-shadow: 0 3px 0 var(--bamboo); transform: rotate(-1deg); }
+.lw-howto-tab[aria-selected='true'] .lw-howto-sec-n { background: var(--lantern); color: var(--ink); box-shadow: 0 2px 0 var(--bamboo-dark); }
+.lw-howto-section { display: none; flex: 0 1 auto; min-height: 0; margin-top: 18px; transform-origin: left center; }
+/* Only a very small window scrolls, and then only the page: the tabs and Back stay put. */
+.lw-howto-section { overflow-y: auto; overflow-x: hidden; scrollbar-color: var(--bamboo-dark) transparent; }
+.lw-howto-section > h3 { display: none; }
+.lw-howto[data-page='1'] [data-sec='1'], .lw-howto[data-page='2'] [data-sec='2'],
+.lw-howto[data-page='3'] [data-sec='3'], .lw-howto[data-page='4'] [data-sec='4'] { display: block; animation: lw-page-in 0.24s ease-out; }
+.lw-howto[data-dir='next'] [data-sec] { animation-name: lw-page-next; }
+.lw-howto[data-dir='prev'] [data-sec] { animation-name: lw-page-prev; transform-origin: right center; }
+/* The Menu page keeps its level label, above the tickets. */
+.lw-howto[data-page='3'] [data-sec='3'] > h3 { display: flex; margin-bottom: 12px; font-size: 0; gap: 0; }
+.lw-howto[data-page='3'] [data-sec='3'] > h3 .lw-howto-sec-n { display: none; }
+.lw-howto[data-page='3'] [data-sec='3'] > h3 .lw-howto-level { margin-left: 0; }
+@keyframes lw-page-next { from { opacity: 0; transform: translateX(28px) rotateY(-10deg); } }
+@keyframes lw-page-prev { from { opacity: 0; transform: translateX(-28px) rotateY(10deg); } }
+
+/* Tall screens: the pages have room, so the loop and the tiles breathe. */
+@media (min-height: 801px) {
+  .lw-howto-step { padding: 18px 16px 20px; font-size: 14.5px; }
+  .lw-howto-step-icon { width: 58px; height: 58px; margin-bottom: 14px; }
+  .lw-howto-step-icon svg { width: 38px; height: 38px; }
+  .lw-howto-step:not(:last-child)::after { top: 44px; }
+  .lw-howto-step h4 { font-size: 18px; margin-bottom: 6px; }
+  .lw-howto-tile { padding: 18px; font-size: 14.5px; }
+  .lw-howto-tile h4 { font-size: 17px; }
 }
 
 @media (max-width: 900px) {
@@ -440,3 +564,67 @@
 .lw-level-blurb { max-width: 46ch; margin: 0 auto 6px; font-size: 14px; color: color-mix(in srgb, var(--paper) 85%, transparent); }
 @media (prefers-reduced-motion: reduce) { .lw-level, .lw-level-thumb svg { transition: none; } .lw-level:hover, .lw-level:focus-visible { transform: none; } }
 @media (max-width: 560px) { .lw-level { width: 104px; } .lw-level-thumb svg { width: 88px; } }
+
+/* ---------- short screens (laptops at 1366x768, 1280x720) ---------- */
+@media (max-height: 800px) {
+  .lw-overlay { padding: 12px 24px; }
+  .lw-panel { padding: 20px 26px; }
+
+  /* Title: same stack, tighter rhythm. */
+  .lw-title { padding: 0 16px; }
+  .lw-logo { font-size: clamp(54px, min(11vw, 11.5vh), 112px); margin-top: 4px; }
+  .lw-tagline { margin: 10px 0 14px; font-size: 16px; }
+  .lw-lineup { margin-bottom: 10px; }
+  .lw-lineup-crew { padding: 8px 14px 11px; }
+  .lw-lineup-crew h3 { margin-bottom: 3px; font-size: 16px; }
+  .lw-lineup-slot { font-size: 13px; line-height: 1.35; }
+  .lw-levels { margin: 2px 0 4px; }
+  .lw-level { width: 128px; padding: 6px 6px 7px; gap: 4px; font-size: 13px; }
+  .lw-level-thumb svg { width: 104px; }
+  .lw-level-blurb { margin-bottom: 2px; font-size: 13px; line-height: 1.4; }
+  .lw-title .lw-muted { font-size: 13px; }
+  .lw-menu { gap: 9px; margin-top: 14px; }
+  .lw-menu .lw-btn { font-size: 17px; padding: 9px 18px; }
+  .lw-menu .lw-btn-primary { font-size: 22px; padding: 10px 18px 12px; }
+  .lw-hint { margin-top: 10px; font-size: 12px; }
+
+  /* How to play: a shorter page. */
+  .lw-howto { height: min(530px, calc(100vh - 24px)); }
+  .lw-howto-head { padding-bottom: 10px; }
+  .lw-howto h2 { font-size: 30px; }
+  .lw-howto-lede { font-size: 15px; }
+  .lw-howto-tabs { margin-top: 14px; }
+  .lw-howto-section { margin-top: 16px; }
+  .lw-howto-foot { padding: 12px 26px 16px; margin: auto -26px 0; }
+  .lw-howto-step { padding: 12px 12px 14px; }
+
+  /* Settings and the result card: a little less air. */
+  .lw-settings { max-height: calc(100vh - 24px); }
+  .lw-section { min-height: 0; }
+  .lw-pause h2 { font-size: 34px; }
+  .lw-winner { font-size: 40px !important; }
+}
+@keyframes lw-page-in { from { opacity: 0; transform: translateY(6px); } }
+
+/* Sound is waiting on a gesture: a small paper note in the corner (audio/unlock.ts). */
+.lw-sound-hint {
+  position: fixed;
+  right: 14px;
+  bottom: 12px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px 6px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--night-deep) 82%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--lantern) 45%, transparent);
+  color: var(--paper);
+  font: 700 12.5px/1.2 var(--font-ui);
+  pointer-events: none;
+  animation: lw-hint-in 0.4s ease-out 1.2s backwards;
+}
+.lw-sound-hint::before { content: ''; width: 14px; height: 12px; background: var(--lantern); clip-path: polygon(0 30%, 30% 30%, 70% 0, 70% 100%, 30% 70%, 0 70%); }
+.lw-sound-hint[hidden] { display: none; }
+@keyframes lw-hint-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .lw-sound-hint { animation: none; } }

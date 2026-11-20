@@ -6,13 +6,14 @@
  * Without Web Audio (jsdom, old browsers) every method is a silent no-op.
  *
  * Graph:  voices -> effects bus --\
- *         loops  -> effects bus ---> impact low-pass -> compressor -> limiter -> output -> destination
- *         music  -> duck -> muffle -> music bus --/
+ *         loops  -> effects bus ---> trim -> freeze -> impact low-pass -> compressor -> limiter -> output
+ *         music  -> duck -> dip -> muffle -> music bus --/                      /
+ *         knock + knockThud -> direct bus -> trim ------------------------/  (skip the hit-stop dip)
  */
 import { teamOf, type MatchState, type PlayerId, type TeamId } from '@line-war/sim';
 import type { Renderer } from '../render/types';
 import type { Settings } from '../settings/types';
-import { CATEGORY_PRIORITY, CUES, cuesForEvents, DUCKING_CUES, type Cue, type CueId } from './cues';
+import { CATEGORY_PRIORITY, CUES, cuesForEvents, DUCKING_CUES, IMPACT_CUES, MUSIC_DIPS, type Cue, type CueId } from './cues';
 import { burnBeepInterval, burnWarnings, criticAnnouncements, inFlightIds, loopTargets, workHits } from './derive';
 import { LoopChannel, type LoopId } from './loops';
 import {
@@ -21,11 +22,16 @@ import {
   dbToGain,
   HIT_STOP_CLOSE,
   HIT_STOP_DIP_HZ,
+  HIT_STOP_DUCK_DB,
   HIT_STOP_OPEN,
   IMPACT_OPEN_HZ,
   INPUT_TRIM,
   LIMITER,
   MAX_VOICES,
+  MUSIC_DIP_ATTACK,
+  MUSIC_DIP_HOLD,
+  MUSIC_DIP_LEAD,
+  MUSIC_DIP_RELEASE,
   MUSIC_DUCK_DB,
   OUTPUT_GAIN,
   SCORE_LAND_RIVAL_PITCH,
@@ -44,6 +50,11 @@ export interface AudioDirectorOptions {
   createContext?: () => BaseAudioContext | null;
   /** Run the music's real-time scheduler (off in tests, which call scheduleMusic directly). */
   realtime?: boolean;
+  /**
+   * False when the context is shared for the app's lifetime (main.ts): dispose() then only
+   * unplugs this match's graph instead of closing the context. Default true.
+   */
+  ownsContext?: boolean;
   /** Errors inside onTick are swallowed so audio can't stop the game; this sees them (tests rethrow). */
   onError?: (err: unknown) => void;
 }
@@ -53,9 +64,17 @@ interface Graph {
   effects: GainNode;
   music: GainNode;
   duck: GainNode;
+  /** Short music dip under core feedback cues (MUSIC_DIPS), in series with the stinger duck. */
+  dip: GainNode;
   muffle: BiquadFilterNode;
   /** Whole-mix low-pass, closed briefly during a knock hit-stop. */
   impact: BiquadFilterNode;
+  /** Whole-mix gain, ducked with the low-pass during a hit-stop. */
+  freeze: GainNode;
+  /** Final output node (unplugged on dispose when the context is shared). */
+  out: GainNode;
+  /** Effects bus for IMPACT_CUES, which bypass the freeze and the low-pass. */
+  direct: GainNode;
   loops: Record<LoopId, LoopChannel>;
   seq: MusicSequencer;
 }
@@ -79,6 +98,7 @@ export class AudioDirector implements Renderer {
   private localTeam: TeamId | null;
   private readonly createContext: () => BaseAudioContext | null;
   private readonly realtime: boolean;
+  private readonly ownsContext: boolean;
   private readonly onError: (err: unknown) => void;
   private readonly limiter = new VoiceLimiter<CueId>(MAX_VOICES);
   private readonly voiceGains = new Map<number, GainNode>();
@@ -97,6 +117,7 @@ export class AudioDirector implements Renderer {
     this.volumes = opts.volumes ?? { master: 0.8, music: 0.8, effects: 0.8 };
     this.createContext = opts.createContext ?? defaultContext;
     this.realtime = opts.realtime ?? true;
+    this.ownsContext = opts.ownsContext ?? true;
     this.onError = opts.onError ?? (() => undefined);
   }
 
@@ -110,7 +131,9 @@ export class AudioDirector implements Renderer {
     if (this.disposed) return;
     const ctx = this.ensureGraph()?.ctx as Partial<AudioContext> | undefined;
     try {
-      if (ctx?.state === 'suspended' && typeof ctx.resume === 'function') void ctx.resume().catch(() => undefined);
+      // 'suspended' before a gesture, 'interrupted' after a call or audio-session loss (Safari/iOS).
+      const state = ctx?.state as string | undefined;
+      if (state !== undefined && state !== 'running' && state !== 'closed' && typeof ctx?.resume === 'function') void ctx.resume().catch(() => undefined);
     } catch {
       // ignore: stays silent
     }
@@ -128,6 +151,8 @@ export class AudioDirector implements Renderer {
   /** Paused: cooking/fire beds stop and the music drops back and darkens. */
   setPaused(paused: boolean): void {
     this.paused = paused;
+    // Unpausing is a gesture and the moment to recover a context the OS interrupted.
+    if (!paused) this.resume();
     const g = this.graph;
     if (!g) return;
     const t = g.ctx.currentTime;
@@ -170,7 +195,8 @@ export class AudioDirector implements Renderer {
       g.seq.dispose();
       for (const ch of Object.values(g.loops)) ch.dispose();
       const ctx = g.ctx as Partial<AudioContext>;
-      if (typeof ctx.close === 'function') void ctx.close().catch(() => undefined);
+      if (!this.ownsContext) g.out.disconnect();
+      else if (typeof ctx.close === 'function') void ctx.close().catch(() => undefined);
     } catch {
       // ignore
     }
@@ -218,17 +244,26 @@ export class AudioDirector implements Renderer {
     const impact = ctx.createBiquadFilter();
     impact.type = 'lowpass';
     impact.frequency.value = IMPACT_OPEN_HZ;
-    trim.connect(impact);
+    const freeze = ctx.createGain();
+    trim.connect(freeze);
+    freeze.connect(impact);
     impact.connect(comp);
     effects.connect(trim);
+    const direct = ctx.createGain();
+    const directTrim = ctx.createGain();
+    directTrim.gain.value = INPUT_TRIM;
+    direct.connect(directTrim);
+    directTrim.connect(comp);
     const music = ctx.createGain();
     music.connect(trim);
     const muffle = ctx.createBiquadFilter();
     muffle.type = 'lowpass';
     muffle.frequency.value = 20000;
     muffle.connect(music);
+    const dip = ctx.createGain();
+    dip.connect(muffle);
     const duck = ctx.createGain();
-    duck.connect(muffle);
+    duck.connect(dip);
 
     const loops: Record<LoopId, LoopChannel> = {
       sizzle: new LoopChannel(ctx, effects, 'sizzle'),
@@ -239,7 +274,7 @@ export class AudioDirector implements Renderer {
       if (mode !== 'lastCall') return;
       this.play({ id: 'clockTick', pan: 0, pitch: this.clockBeat++ % 2 === 0 ? 0 : -5 }, time);
     });
-    return { ctx, effects, music, duck, muffle, impact, loops, seq };
+    return { ctx, effects, music, duck, dip, muffle, impact, freeze, direct, out, loops, seq };
   }
 
   private applyVolumes(): void {
@@ -249,6 +284,7 @@ export class AudioDirector implements Renderer {
     const t = g.ctx.currentTime;
     g.music.gain.setTargetAtTime(music, t, 0.05);
     g.effects.gain.setTargetAtTime(effects, t, 0.05);
+    g.direct.gain.setTargetAtTime(effects, t, 0.05);
   }
 
   private tick(g: Graph, state: MatchState): void {
@@ -292,8 +328,9 @@ export class AudioDirector implements Renderer {
   }
 
   /**
-   * A knock's hit-stop: a weighty thud at the victim, and the whole mix dips behind a low-pass
-   * for the `seconds` the match is frozen, then opens back up.
+   * A knock's hit-stop: a weighty thud at the victim, and the rest of the mix ducks behind a
+   * low-pass for the `seconds` the match is frozen, then opens back up. The knock's own cues
+   * (IMPACT_CUES) skip the dip, so they are the one thing heard clearly.
    */
   hitStop(pan: number, seconds: number): void {
     const g = this.graph;
@@ -303,6 +340,10 @@ export class AudioDirector implements Renderer {
     f.cancelScheduledValues(now);
     f.setTargetAtTime(HIT_STOP_DIP_HZ, now, HIT_STOP_CLOSE);
     f.setTargetAtTime(IMPACT_OPEN_HZ, now + Math.max(0, seconds), HIT_STOP_OPEN);
+    const v = g.freeze.gain;
+    v.cancelScheduledValues(now);
+    v.setTargetAtTime(dbToGain(HIT_STOP_DUCK_DB), now, HIT_STOP_CLOSE);
+    v.setTargetAtTime(1, now + Math.max(0, seconds), HIT_STOP_OPEN);
     // Booked after the dip starts, so the thud's attack is the one thing that cuts through.
     this.play({ id: 'knockThud', pan, pitch: 0 }, now);
   }
@@ -341,7 +382,7 @@ export class AudioDirector implements Renderer {
       vg.connect(p);
       tail = p;
     }
-    tail.connect(g.effects);
+    tail.connect(IMPACT_CUES.has(cue.id) ? g.direct : g.effects);
     const len = RECIPES[cue.id]({ ctx, dest: vg, t: when, rand: this.rand }, cue.pitch);
     admit.voice.end = when + len;
     this.voiceGains.set(admit.voice.id, vg);
@@ -352,6 +393,16 @@ export class AudioDirector implements Renderer {
       d.cancelScheduledValues(when);
       d.setTargetAtTime(dbToGain(MUSIC_DUCK_DB), when, 0.03);
       d.setTargetAtTime(1, when + Math.min(len, 1.2), 0.4);
+    }
+    const dipDb = MUSIC_DIPS[cue.id];
+    if (dipDb !== undefined && !this.paused) {
+      // A quick sidechain-style dip: the music opens a pocket for the cue, then comes straight back.
+      const d = g.dip.gain;
+      // Cues are booked LEAD ahead, so the pocket can open just before the cue lands.
+      const open = Math.max(ctx.currentTime, when - MUSIC_DIP_LEAD);
+      d.cancelScheduledValues(open);
+      d.setTargetAtTime(dbToGain(dipDb), open, MUSIC_DIP_ATTACK);
+      d.setTargetAtTime(1, when + Math.min(len, MUSIC_DIP_HOLD), MUSIC_DIP_RELEASE);
     }
     return admit.voice;
   }

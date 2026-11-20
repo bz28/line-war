@@ -57,9 +57,9 @@ describe('deliverPlate success', () => {
   });
 
   it('raises heat after enough clean deliveries and emits heatChange', () => {
-    addTicket(s, SALAD);
-    addTicket(s, SALAD);
-    deliverPlate(s, 0, plate(s, SALAD_FOOD));
+    const first = s.config.tuning.heatThresholds[0]!;
+    for (let i = 0; i < first; i++) addTicket(s, SALAD);
+    for (let i = 0; i < first - 1; i++) deliverPlate(s, 0, plate(s, SALAD_FOOD));
     expect(ofType(s.events, 'heatChange')).toEqual([]);
     s.events = [];
     deliverPlate(s, 0, plate(s, SALAD_FOOD));

@@ -1,4 +1,6 @@
-import type { TeamId } from '@line-war/sim';
+import type { MatchState, TeamId } from '@line-war/sim';
+import { formatClock, roundSecondsLeft } from '../render/format';
+import { roundLabel } from '../hud/text';
 import { TEAMS } from '../art/tokens';
 import { crewMark, lanternIcon } from '../hud/icons';
 import { findKeyConflicts, layoutOf } from '../settings/store';
@@ -9,6 +11,7 @@ import { levelById } from '@line-war/content';
 import { slotName } from './settingsMenu';
 import { charmIcon } from '../hud/charmIcon';
 import { charmById } from '@line-war/content';
+import { decidedOnTotal, ledger, type MatchResult } from './results';
 
 export interface MenuItem {
   label: string;
@@ -92,6 +95,7 @@ export function titleScreen(
   settings: Settings,
   actions: { play(): void; howTo(): void; settings(): void; pickLevel(id: string): void; charms?(): void },
   charms?: { unlocked: number; total: number; display: string | null },
+  error?: string,
 ): HTMLElement {
   const conflicts = findKeyConflicts(settings.slots).size;
   return h(
@@ -103,6 +107,7 @@ export function titleScreen(
     levelPicker(settings.level, actions.pickLevel),
     h('p', { class: 'lw-level-blurb lw-center' }, levelById(settings.level).blurb),
     h('p', { class: 'lw-muted lw-center' }, rulesSentence(settings.match)),
+    error ? h('p', { class: 'lw-warning lw-center', role: 'alert', 'data-error': '' }, error) : null,
     conflicts ? h('p', { class: 'lw-warning lw-center', role: 'alert' }, 'Some keys are bound twice. Open Settings, then Controls, to fix them.') : null,
     menu([
       { label: 'Play', onSelect: actions.play, primary: true },
@@ -116,13 +121,49 @@ export function titleScreen(
   );
 }
 
-export function pauseScreen(actions: { resume(): void; restart(): void; settings(): void; quit(): void }): HTMLElement {
+/** Where the match stands, for the pause card (the HUD is blurred behind it). */
+export interface PauseSummary {
+  /** "Round 2 of 3, 1:24 left" */
+  where: string;
+  scores: [number, number];
+  roundsWon: [number, number];
+}
+
+export function pauseSummary(s: MatchState): PauseSummary {
+  const left = s.round.phase === 'prep' ? 'prep' : `${formatClock(roundSecondsLeft(s))} left`;
+  return {
+    where: `${roundLabel(s)}, ${left}`,
+    scores: [s.teams[0].score, s.teams[1].score],
+    roundsWon: [s.teams[0].roundsWon, s.teams[1].roundsWon],
+  };
+}
+
+function pauseBoard(sum: PauseSummary): HTMLElement {
+  const crew = (team: TeamId) =>
+    h(
+      'div',
+      { class: `lw-pause-crew ${team === 0 ? 'lw-crew-a' : 'lw-crew-b'}` },
+      svg(crewMark(team), 'lw-pause-mark'),
+      h('span', { class: 'lw-pause-name' }, TEAMS[team].name),
+      h('b', { class: 'lw-pause-pts' }, sum.scores[team].toLocaleString('en-US')),
+      sum.roundsWon[team] ? h('span', { class: 'lw-pause-rounds' }, `${sum.roundsWon[team]} round${sum.roundsWon[team] > 1 ? 's' : ''} won`) : null,
+    );
+  return h(
+    'div',
+    { class: 'lw-pause-board', 'aria-label': `${sum.where}. ${TEAMS[0].name} ${sum.scores[0]}, ${TEAMS[1].name} ${sum.scores[1]}` },
+    crew(0),
+    h('span', { class: 'lw-pause-where' }, sum.where),
+    crew(1),
+  );
+}
+
+export function pauseScreen(actions: { resume(): void; restart(): void; settings(): void; quit(): void }, summary?: PauseSummary): HTMLElement {
   return h(
     'div',
     { class: 'lw-panel lw-pause' },
     svg(lanternIcon('lw-pause-lantern-svg'), 'lw-pause-lantern'),
     h('h2', {}, 'Paused'),
-    h('p', { class: 'lw-muted lw-center' }, 'The market waits for you.'),
+    summary ? pauseBoard(summary) : h('p', { class: 'lw-muted lw-center' }, 'The market waits for you.'),
     menu([
       { label: 'Resume', onSelect: actions.resume, primary: true },
       { label: 'Restart', onSelect: actions.restart },
@@ -159,7 +200,7 @@ export function charmReveal(ids: readonly string[]): HTMLElement | null {
 }
 
 export function matchOverScreen(
-  result: { winner: TeamId | null; roundsWon: [number, number] },
+  result: MatchResult,
   actions: { again(): void; title(): void; shelf?(): void },
   newCharms: readonly string[] = [],
 ): HTMLElement {
@@ -178,6 +219,8 @@ export function matchOverScreen(
     h('p', { class: 'lw-eyebrow' }, 'Match over'),
     h('h2', { class: 'lw-winner' }, w === null ? 'A draw!' : `${TEAMS[w].name} wins`),
     h('div', { class: 'lw-score', 'aria-label': `Rounds won: ${TEAMS[0].name} ${result.roundsWon[0]}, ${TEAMS[1].name} ${result.roundsWon[1]}` }, crew(0), h('span', { class: 'lw-vs' }, 'rounds'), crew(1)),
+    decidedOnTotal(result) ? h('p', { class: 'lw-over-tiebreak' }, 'Level on rounds, so total points decide it.') : null,
+    ledger(result),
     charmReveal(newCharms),
     menu([
       { label: 'Play again', onSelect: actions.again, primary: true },
