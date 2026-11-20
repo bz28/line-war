@@ -110,21 +110,64 @@ describe('round end', () => {
     expect(s.round.tick).toBe(tick);
   });
 
-  it('plays an extra round after a tie', () => {
+  /** Play rounds with the given scores; returns events from the last intermission. */
+  function playRounds(s: MatchState, rounds: [number, number][]) {
+    let ev: ReturnType<typeof finishIntermission> = [];
+    for (const r of rounds) {
+      finishRound(s, r);
+      ev = finishIntermission(s);
+    }
+    return ev;
+  }
+
+  it('is capped at bestOf rounds: all level on rounds and points is a draw', () => {
     const s = newRulesMatch(SHORT);
-    finishRound(s, [5, 0]);
-    finishIntermission(s);
-    finishRound(s, [0, 5]);
-    finishIntermission(s);
-    finishRound(s, [3, 3]);
-    finishIntermission(s);
-    expect(s.round.index).toBe(3);
-    expect(s.round.phase).toBe('prep');
-    finishRound(s, [0, 1]);
-    finishIntermission(s);
+    const ev = playRounds(s, [
+      [5, 0],
+      [0, 5],
+      [3, 3],
+    ]);
+    expect(s.round.index).toBe(2);
+    expect(s.round.phase).toBe('matchOver');
+    expect(s.winner).toBeNull();
+    expect(s.totalScores).toEqual([8, 8]);
+    expect(ofType(ev, 'matchEnd')).toEqual([{ type: 'matchEnd', winner: null }]);
+    expect(stepN(s, 50)).toEqual([]); // nothing runs after the match
+  });
+
+  it('after bestOf rounds without a majority, more round wins takes the match', () => {
+    const s = newRulesMatch(SHORT);
+    const ev = playRounds(s, [
+      [2, 2],
+      [4, 4],
+      [0, 1],
+    ]);
+    expect(s.teams.map((t) => t.roundsWon)).toEqual([0, 1]);
     expect(s.round.phase).toBe('matchOver');
     expect(s.winner).toBe(1);
-    expect(s.teams.map((t) => t.roundsWon)).toEqual([1, 2]);
+    expect(ofType(ev, 'matchEnd')).toEqual([{ type: 'matchEnd', winner: 1 }]);
+  });
+
+  it('level on round wins after bestOf rounds: more total match points wins', () => {
+    const s = newRulesMatch(SHORT);
+    playRounds(s, [
+      [50, 0],
+      [0, 30],
+      [7, 7],
+    ]);
+    expect(s.teams.map((t) => t.roundsWon)).toEqual([1, 1]);
+    expect(s.totalScores).toEqual([57, 37]);
+    expect(s.winner).toBe(0);
+    expect(s.round.phase).toBe('matchOver');
+  });
+
+  it('keeps playing before bestOf rounds even after ties, and keeps totals across rounds', () => {
+    const s = newRulesMatch(SHORT);
+    playRounds(s, [[3, 3]]);
+    expect(s.round.phase).toBe('prep');
+    expect(s.round.index).toBe(1);
+    expect(s.totalScores).toEqual([3, 3]);
+    expect(s.teams.map((t) => t.score)).toEqual([0, 0]);
   });
 
   it('respects bestOf (best of 1 ends after one win)', () => {

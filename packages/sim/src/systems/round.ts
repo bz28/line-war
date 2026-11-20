@@ -12,6 +12,25 @@ import { phaseAt, roundStartTick, roundTimes } from './rules/timing';
 /** Rounds a team needs to win the match. */
 export const roundsToWin = (state: MatchState): number => Math.ceil(state.config.bestOf / 2);
 
+const leader = (a: number, b: number): TeamId | null => (a > b ? 0 : b > a ? 1 : null);
+
+/**
+ * RULES §9: is the match decided after the round that just ended? Returns null if another
+ * round must be played. A team reaching ceil(bestOf / 2) round wins takes the match. Once
+ * bestOf rounds have been played: more round wins, then more total points, else a draw (winner null).
+ */
+export function matchResult(state: MatchState): { winner: TeamId | null } | null {
+  const [a, b] = state.teams;
+  const need = roundsToWin(state);
+  if (a.roundsWon >= need) return { winner: 0 };
+  if (b.roundsWon >= need) return { winner: 1 };
+  const played = state.round.index + 1;
+  if (played < state.config.bestOf) return null;
+  const byRounds = leader(a.roundsWon, b.roundsWon);
+  if (byRounds !== null) return { winner: byRounds };
+  return { winner: leader(state.totalScores[0], state.totalScores[1]) };
+}
+
 function setPhase(state: MatchState, phase: Phase): void {
   if (state.round.phase === phase) return;
   state.round.phase = phase;
@@ -22,6 +41,8 @@ function endRound(state: MatchState): void {
   const [a, b] = state.teams;
   const winner: TeamId | null = a.score > b.score ? 0 : b.score > a.score ? 1 : null;
   if (winner !== null) state.teams[winner].roundsWon++;
+  state.totalScores[0] += a.score;
+  state.totalScores[1] += b.score;
   state.round.intermissionTicks = secondsToTicks(state.config, state.config.tuning.intermissionSeconds);
   setPhase(state, 'roundOver');
   state.events.push({ type: 'roundEnd', winner, scores: [a.score, b.score] });
@@ -57,12 +78,11 @@ export function updateRound(state: MatchState): void {
   if (r.phase === 'roundOver') {
     if (r.intermissionTicks > 0) r.intermissionTicks--;
     if (r.intermissionTicks > 0) return;
-    const need = roundsToWin(state);
-    const winner = state.teams[0].roundsWon >= need ? 0 : state.teams[1].roundsWon >= need ? 1 : null;
-    if (winner !== null) {
-      state.winner = winner;
+    const result = matchResult(state);
+    if (result) {
+      state.winner = result.winner;
       setPhase(state, 'matchOver');
-      state.events.push({ type: 'matchEnd', winner });
+      state.events.push({ type: 'matchEnd', winner: result.winner });
       return;
     }
     startNextRound(state);

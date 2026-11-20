@@ -48,13 +48,15 @@ describe('full match smoke test (default config, idle inputs)', () => {
     expect(JSON.parse(JSON.stringify(s))).toEqual(s);
   });
 
-  it('keeps playing extra rounds while every round is a tie', () => {
+  it('ends in a draw after bestOf all-tied rounds (no endless extra rounds)', () => {
     const s = newRulesMatch();
-    run(s, () => {}, 3 * (ROUND_TICKS + INTERMISSION_TICKS) + 10);
-    expect(s.round.phase).not.toBe('matchOver');
-    expect(s.round.index).toBe(3);
+    const ev = run(s, () => {}, 3 * (ROUND_TICKS + INTERMISSION_TICKS) + 10);
+    expect(s.round.phase).toBe('matchOver');
+    expect(s.round.index).toBe(2);
     expect(s.teams.map((t) => t.roundsWon)).toEqual([0, 0]);
+    expect(s.totalScores).toEqual([0, 0]);
     expect(s.winner).toBeNull();
+    expect(ofType(ev, 'matchEnd')).toEqual([{ type: 'matchEnd', winner: null }]);
   });
 
   it('is deterministic over a full match', () => {
