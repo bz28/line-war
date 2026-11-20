@@ -34,11 +34,12 @@ export class ScoreFlyers {
    * Launch "+points" from `from` to `to` (client px). Calls `land` on arrival; returns false (and
    * launches nothing) when the browser can't animate, so the caller lands it at once.
    */
-  launch(team: TeamId, text: string, from: Point, to: Point, land: () => void): boolean {
+  launch(team: TeamId, text: string, from: Point, to: Point, land: () => void, opts: { html?: boolean; cls?: string; ms?: number } = {}): boolean {
     const el = document.createElement('div');
     if (typeof el.animate !== 'function') return false;
-    el.className = `lw-fly ${team === 0 ? 'lw-jade' : 'lw-ember'}`;
-    el.textContent = text;
+    el.className = `lw-fly ${team === 0 ? 'lw-jade' : 'lw-ember'}${opts.cls ? ` ${opts.cls}` : ''}`;
+    if (opts.html) el.innerHTML = text;
+    else el.textContent = text;
     el.setAttribute('aria-hidden', 'true');
     this.host.append(el);
     const frames: Keyframe[] = [];
@@ -48,7 +49,7 @@ export class ScoreFlyers {
       const pop = t < 0.15 ? 0.6 + (t / 0.15) * 0.75 : 1.35 - 0.6 * ((t - 0.15) / 0.85);
       frames.push({ transform: `translate(${p.x}px, ${p.y}px) translate(-50%, -50%) scale(${pop.toFixed(3)})`, opacity: t > 0.92 ? 0.4 : 1, offset: t });
     }
-    const anim = el.animate(frames, { duration: FLY_MS, easing: 'linear', fill: 'forwards' });
+    const anim = el.animate(frames, { duration: opts.ms ?? FLY_MS, easing: 'linear', fill: 'forwards' });
     const entry = { el, anim };
     this.live.add(entry);
     anim.onfinish = () => {

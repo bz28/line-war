@@ -108,6 +108,23 @@ export class MenuNav {
       }
     }
     const step = dir === 'down' || dir === 'right' ? 1 : -1;
+    // Grids (the charm shelf): up/down keeps the column when the next row has one.
+    const col = active!.dataset.col;
+    if ((dir === 'up' || dir === 'down') && col !== undefined) {
+      for (let i = idx + step; i >= 0 && i < items.length; i += step) {
+        if (items[i]!.dataset.col === col) {
+          items[i]!.focus();
+          return;
+        }
+      }
+      // No row beyond: leave the grid for the next control outside it (e.g. Back).
+      for (let i = idx + step; i >= 0 && i < items.length; i += step) {
+        if (items[i]!.dataset.col === undefined) {
+          items[i]!.focus();
+          return;
+        }
+      }
+    }
     items[(idx + step + items.length) % items.length]!.focus();
   }
 }

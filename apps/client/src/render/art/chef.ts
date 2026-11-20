@@ -3,7 +3,8 @@ import { FONTS, PALETTE, TEAMS, WORLD } from '../../art/tokens';
 import { withAlpha } from '../palette';
 import type { Ctx, SpriteCache } from '../sprites';
 import { circle, ellipse, fill, glow, rrect, starPath, stroke, TAU } from './draw';
-import { drawItem } from './food';
+import { CHARM_SCALE, drawItem } from './food';
+import { drawCharm, drawCharmAura } from './charm';
 
 /**
  * Round chefs seen from above in 3/4: crew-coloured body and bandana (Jade dots / Ember stripes),
@@ -127,6 +128,7 @@ export function drawChef(ctx: Ctx, c: ChefCtx, p: PlayerState, x: number, y: num
   const reduced = c.reducedMotion;
   const bob = moving && !reduced ? Math.abs(Math.sin(anim.walk)) * R * 0.16 : 0;
   const feetY = y + R * 0.55;
+  const overhead = p.holding?.type === 'charm';
 
   // Dash trail: fading ghosts back along the dash.
   if (bodyPass && dashing) {
@@ -198,6 +200,18 @@ export function drawChef(ctx: Ctx, c: ChefCtx, p: PlayerState, x: number, y: num
 
     const drawHands = () => {
       const work = p.working && !reduced ? Math.sin(now / 65) * R * 0.22 : 0;
+      if (p.holding?.type === 'charm') {
+        // A charm is held high over the head with both hands, glowing, so everyone sees who has it.
+        const rc = T * 0.22 * CHARM_SCALE;
+        const sway = reduced ? 0 : Math.sin(now / 240 + p.id) * R * 0.08;
+        const cx = x + sway;
+        const cy = headY - R * 0.95 - rc * 1.35;
+        drawCharmAura(ctx, p.holding.variant, cx, cy, rc, { now, reducedMotion: reduced, seed: p.holding.id, strength: 1.15 });
+        drawCharm(ctx, c.sprites, p.holding.variant, cx, cy, rc);
+        hand(ctx, cx - rc * 1.02, cy + rc * 0.42, R);
+        hand(ctx, cx + rc * 1.02, cy + rc * 0.42, R);
+        return;
+      }
       if (p.holding) {
         const ix = x + f.x * R * 0.95;
         const iy = bodyY + f.y * R * 0.7 - R * 0.22;
@@ -214,7 +228,7 @@ export function drawChef(ctx: Ctx, c: ChefCtx, p: PlayerState, x: number, y: num
     };
 
     if (bodyPass) {
-    if (away) drawHands();
+    if (away && !overhead) drawHands();
 
     // Body: crew colour, shaded from the upper left, paper apron with crew trim.
     ellipse(ctx, x, bodyY, R * 0.9, R * 0.78);
@@ -349,7 +363,7 @@ export function drawChef(ctx: Ctx, c: ChefCtx, p: PlayerState, x: number, y: num
     }
 
   }
-  if (frontPass && !away) drawHands();
+  if (frontPass && (!away || overhead)) drawHands();
   ctx.restore();
   if (!frontPass) return;
 
@@ -357,7 +371,7 @@ export function drawChef(ctx: Ctx, c: ChefCtx, p: PlayerState, x: number, y: num
   const arrow = c.youArrow ?? 0;
   if (arrow > 0.01) {
     const bobA = reduced ? 0 : Math.sin(now / 170) * R * 0.18;
-    const ay = y - R * 2.55 - lift + bobA;
+    const ay = y - R * (overhead ? 5.3 : 2.55) - lift + bobA;
     const aw = R * 0.5;
     ctx.save();
     ctx.globalAlpha = arrow;

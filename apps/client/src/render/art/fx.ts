@@ -107,8 +107,42 @@ export class Particles {
     this.add({ k: 'ember', x: x + this.range(-0.3, 0.3) * T, y, vx: this.range(-10, 10), vy: -this.range(30, 60), drag: 0.6, life: this.range(0.6, 1.2), size: this.range(1, 2.2), color: this.rand() < 0.5 ? PALETTE.lantern : PALETTE.lanternHot, rot: this.range(0, TAU), vr: this.range(-3, 3) });
   }
 
-  burst(kind: BurstKind, x: number, y: number, T: number, team: TeamId | null): void {
+  burst(kind: BurstKind, x: number, y: number, T: number, team: TeamId | null, color: string = PALETTE.lantern): void {
     switch (kind) {
+      case 'charm':
+        // A lantern-light pop: paper sparks fan up and out, twinkles drift and settle.
+        for (let i = 0; i < 16; i++) {
+          const a = (i / 16) * TAU + this.range(-0.1, 0.1);
+          const sp = this.range(90, 170);
+          this.add({ k: 'spark', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.6 - 30, drag: 5, life: 0.42, size: this.range(4, 7), color: i % 2 ? PALETTE.paper : color, rot: a });
+        }
+        for (let i = 0; i < 7; i++) {
+          this.add({ k: 'twinkle', x: x + this.range(-0.55, 0.55) * T, y: y + this.range(-0.7, 0.1) * T, vy: -this.range(10, 30), life: this.range(0.6, 1.1), size: this.range(4, 7.5), color: i % 3 ? PALETTE.lantern : PALETTE.paper, vr: 3 });
+        }
+        return;
+      case 'charmBank': {
+        const c = team !== null ? TEAMS[team] : null;
+        const colors = [c?.main ?? PALETTE.lantern, PALETTE.lantern, c?.light ?? PALETTE.paper, color];
+        for (let i = 0; i < 22; i++) {
+          const a = -Math.PI / 2 + this.range(-1.3, 1.3);
+          const sp = this.range(100, 230);
+          this.add({ k: 'confetti', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, g: 280, drag: 1.8, life: this.range(0.8, 1.2), size: this.range(3, 5), color: colors[i % colors.length]!, rot: this.range(0, TAU), vr: this.range(-12, 12) });
+        }
+        for (let i = 0; i < 6; i++) {
+          this.add({ k: 'twinkle', x: x + this.range(-0.5, 0.5) * T, y: y + this.range(-0.8, 0) * T, vy: -35, life: this.range(0.5, 0.9), size: this.range(4.5, 7), color: PALETTE.lantern, vr: 5 });
+        }
+        return;
+      }
+      case 'charmPuff':
+        // The paper figure dissolves: pale puffs and a few sparks drifting down.
+        for (let i = 0; i < 9; i++) {
+          const a = this.range(0, TAU);
+          this.add({ k: 'steam', x: x + Math.cos(a) * T * 0.18, y: y + Math.sin(a) * T * 0.12, vx: Math.cos(a) * 22, vy: Math.sin(a) * 10 - 18, life: this.range(0.6, 1), size: T * 0.1, grow: T * 0.22, color: PALETTE.paper, rot: this.range(0, TAU) });
+        }
+        for (let i = 0; i < 5; i++) {
+          this.add({ k: 'twinkle', x: x + this.range(-0.35, 0.35) * T, y: y + this.range(-0.5, 0) * T, vy: 18, life: this.range(0.4, 0.7), size: this.range(3, 5), color, vr: 2 });
+        }
+        return;
       case 'knock':
         for (let i = 0; i < 12; i++) {
           const a = (i / 12) * TAU + this.range(-0.15, 0.15);
@@ -299,6 +333,44 @@ export function drawEffect(ctx: Ctx, e: Effect, x: number, y: number, T: number,
       ellipse(ctx, x, y, T * 0.4 * (1 - age), T * 0.2 * (1 - age));
       fill(ctx, withAlpha(e.color, 0.2 * (1 - age)));
       break;
+    case 'charmPop': {
+      // A pillar of lantern light, a ground ring and short rays: "something appeared here".
+      const k = 1 - age;
+      const cy = y - T * 0.3;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      glow(ctx, x, y, T * (0.6 + age * 1.4), PALETTE.lantern, 0.5 * k, 0.45);
+      const col = ctx.createLinearGradient(x, y, x, y - T * 2.2);
+      col.addColorStop(0, withAlpha(PALETTE.lantern, 0.5 * k));
+      col.addColorStop(1, withAlpha(PALETTE.lantern, 0));
+      ctx.fillStyle = col;
+      const w = T * 0.36 * (1 - age * 0.6);
+      ctx.fillRect(x - w, y - T * 2.2, w * 2, T * 2.2);
+      ctx.restore();
+      ellipse(ctx, x, y, T * (0.25 + age * 0.75), T * (0.11 + age * 0.33));
+      stroke(ctx, withAlpha(PALETTE.lantern, k), 4 * k + 0.5);
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * TAU + 0.2;
+        const r0 = T * (0.35 + age * 0.55);
+        const r1 = r0 + T * 0.28 * k;
+        ctx.beginPath();
+        ctx.moveTo(x + Math.cos(a) * r0, cy + Math.sin(a) * r0 * 0.8);
+        ctx.lineTo(x + Math.cos(a) * r1, cy + Math.sin(a) * r1 * 0.8);
+        stroke(ctx, withAlpha(i % 2 ? PALETTE.paper : PALETTE.lantern, k), 2.6 * k + 0.4);
+      }
+      ctx.lineCap = 'butt';
+      break;
+    }
+    case 'charmPuff': {
+      const k = 1 - age;
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * TAU + age;
+        circle(ctx, x + Math.cos(a) * T * 0.25 * (0.4 + age), y - T * 0.3 + Math.sin(a) * T * 0.15 * (0.4 + age) - age * T * 0.3, T * (0.12 + age * 0.16));
+        fill(ctx, withAlpha(e.color, 0.35 * k));
+      }
+      break;
+    }
     default:
       break;
   }

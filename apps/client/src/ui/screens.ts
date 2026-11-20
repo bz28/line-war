@@ -7,18 +7,29 @@ import { button, h } from './dom';
 import { levelPicker } from './levelPicker';
 import { levelById } from '@line-war/content';
 import { slotName } from './settingsMenu';
+import { charmIcon } from '../hud/charmIcon';
+import { charmById } from '@line-war/content';
 
 export interface MenuItem {
   label: string;
   onSelect(): void;
   primary?: boolean;
+  /** Small trailing note on the button (e.g. the charm count). */
+  badge?: string;
+  /** Inline SVG shown before the label. */
+  icon?: string;
 }
 
 function menu(items: MenuItem[]): HTMLElement {
   return h(
     'div',
     { class: 'lw-menu' },
-    items.map((it) => button(it.label, it.onSelect, { class: `lw-btn${it.primary ? ' lw-btn-primary' : ''}`, 'data-key': `menu-${it.label}` })),
+    items.map((it) => {
+      const b = button(it.label, it.onSelect, { class: `lw-btn${it.primary ? ' lw-btn-primary' : ''}${it.icon ? ' lw-btn-icon' : ''}`, 'data-key': `menu-${it.label}` });
+      if (it.icon) b.prepend(svg(it.icon, 'lw-btn-art'));
+      if (it.badge) b.append(h('span', { class: 'lw-btn-badge' }, it.badge));
+      return b;
+    }),
   );
 }
 
@@ -79,7 +90,8 @@ export function logo(): HTMLElement {
 
 export function titleScreen(
   settings: Settings,
-  actions: { play(): void; howTo(): void; settings(): void; pickLevel(id: string): void },
+  actions: { play(): void; howTo(): void; settings(): void; pickLevel(id: string): void; charms?(): void },
+  charms?: { unlocked: number; total: number; display: string | null },
 ): HTMLElement {
   const conflicts = findKeyConflicts(settings.slots).size;
   return h(
@@ -95,6 +107,9 @@ export function titleScreen(
     menu([
       { label: 'Play', onSelect: actions.play, primary: true },
       { label: 'How to play', onSelect: actions.howTo },
+      ...(actions.charms && charms
+        ? [{ label: 'Charms', onSelect: actions.charms, badge: `${charms.unlocked} / ${charms.total}`, icon: charmIcon(charms.display ?? 'night-lantern', { plain: true, silhouette: !charms.display && charms.unlocked === 0 }) }]
+        : []),
       { label: 'Settings', onSelect: actions.settings },
     ]),
     h('p', { class: 'lw-hint' }, 'Move with the arrows or D-pad, choose with Enter or A, and go back with Esc or B.'),
@@ -117,9 +132,36 @@ export function pauseScreen(actions: { resume(): void; restart(): void; settings
   );
 }
 
+/** "New charm!": each charm unlocked for the first time this match pops out of a burst of lantern rays. */
+export function charmReveal(ids: readonly string[]): HTMLElement | null {
+  if (!ids.length) return null;
+  return h(
+    'section',
+    { class: `lw-reveal${ids.length > 2 ? ' lw-reveal--many' : ''}`, 'aria-label': ids.length > 1 ? 'New charms' : 'New charm' },
+    h('p', { class: 'lw-reveal-eyebrow' }, ids.length > 1 ? `${ids.length} new charms!` : 'New charm!'),
+    h(
+      'div',
+      { class: 'lw-reveal-row' },
+      ids.map((id, i) => {
+        const c = charmById(id);
+        return h(
+          'div',
+          { class: `lw-reveal-card${c?.rare ? ' lw-rare' : ''}`, style: `--i:${i}`, 'data-charm': id },
+          h('span', { class: 'lw-reveal-rays', 'aria-hidden': 'true' }),
+          svg(charmIcon(id, { label: c?.name ?? id }), 'lw-reveal-art'),
+          h('b', { class: 'lw-reveal-name' }, c?.name ?? id),
+          c?.rare ? h('span', { class: 'lw-reveal-rare' }, 'Rare') : null,
+        );
+      }),
+    ),
+    h('p', { class: 'lw-reveal-note' }, 'Added to your charm shelf.'),
+  );
+}
+
 export function matchOverScreen(
   result: { winner: TeamId | null; roundsWon: [number, number] },
-  actions: { again(): void; title(): void },
+  actions: { again(): void; title(): void; shelf?(): void },
+  newCharms: readonly string[] = [],
 ): HTMLElement {
   const w = result.winner;
   const crew = (team: TeamId) =>
@@ -136,8 +178,10 @@ export function matchOverScreen(
     h('p', { class: 'lw-eyebrow' }, 'Match over'),
     h('h2', { class: 'lw-winner' }, w === null ? 'A draw!' : `${TEAMS[w].name} wins`),
     h('div', { class: 'lw-score', 'aria-label': `Rounds won: ${TEAMS[0].name} ${result.roundsWon[0]}, ${TEAMS[1].name} ${result.roundsWon[1]}` }, crew(0), h('span', { class: 'lw-vs' }, 'rounds'), crew(1)),
+    charmReveal(newCharms),
     menu([
       { label: 'Play again', onSelect: actions.again, primary: true },
+      ...(newCharms.length && actions.shelf ? [{ label: 'Charm shelf', onSelect: actions.shelf }] : []),
       { label: 'Title', onSelect: actions.title },
     ]),
   );

@@ -1,4 +1,4 @@
-import type { MatchState, Vec2 } from '@line-war/sim';
+import type { MatchState, TeamId, Vec2 } from '@line-war/sim';
 import { passCenter } from '../render/effects';
 import type { PlayerId } from '@line-war/sim';
 import { Coach, type CoachKeys, type CoachStorage } from './coach';
@@ -9,6 +9,11 @@ import { LanternClock } from './clock';
 import { Moments } from './moments';
 import { CrewSign } from './signs';
 import { TicketLine } from './slips';
+import { bankLabel, CharmCallout, heatRaised } from './charms';
+import { charmIcon } from './charmIcon';
+
+/** A banked charm's flight from the carrier to the crew sign (ms): a touch slower than a score token. */
+export const CHARM_FLY_MS = 820;
 import './hud.css';
 
 export interface HudOptions {
@@ -22,6 +27,8 @@ export interface HudOptions {
   coach?: { player: PlayerId; keys: CoachKeys; storage: CoachStorage | null };
   /** A flying score token reached its crew sign (audio's tick-chime). */
   onScoreLand?: (team: 0 | 1) => void;
+  /** The local players' display charm per crew (hung from that crew's sign). */
+  displayCharms?: Partial<Record<TeamId, string>>;
 }
 
 /**
@@ -37,6 +44,8 @@ export class HudRenderer implements Renderer {
   private clock: LanternClock;
   private moments: Moments;
   private flyers: ScoreFlyers;
+  private callout: CharmCallout;
+  private prevHeat: [number, number] = [0, 0];
   readonly coach: Coach | null;
   private now: () => number;
   private reduced: () => boolean;
@@ -61,6 +70,11 @@ export class HudRenderer implements Renderer {
     this.line = new TicketLine(now, reduced);
     this.clock = new LanternClock();
     this.moments = new Moments(now);
+    this.callout = new CharmCallout(now);
+    for (const team of [0, 1] as const) {
+      const d = opts.displayCharms?.[team];
+      if (d) this.signs[team].setDisplay(d);
+    }
 
     const band = document.createElement('div');
     band.className = 'lw-hud-band';
@@ -70,7 +84,7 @@ export class HudRenderer implements Renderer {
     const centre = document.createElement('div');
     centre.className = 'lw-line-wrap';
     centre.append(this.line.root, this.clock.root);
-    band.append(lights, this.signs[0].root, centre, this.signs[1].root);
+    band.append(lights, this.signs[0].root, centre, this.signs[1].root, this.callout.root);
     const fly = document.createElement('div');
     fly.className = 'lw-flyers';
     this.flyers = new ScoreFlyers(fly);
@@ -88,7 +102,38 @@ export class HudRenderer implements Renderer {
     this.lastTick = s.tick;
     this.line.onTick(s);
     this.coach?.onTick(s);
-    for (const e of s.events) if (e.type === 'delivered') this.serve(s, e.team, e.points);
+    for (const e of s.events) {
+      if (e.type === 'delivered') this.serve(s, e.team, e.points);
+      else if (e.type === 'charmSpawned') this.callout.show(e.variant);
+      else if (e.type === 'charmBanked') this.bankCharm(s, e.team, e.player, e.variant);
+    }
+    this.prevHeat = [s.teams[0].heat, s.teams[1].heat];
+  }
+
+  /** Charms banked per crew this match (row on each sign). */
+  bankedCharms(team: TeamId): readonly string[] {
+    return this.signs[team].bankedCharms;
+  }
+
+  /** A charm is banked: the figure flies from its carrier into the crew sign, then "+50, Heat up". */
+  private bankCharm(s: MatchState, team: TeamId, player: number, variant: string): void {
+    const sign = this.signs[team];
+    const label = bankLabel(s, heatRaised(s.events, team, this.prevHeat[team]));
+    const land = () => {
+      sign.charmLand(variant, label);
+      this.onScoreLand?.(team);
+    };
+    const carrier = s.players[player as 0 | 1 | 2 | 3];
+    const from = this.locate && !this.reduced() && carrier ? this.locate({ x: carrier.pos.x, y: carrier.pos.y - 1 }) : null;
+    if (from) {
+      const r = sign.charmRow.getBoundingClientRect();
+      const to = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      if (this.flyers.launch(team, charmIcon(variant, { plain: true }), from, to, land, { html: true, cls: 'lw-fly--charm', ms: CHARM_FLY_MS })) {
+        sign.deferCount(this.now() + CHARM_FLY_MS);
+        return;
+      }
+    }
+    land();
   }
 
   /** A serve pays out: the points fly from the crew's pass into its sign (or land at once). */
@@ -122,6 +167,7 @@ export class HudRenderer implements Renderer {
     this.line.render(s);
     this.clock.render(s);
     this.moments.render(s);
+    this.callout.render();
     if (this.coach) {
       // The 3-2-1 stamps share the stage with the coach (prep is its best window); banners and
       // cards still get it to step aside.

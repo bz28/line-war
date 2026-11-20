@@ -14,10 +14,12 @@ export type EffectKind =
   | 'smoke' // grey puff (burnt, fire out)
   | 'shake' // shake a player + red cross (serve refused)
   | 'ticketFlash' // highlight a ticket card
-  | 'heatFlash'; // highlight a team's heat meter
+  | 'heatFlash' // highlight a team's heat meter
+  | 'charmPop' // a charm appears: lantern-light burst with rays
+  | 'charmPuff'; // a charm fades: a soft paper puff
 
 /** Particle burst the world renderer spawns when the effect starts. */
-export type BurstKind = 'knock' | 'serve' | 'chop' | 'wash' | 'cook' | 'fire' | 'smoke';
+export type BurstKind = 'knock' | 'serve' | 'chop' | 'wash' | 'cook' | 'fire' | 'smoke' | 'charm' | 'charmBank' | 'charmPuff';
 
 export interface Effect {
   kind: EffectKind;
@@ -32,6 +34,8 @@ export interface Effect {
   burst?: BurstKind;
   /** Knock direction (unit, tiles): the camera kicks along it. */
   dir?: Vec2;
+  /** Charm variant (charm effects). */
+  variant?: string;
 }
 
 export const EFFECT_MS: Record<EffectKind, number> = {
@@ -42,6 +46,8 @@ export const EFFECT_MS: Record<EffectKind, number> = {
   shake: 400,
   ticketFlash: 700,
   heatFlash: 800,
+  charmPop: 900,
+  charmPuff: 800,
 };
 
 /** Centre of the first pass tile the team owns this round (where +points pops up). */
@@ -60,8 +66,11 @@ export function findItemPos(s: MatchState, itemId: number): Vec2 | null {
   return null;
 }
 
-/** Translate one tick's events into effects starting at `now`. */
-export function eventsToEffects(s: MatchState, events: readonly SimEvent[], now: number): Effect[] {
+/**
+ * Translate one tick's events into effects starting at `now`. `lastSeen` gives where an item was
+ * on the previous tick (a faded charm is already gone from the state).
+ */
+export function eventsToEffects(s: MatchState, events: readonly SimEvent[], now: number, lastSeen?: (itemId: number) => Vec2 | undefined): Effect[] {
   const out: Effect[] = [];
   const add = (e: Omit<Effect, 'start' | 'duration'>) => out.push({ ...e, start: now, duration: EFFECT_MS[e.kind] });
   const at = (tile: number) => tileCenter(s.arena, tile);
@@ -113,6 +122,19 @@ export function eventsToEffects(s: MatchState, events: readonly SimEvent[], now:
       case 'heatChange':
         add({ kind: 'heatFlash', team: ev.team, color: TEAM_COLORS[ev.team] });
         break;
+      case 'charmSpawned':
+        add({ kind: 'charmPop', pos: at(ev.tile), color: PALETTE.lantern, burst: 'charm', variant: ev.variant });
+        break;
+      case 'charmBanked': {
+        const p = s.players[ev.player].pos;
+        add({ kind: 'ring', pos: { x: p.x, y: p.y }, color: TEAM_COLORS[ev.team], team: ev.team, burst: 'charmBank', variant: ev.variant });
+        break;
+      }
+      case 'charmFaded': {
+        const pos = lastSeen?.(ev.itemId);
+        if (pos) add({ kind: 'charmPuff', pos: { x: pos.x, y: pos.y }, color: PALETTE.paper, burst: 'charmPuff', variant: ev.variant });
+        break;
+      }
       default:
         break;
     }

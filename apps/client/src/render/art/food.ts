@@ -2,6 +2,10 @@ import type { Food, FoodState, IngredientKind, Item, PlateItem } from '@line-war
 import { PALETTE, WORLD } from '../../art/tokens';
 import { mix, withAlpha } from '../palette';
 import type { Ctx, SpriteCache } from '../sprites';
+import { drawCharm } from './charm';
+
+/** A charm's body radius relative to the item radius r. */
+export const CHARM_SCALE = 1.45;
 
 /**
  * Illustrated food and plates, painted centred on (0,0) at reference radius r (logical px).
@@ -590,8 +594,8 @@ function itemKey(item: Exclude<Item, { type: 'charm' }> | Food, r: number): stri
 
 /** Draw an item or a piece of food (cached sprite) centred at x,y. */
 export function drawItem(ctx: Ctx, sprites: SpriteCache, item: Item | Food, x: number, y: number, r: number): void {
-  // Charms (RULES §10) get their own art later; the client doesn't spawn them yet.
-  if ('type' in item && item.type === 'charm') return;
+  // Charms (RULES §10): the mascot figure, a little larger than food so it stands out.
+  if ('type' in item && item.type === 'charm') return drawCharm(ctx, sprites, item.variant, x, y, r * CHARM_SCALE);
   sprites.draw(ctx, itemKey(item, r), itemHalf(r), x, y, (c) => {
     if ('type' in item && item.type === 'plate') paintPlate(c, item, r);
     else paintFood(c, item, r);

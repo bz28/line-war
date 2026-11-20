@@ -17,6 +17,7 @@ export type CueId =
   | 'ticketSpawn' | 'ticketExpired' | 'critic'
   | 'deliver' | 'deliverRival' | 'serveRefused' | 'plateCold'
   | 'heatUp' | 'heatDown'
+  | 'charmSpawn' | 'charmBank' | 'charmBankRival' | 'charmFade'
   | 'prepBell' | 'serviceBell' | 'rushFanfare' | 'lastCallBell' | 'roundWhistle' | 'matchWin' | 'matchEnd'
   | 'clockTick'
   // Feel cues, triggered by the client (hit-stop, score token landing), not by a SimEvent.
@@ -61,6 +62,11 @@ export const CUES: Record<CueId, CueSpec> = {
   cookDone: spec('alert', -15, 2, 0.1),
   ticketExpired: spec('alert', -5, 1, 0.2),
   heatUp: spec('alert', -15, 2, 0.2),
+  // Charms: a soft chime when one appears, a bright music-box run when your crew banks one.
+  charmSpawn: spec('alert', -13, 1, 0.3),
+  charmBank: spec('alert', -9, 1, 0.2),
+  charmBankRival: spec('alert', -14, 1, 0.2),
+  charmFade: spec('feedback', -19, 1, 0.2),
   heatDown: spec('alert', -14, 2, 0.2),
   fireOut: spec('alert', -16, 2, 0.15),
   burnt: spec('alert', -12, 2, 0.15),
@@ -132,10 +138,9 @@ export const EVENT_HANDLING: Record<SimEvent['type'], EventHandling> = {
   phaseChange: 'mapped',
   roundEnd: 'mapped',
   matchEnd: 'mapped',
-  // Charms (RULES §10): no sounds yet; the client never passes charm variants to createMatch, so these don't fire.
-  charmSpawned: 'ignored',
-  charmBanked: 'ignored',
-  charmFaded: 'ignored',
+  charmSpawned: 'mapped',
+  charmBanked: 'mapped',
+  charmFaded: 'mapped',
 };
 
 const tileX = (state: MatchState, tile: number): number => (tile % state.arena.width) + 0.5;
@@ -224,9 +229,11 @@ export function cueForEvent(ev: SimEvent, state: MatchState, ctx: CueContext): C
       return at(won ? 'matchWin' : 'matchEnd', null);
     }
     case 'charmSpawned':
+      return at('charmSpawn', tileX(state, ev.tile));
     case 'charmBanked':
+      return at(isRival(ev.team) ? 'charmBankRival' : 'charmBank', teamSideX(state, ev.team));
     case 'charmFaded':
-      return null;
+      return at('charmFade', null);
   }
 }
 

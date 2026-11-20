@@ -335,7 +335,7 @@
 .lw-howto-step-icon svg { width: 30px; height: 30px; }
 
 /* How you win: one big stamp per rule. */
-.lw-howto-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.lw-howto-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .lw-howto-tile { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border-radius: var(--lw-radius); background: var(--lw-row); font-size: 13.5px; line-height: 1.45; color: color-mix(in srgb, var(--paper) 82%, transparent); }
 .lw-howto-chip {
   flex: none;
@@ -356,6 +356,8 @@
 .lw-howto-chip-icon { background: var(--slate-light); box-shadow: 0 3px 0 var(--night-deep); }
 .lw-howto-chip-heat { background: var(--lantern-hot); }
 .lw-howto-chip-critic { background: var(--lantern); transform: rotate(3deg); }
+.lw-howto-chip-charm { background: var(--night-deep); box-shadow: 0 3px 0 var(--bamboo-dark), 0 0 16px color-mix(in srgb, var(--lantern) 35%, transparent); transform: rotate(3deg); }
+.lw-howto-chip-charm svg { width: 40px; height: 46px; margin-top: 4px; }
 
 /* Back stays in reach while the page scrolls. */
 .lw-howto-foot {

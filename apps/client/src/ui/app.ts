@@ -7,13 +7,18 @@ import { MenuNav } from './nav';
 import { howToScreen } from './howTo';
 import { matchOverScreen, pauseScreen, titleScreen } from './screens';
 import { SettingsMenu } from './settingsMenu';
+import { charmShelfScreen } from './charmShelf';
+import { CHARM_IDS, loadCollection, saveCollection, setDisplay } from '../collection/store';
 import './styles.css';
+import './charms.css';
 
 /** A running match. Built by main.ts so all input/bot/renderer wiring stays in one file. */
 export interface MatchSession {
   readonly state: MatchState;
   /** Paused sessions keep rendering but stop advancing the sim. */
   setPaused(paused: boolean): void;
+  /** Charms unlocked for the first time during this match (the match-over reveal). */
+  readonly newCharms?: readonly string[];
   /** Live-apply settings that do not need a new match (controllers, display). */
   applySettings(settings: Settings): void;
   dispose(): void;
@@ -28,7 +33,7 @@ export interface AppOptions {
   getGamepads?: GetGamepads;
 }
 
-type Screen = 'title' | 'howto' | 'playing' | 'paused' | 'over';
+type Screen = 'title' | 'howto' | 'charms' | 'playing' | 'paused' | 'over';
 
 /**
  * Screen flow: Title -> match; Esc / Start pauses (Resume, Restart, Settings, Quit);
@@ -131,8 +136,37 @@ export class App {
         howTo: () => this.showHowTo(),
         settings: () => this.openSettings(),
         pickLevel: (id) => this.pickLevel(id),
+        charms: () => this.showCharms(),
+      }, this.charmSummary()),
+    );
+  }
+
+  private charmSummary(): { unlocked: number; total: number; display: string | null } {
+    const c = loadCollection(this.storage);
+    return { unlocked: c.unlocked.length, total: CHARM_IDS.length, display: c.display };
+  }
+
+  /** The charm shelf. `focus` keeps the cursor on a slot after choosing it. */
+  showCharms(focus?: string): void {
+    this.endSession();
+    this.closeSettings();
+    this.screen = 'charms';
+    const col = loadCollection(this.storage);
+    this.showPanel(
+      charmShelfScreen(col, {
+        pick: (id) => {
+          const now = loadCollection(this.storage);
+          if (!now.unlocked.includes(id)) return;
+          saveCollection(setDisplay(now, now.display === id ? null : id), this.storage);
+          this.showCharms(id);
+        },
+        back: () => {
+          this.showTitle();
+          this.overlay.querySelector<HTMLElement>('[data-key="menu-Charms"]')?.focus();
+        },
       }),
     );
+    if (focus) this.overlay.querySelector<HTMLElement>(`[data-charm="${focus}"]`)?.focus();
   }
 
   /** Choose a level on the title screen; keeps focus on the chosen card. */
@@ -158,13 +192,14 @@ export class App {
     this.showPanel(
       matchOverScreen(
         { winner: state.winner, roundsWon: [state.teams[0].roundsWon, state.teams[1].roundsWon] },
-        { again: () => this.play(), title: () => this.showTitle() },
+        { again: () => this.play(), title: () => this.showTitle(), shelf: () => this.showCharms(this.session?.newCharms?.[0]) },
+        this.session.newCharms ?? [],
       ),
     );
   }
 
   private togglePause(): void {
-    if (this.settingsMenu || this.screen === 'howto') return this.back();
+    if (this.settingsMenu || this.screen === 'howto' || this.screen === 'charms') return this.back();
     if (this.screen === 'playing') this.pause();
     else if (this.screen === 'paused') this.resume();
   }
@@ -174,6 +209,10 @@ export class App {
     if (this.settingsMenu) return this.settingsMenu.back();
     if (this.screen === 'paused') this.resume();
     else if (this.screen === 'howto') this.showTitle();
+    else if (this.screen === 'charms') {
+      this.showTitle();
+      this.overlay.querySelector<HTMLElement>('[data-key="menu-Charms"]')?.focus();
+    }
   }
 
   // ---------- settings ----------
@@ -217,7 +256,7 @@ export class App {
   }
 
   private showPanel(panel: HTMLElement): void {
-    this.overlay.classList.toggle('lw-opaque', this.screen === 'title' || this.screen === 'howto');
+    this.overlay.classList.toggle('lw-opaque', this.screen === 'title' || this.screen === 'howto' || this.screen === 'charms');
     this.overlay.replaceChildren(panel);
     this.overlay.hidden = false;
     this.stage.dataset.menu = this.screen;

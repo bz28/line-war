@@ -1,0 +1,199 @@
+/*
+ * Charms: the lantern bunny as SVG (HUD + menus), the "A charm appeared!" callout, the bank
+ * moment on the crew sign and the charm row / display charm hanging under it.
+ * Colours and fonts only from art/tokens.css.
+ */
+
+/* ---------- the figure ---------- */
+.lw-charm { display: block; width: 100%; height: auto; overflow: visible; }
+.lw-charm-halo, .lw-charm-spark { transform-box: fill-box; transform-origin: center; }
+.lw-charm-rare .lw-charm-halo { animation: lw-charm-halo 1.5s ease-in-out infinite alternate; }
+.lw-charm-rare .lw-charm-spark { animation: lw-charm-twinkle 1.9s ease-in-out infinite both; }
+.lw-charm-rare .lw-charm-spark--1 { animation-delay: -0.65s; }
+.lw-charm-rare .lw-charm-spark--2 { animation-delay: -1.3s; }
+.lw-charm-rare .lw-charm-beam { animation: lw-charm-beam 2.8s ease-in-out infinite; }
+@keyframes lw-charm-halo { from { opacity: 0.55; transform: scale(0.88); } to { opacity: 1; transform: scale(1.08); } }
+@keyframes lw-charm-twinkle {
+  0%, 100% { opacity: 0.15; transform: scale(0.35) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.1) rotate(45deg); }
+}
+@keyframes lw-charm-beam {
+  0%, 100% { transform: scaleX(1); opacity: 1; }
+  50% { transform: scaleX(0.1); opacity: 0.25; }
+}
+
+/* ---------- "A charm appeared!" under the lantern clock ---------- */
+.lw-charm-callout {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  top: calc(var(--band) - var(--s) * 1.1);
+  display: flex;
+  align-items: center;
+  gap: calc(var(--s) * 0.7);
+  padding: calc(var(--s) * 0.45) calc(var(--s) * 1.2) calc(var(--s) * 0.5) calc(var(--s) * 0.6);
+  border-radius: calc(var(--s) * 0.55);
+  background: var(--paper);
+  color: var(--ink);
+  white-space: nowrap;
+  box-shadow:
+    calc(var(--s) * 0.15) calc(var(--s) * 0.25) 0 color-mix(in srgb, var(--night-deep) 60%, transparent),
+    0 0 calc(var(--s) * 2.4) color-mix(in srgb, var(--lantern) 45%, transparent);
+  transform: translateX(-50%) rotate(-1.4deg);
+  animation: lw-callout-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+.lw-charm-callout[hidden] { display: none; }
+/* Taped to the clock's string. */
+.lw-charm-callout::before {
+  content: '';
+  position: absolute;
+  top: calc(var(--s) * -0.5);
+  left: 50%;
+  width: calc(var(--s) * 3.6);
+  height: calc(var(--s) * 0.95);
+  transform: translateX(-50%) rotate(-2deg);
+  background: color-mix(in srgb, var(--lantern) 80%, transparent);
+  border-radius: 2px;
+}
+.lw-charm-callout-icon {
+  flex: none;
+  width: calc(var(--s) * 3);
+  margin: calc(var(--s) * -1.3) 0 calc(var(--s) * -0.5);
+  filter: drop-shadow(0 0 calc(var(--s) * 0.6) color-mix(in srgb, var(--lantern) 80%, transparent));
+  transform-origin: 50% 100%;
+  animation: lw-callout-hop 0.8s ease-in-out infinite alternate;
+}
+.lw-charm-callout-text { display: grid; gap: calc(var(--s) * 0.1); }
+.lw-charm-callout-text b { font: 400 calc(var(--s) * 1.35) / 1.05 var(--font-display); }
+.lw-charm-callout-text span { font-weight: 800; font-size: calc(var(--s) * 0.8); color: color-mix(in srgb, var(--ink) 72%, transparent); }
+.lw-charm-callout--rare {
+  background: linear-gradient(100deg, var(--lantern), color-mix(in srgb, var(--paper) 60%, var(--lantern)) 50%, var(--lantern));
+  background-size: 220% 100%;
+  box-shadow:
+    calc(var(--s) * 0.15) calc(var(--s) * 0.25) 0 color-mix(in srgb, var(--night-deep) 60%, transparent),
+    0 0 0 calc(var(--s) * 0.18) var(--paper),
+    0 0 calc(var(--s) * 3.4) var(--lantern);
+  animation: lw-callout-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) both, lw-callout-shimmer 1.6s linear infinite;
+}
+.lw-charm-callout--rare::before { background: color-mix(in srgb, var(--paper) 85%, transparent); }
+.lw-charm-callout--out { animation: lw-callout-out 0.36s ease-in forwards; }
+@keyframes lw-callout-in { from { opacity: 0; transform: translateX(-50%) translateY(calc(var(--s) * -2)) rotate(-8deg) scale(0.6); } }
+@keyframes lw-callout-out { to { opacity: 0; transform: translateX(-50%) translateY(calc(var(--s) * -1.4)) rotate(2deg) scale(0.9); } }
+@keyframes lw-callout-hop { from { transform: translateY(0) rotate(-4deg); } to { transform: translateY(calc(var(--s) * -0.45)) rotate(4deg); } }
+@keyframes lw-callout-shimmer { from { background-position: 100% 0; } to { background-position: -120% 0; } }
+
+/* ---------- charms on the crew sign ---------- */
+/* Banked this match: little figures hanging on strings under the valance, inner side. */
+.lw-sign-charms {
+  position: absolute;
+  top: calc(var(--s) * 9.35);
+  left: calc(var(--s) * 4.6);
+  right: calc(var(--s) * 0.9);
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: calc(var(--s) * 0.3);
+  min-height: calc(var(--s) * 2.2);
+}
+.lw-ember .lw-sign-charms { left: calc(var(--s) * 0.9); right: calc(var(--s) * 4.6); justify-content: flex-start; flex-direction: row-reverse; }
+.lw-sign-charm {
+  position: relative;
+  width: calc(var(--s) * 2);
+  padding-top: calc(var(--s) * 0.55);
+  transform-origin: 50% 0;
+  animation: lw-sway 2.8s ease-in-out infinite alternate;
+}
+.lw-sign-charm:nth-child(2n) { animation-delay: -1.1s; }
+.lw-sign-charm::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: calc(50% - 0.5px);
+  width: 1px;
+  height: calc(var(--s) * 0.62);
+  background: var(--bamboo);
+}
+.lw-sign-charm .lw-charm { filter: drop-shadow(0 0 calc(var(--s) * 0.35) color-mix(in srgb, var(--lantern) 60%, transparent)); }
+.lw-sign-charm--new { animation: lw-sign-charm-in 0.7s cubic-bezier(0.2, 1.6, 0.4, 1) both, lw-sway 2.8s ease-in-out 0.7s infinite alternate; }
+@keyframes lw-sign-charm-in { from { opacity: 0; transform: translateY(calc(var(--s) * -1.4)) scale(2.2) rotate(-20deg); } }
+.lw-sign-charm-more { align-self: center; margin-top: calc(var(--s) * 0.6); font-weight: 800; font-size: calc(var(--s) * 0.85); color: var(--lantern); }
+
+/* The local player's favourite: a bigger charm dangling from the plaque's outer corner. */
+.lw-sign-display {
+  position: absolute;
+  top: calc(var(--s) * 8.2);
+  left: calc(var(--s) * -1.1);
+  width: calc(var(--s) * 3.4);
+  padding-top: calc(var(--s) * 1.1);
+  transform-origin: 50% 0;
+  animation: lw-display-swing 3.4s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 calc(var(--s) * 0.7) color-mix(in srgb, var(--lantern) 55%, transparent)) drop-shadow(calc(var(--s) * 0.12) calc(var(--s) * 0.2) 0 color-mix(in srgb, var(--night-deep) 55%, transparent));
+}
+.lw-ember .lw-sign-display { left: auto; right: calc(var(--s) * -1.1); animation-delay: -1.7s; }
+.lw-sign-display-string {
+  position: absolute;
+  top: 0;
+  left: calc(50% - 1px);
+  width: 2px;
+  height: calc(var(--s) * 1.3);
+  background: var(--danger);
+  border-radius: 1px;
+}
+@keyframes lw-display-swing { from { transform: rotate(-7deg); } to { transform: rotate(7deg); } }
+
+/* The bank moment: "+50" and "Heat up" stamp onto the plaque. */
+.lw-sign-charmtag {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  top: calc(var(--s) * 5.6);
+  display: flex;
+  align-items: center;
+  gap: calc(var(--s) * 0.45);
+  padding: calc(var(--s) * 0.25) calc(var(--s) * 0.75) calc(var(--s) * 0.25) calc(var(--s) * 0.3);
+  border-radius: calc(var(--s) * 0.55);
+  background: var(--paper);
+  color: var(--ink);
+  white-space: nowrap;
+  box-shadow:
+    inset 0 0 0 calc(var(--s) * 0.16) var(--crew-tag, var(--lantern)),
+    calc(var(--s) * 0.15) calc(var(--s) * 0.25) 0 color-mix(in srgb, var(--night-deep) 60%, transparent),
+    0 0 calc(var(--s) * 2) color-mix(in srgb, var(--lantern) 60%, transparent);
+  transform: translate(-50%, -50%) rotate(-4deg);
+  animation: lw-charmtag 1.5s cubic-bezier(0.2, 1.3, 0.4, 1) both;
+  pointer-events: none;
+}
+.lw-jade .lw-sign-charmtag { --crew-tag: var(--jade); }
+.lw-ember .lw-sign-charmtag { --crew-tag: var(--ember); transform: translate(-50%, -50%) rotate(4deg); }
+.lw-sign-charmtag-icon { width: calc(var(--s) * 1.9); margin: calc(var(--s) * -0.6) 0 calc(var(--s) * -0.3); }
+.lw-sign-charmtag-pts { font: 400 calc(var(--s) * 1.9) / 1 var(--font-display); }
+.lw-sign-charmtag-heat {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--s) * 0.2);
+  padding: calc(var(--s) * 0.12) calc(var(--s) * 0.45) calc(var(--s) * 0.12) calc(var(--s) * 0.25);
+  border-radius: 999px;
+  background: var(--lantern-hot);
+  font-weight: 800;
+  font-size: calc(var(--s) * 0.85);
+}
+.lw-sign-charmtag-heat svg { width: calc(var(--s) * 0.9); height: auto; }
+.lw-sign-charmtag-heat .lw-flame-outer { fill: var(--danger); stroke: var(--ink); stroke-width: 1; }
+.lw-sign-charmtag-heat .lw-flame-inner { fill: var(--lantern); }
+@keyframes lw-charmtag {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-16deg) scale(2.3); }
+  14% { opacity: 1; transform: translate(-50%, -50%) rotate(-3deg) scale(0.94); }
+  22% { transform: translate(-50%, -50%) rotate(-4deg) scale(1.06); }
+  30% { transform: translate(-50%, -50%) rotate(-4deg) scale(1); }
+  82% { opacity: 1; transform: translate(-50%, -50%) rotate(-4deg) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, calc(-50% - var(--s) * 1.6)) rotate(-2deg) scale(0.9); }
+}
+
+/* The charm flying from its carrier to the sign. */
+.lw-fly--charm { width: calc(var(--s) * 3); -webkit-text-stroke: 0; filter: drop-shadow(0 0 calc(var(--s) * 0.9) var(--lantern)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .lw-charm *, .lw-charm-callout, .lw-charm-callout *, .lw-sign-charm, .lw-sign-display { animation: none !important; }
+  .lw-sign-charmtag { animation: lw-charmtag-still 1.5s linear both !important; }
+  @keyframes lw-charmtag-still { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }
+}
