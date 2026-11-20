@@ -7,7 +7,7 @@ const noop = () => {};
 
 describe('menu screens', () => {
   it('title names the crews Jade and Ember and states the rules as a sentence', () => {
-    const el = titleScreen(DEFAULT_SETTINGS, { play: noop, howTo: noop, settings: noop });
+    const el = titleScreen(DEFAULT_SETTINGS, { play: noop, howTo: noop, settings: noop, pickLevel: noop });
     const text = el.textContent ?? '';
     expect(text).toContain('Jade');
     expect(text).toContain('Ember');
@@ -15,6 +15,18 @@ describe('menu screens', () => {
     expect(text).not.toContain(' · ');
     expect(el.querySelector('.lw-logo')!.getAttribute('aria-label')).toBe('LINE WAR');
     expect(el.querySelector('.lw-logo-lantern svg')).not.toBeNull();
+  });
+
+  it('title offers every level as a card, marks the chosen one and shows its blurb', () => {
+    const picked: string[] = [];
+    const el = titleScreen({ ...DEFAULT_SETTINGS, level: 'harbor-pier' }, { play: noop, howTo: noop, settings: noop, pickLevel: (id) => picked.push(id) });
+    const cards = [...el.querySelectorAll<HTMLButtonElement>('.lw-level')];
+    expect(cards.map((c) => c.textContent)).toEqual(['Night Market', 'Harbor Pier', 'Rooftop Garden']);
+    expect(cards.map((c) => c.getAttribute('aria-pressed'))).toEqual(['false', 'true', 'false']);
+    expect(cards[0]!.querySelector('svg rect')).not.toBeNull();
+    expect(el.querySelector('.lw-level-blurb')!.textContent).toContain('Fish night');
+    cards[2]!.click();
+    expect(picked).toEqual(['rooftop-garden']);
   });
 
   it('rulesSentence reads naturally for every combination', () => {

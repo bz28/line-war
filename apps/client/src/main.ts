@@ -1,10 +1,11 @@
 import './art/tokens.css';
-import { INGREDIENTS, NIGHT_MARKET, RECIPES } from '@line-war/content';
+import { levelById } from '@line-war/content';
 import { createMatch, makeConfig, NO_INPUT, step, type MatchInputs, type MatchState, type PlayerId } from '@line-war/sim';
 import { createBots } from '@line-war/bots';
 import { browserGamepads, GamepadInput } from './input/gamepad';
 import { KeyboardInput, KeyboardState } from './input/keyboard';
 import type { InputSource } from './input/types';
+import { AudioDirector, localTeamFor } from './audio';
 import { startLoop } from './loop';
 import { HudRenderer } from './hud/hud';
 import { buildDemoState } from './render/demo';
@@ -42,12 +43,13 @@ const MATCH_OVER_DELAY_MS = 2600;
 const DEMO = import.meta.env.DEV && new URLSearchParams(location.search).has('demo');
 
 const startSession: StartSession = (settings, host, hooks): MatchSession => {
+  const level = levelById(settings.level);
   const state = DEMO
     ? buildDemoState()
     : createMatch({
-        arena: NIGHT_MARKET,
-        recipes: RECIPES,
-        ingredients: INGREDIENTS,
+        arena: level.arena,
+        recipes: level.recipes,
+        ingredients: level.ingredients,
         config: makeConfig({ ...settings.match, seed: (Math.random() * 2 ** 31) | 0 }),
       });
   const keyboard = new KeyboardState();
@@ -67,6 +69,12 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
   host.append(world, fps);
   const renderers: Renderer[] = [new GreyboxRenderer(canvas, state), hud];
   let overTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const audio = new AudioDirector({ localTeam: localTeamFor(settings.slots), volumes: settings.audio });
+  audio.resume(); // startSession runs from a menu gesture, so this usually unlocks at once
+  const unlockAudio = () => audio.resume();
+  window.addEventListener('pointerdown', unlockAudio, { once: true });
+  window.addEventListener('keydown', unlockAudio, { once: true });
 
   const applyDisplay = (s: Settings) => {
     fps.hidden = !s.display.showFps;
@@ -88,6 +96,7 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
       if (paused || DEMO) return;
       step(state, sources.map((s) => s.poll()) as MatchInputs);
       for (const r of renderers) r.onTick?.(state);
+      audio.onTick(state);
       if (state.round.phase === 'matchOver' && !overNotified) {
         overNotified = true;
         overTimer = setTimeout(() => hooks.onMatchOver(), MATCH_OVER_DELAY_MS);
@@ -110,6 +119,7 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
     setPaused(p) {
       if (p === paused) return;
       paused = p;
+      audio.setPaused(p);
       if (!p) primeHumans();
       applyDisplay(current);
     },
@@ -119,6 +129,8 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
       sources = createInputSources(s, keyboard, () => state);
       primeHumans();
       applyDisplay(s);
+      audio.setVolumes(s.audio);
+      audio.setLocalTeam(localTeamFor(s.slots));
     },
     dispose() {
       stop();
@@ -126,6 +138,9 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
       for (const src of sources) src.dispose?.();
       keyboard.dispose();
       for (const r of renderers) r.dispose?.();
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+      audio.dispose();
       host.replaceChildren();
     },
   };

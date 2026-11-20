@@ -21,6 +21,8 @@ export interface Settings {
   /** One entry per PlayerId (0,1 = crew A; 2,3 = crew B). */
   slots: [SlotController, SlotController, SlotController, SlotController];
   match: Omit<MatchConfig, 'tuning' | 'seed'>;
+  /** Level id from @line-war/content LEVELS. */
+  level: string;
   audio: { master: number; music: number; effects: number };
   display: { screenShake: boolean; colorblindShapes: boolean; showFps: boolean };
 }
@@ -48,6 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
     criticEnabled: true,
     brunchSpeed: false,
   },
+  level: 'night-market',
   audio: { master: 0.8, music: 0.8, effects: 0.8 },
   display: { screenShake: true, colorblindShapes: false, showFps: false },
 };

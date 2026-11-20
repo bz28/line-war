@@ -328,3 +328,26 @@
 @media (prefers-reduced-motion: reduce) {
   .lw-overlay *, .lw-overlay::before, .lw-overlay::after, .lw-overlay *::before { animation: none !important; transition: none !important; }
 }
+
+/* ---------- level picker: three map cards, the chosen one lit like a lantern ---------- */
+.lw-levels { display: flex; justify-content: center; gap: 12px; margin: 4px 0 8px; }
+.lw-level {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  width: 148px; padding: 8px 8px 10px;
+  border: 2px solid color-mix(in srgb, var(--paper) 14%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--night-deep) 70%, transparent);
+  color: color-mix(in srgb, var(--paper) 70%, transparent);
+  font: 700 14px/1.2 var(--font-ui);
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+.lw-level-thumb svg { display: block; width: 128px; height: auto; border-radius: 4px; opacity: 0.6; transition: opacity 120ms ease; }
+.lw-level:hover .lw-level-thumb svg, .lw-level:focus-visible .lw-level-thumb svg { opacity: 0.9; }
+.lw-level:hover, .lw-level:focus-visible { transform: translateY(-2px); border-color: color-mix(in srgb, var(--lantern) 55%, transparent); outline: none; }
+.lw-level:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--lantern) 45%, transparent); }
+.lw-level-on { border-color: var(--lantern); color: var(--paper); box-shadow: 0 0 18px color-mix(in srgb, var(--lantern) 35%, transparent); }
+.lw-level-on .lw-level-thumb svg { opacity: 1; }
+.lw-level-blurb { max-width: 46ch; margin: 0 auto 6px; font-size: 14px; color: color-mix(in srgb, var(--paper) 85%, transparent); }
+@media (prefers-reduced-motion: reduce) { .lw-level, .lw-level-thumb svg { transition: none; } .lw-level:hover, .lw-level:focus-visible { transform: none; } }
+@media (max-width: 560px) { .lw-level { width: 104px; } .lw-level-thumb svg { width: 88px; } }

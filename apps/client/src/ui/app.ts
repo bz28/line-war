@@ -126,8 +126,22 @@ export class App {
     this.closeSettings();
     this.screen = 'title';
     this.showPanel(
-      titleScreen(this.settings, { play: () => this.play(), howTo: () => this.showHowTo(), settings: () => this.openSettings() }),
+      titleScreen(this.settings, {
+        play: () => this.play(),
+        howTo: () => this.showHowTo(),
+        settings: () => this.openSettings(),
+        pickLevel: (id) => this.pickLevel(id),
+      }),
     );
+  }
+
+  /** Choose a level on the title screen; keeps focus on the chosen card. */
+  pickLevel(id: string): void {
+    if (this.screen !== 'title' || id === this.settings.level) return;
+    this.settings = { ...this.settings, level: id };
+    saveSettings(this.settings, this.storage);
+    this.showTitle();
+    this.overlay.querySelector<HTMLElement>(`[data-key="level-${id}"]`)?.focus();
   }
 
   private showHowTo(): void {

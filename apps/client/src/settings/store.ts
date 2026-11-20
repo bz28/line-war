@@ -1,3 +1,4 @@
+import { LEVELS } from '@line-war/content';
 import {
   ACTIONS,
   DEFAULT_SETTINGS,
@@ -9,6 +10,8 @@ import {
   type Settings,
   type SlotController,
 } from './types';
+
+const LEVEL_IDS: readonly string[] = LEVELS.map((l) => l.id);
 
 /** Versioned so a future incompatible format can live beside (and migrate from) this one. */
 export const STORAGE_KEY = 'line-war:settings:v1';
@@ -149,6 +152,7 @@ export function sanitizeSettings(raw: unknown): Settings {
       criticEnabled: bool(m.criticEnabled, d.match.criticEnabled),
       brunchSpeed: bool(m.brunchSpeed, d.match.brunchSpeed),
     },
+    level: oneOf(o.level, LEVEL_IDS, d.level),
     audio: { master: vol(a.master, d.audio.master), music: vol(a.music, d.audio.music), effects: vol(a.effects, d.audio.effects) },
     display: {
       screenShake: bool(disp.screenShake, d.display.screenShake),
