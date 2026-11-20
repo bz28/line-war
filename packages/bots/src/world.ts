@@ -202,22 +202,41 @@ export type Loc =
   | { at: 'station'; tile: number; item: Item }
   | { at: 'floor'; pos: Vec2; item: Item; resting: boolean };
 
-const itemCache = new WeakMap<MatchState, { tick: number; map: Map<number, Loc> }>();
+const itemCache = new WeakMap<MatchState, { tick: number; maps: (Map<number, Loc> | null)[] }>();
+const stationOrder = new WeakMap<Nav, string[]>();
 
-/** Where every item is this tick (cached per state and tick). */
-export function itemIndex(state: MatchState): Map<number, Loc> {
-  const c = itemCache.get(state);
-  if (c && c.tick === state.tick) return c.map;
+/**
+ * Where every item is this tick, as `team` sees it (cached per state, tick and team). The map
+ * lists items in that team's order (its own players first, stations from its own side of the
+ * map), so a "first match" or a tie in a scan over it mirrors the rival's.
+ */
+export function itemIndex(state: MatchState, team: TeamId): Map<number, Loc> {
+  let c = itemCache.get(state);
+  if (!c || c.tick !== state.tick) {
+    c = { tick: state.tick, maps: [null, null] };
+    itemCache.set(state, c);
+  }
+  const cached = c.maps[team];
+  if (cached) return cached;
+  const nav = navFor(state, team);
+  let keys = stationOrder.get(nav);
+  if (!keys) {
+    keys = Object.keys(state.stations).sort((a, b) => nav.rank(Number(a)) - nav.rank(Number(b)));
+    stationOrder.set(nav, keys);
+  }
   const map = new Map<number, Loc>();
-  for (const p of state.players) if (p.holding) map.set(p.holding.id, { at: 'held', player: p.id, item: p.holding });
-  for (const key in state.stations) {
+  for (const id of [team * 2, team * 2 + 1, (1 - team) * 2, (1 - team) * 2 + 1] as PlayerId[]) {
+    const p = state.players[id];
+    if (p.holding) map.set(p.holding.id, { at: 'held', player: p.id, item: p.holding });
+  }
+  for (const key of keys) {
     const st = state.stations[key]!;
     if (st.item) map.set(st.item.id, { at: 'station', tile: st.tile, item: st.item });
   }
   for (const fi of state.floorItems) {
     map.set(fi.item.id, { at: 'floor', pos: fi.pos, item: fi.item, resting: fi.vel.x === 0 && fi.vel.y === 0 });
   }
-  itemCache.set(state, { tick: state.tick, map });
+  c.maps[team] = map;
   return map;
 }
 

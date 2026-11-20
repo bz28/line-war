@@ -126,7 +126,7 @@ export class Bot {
       me,
       crew: this.crew,
       k,
-      items: itemIndex(state),
+      items: itemIndex(state, me.team),
       tile: k.nav.openTileNear(me.pos),
       stoveLeadTicks: this.params.stoveLeadSeconds * state.config.tuning.tickRate,
     };
