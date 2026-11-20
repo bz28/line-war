@@ -295,6 +295,7 @@ describe('Grab: floor drops and restrictions', () => {
     put(s, 0, 1.5, 2.5, UP);
     run(s, 1, GRAB);
     expect(s.players[0].holding).toBeNull();
+    put(s, 0, 10.5, 2.5); // out of the way: a player inside the rival kitchen is pushed out
     put(s, 2, 1.5, 2.5, UP);
     run(s, 1, only(2, { grab: true }));
     expect(s.players[2].holding).toMatchObject({ kind: 'lettuce' });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { secondsToTicks } from '../../src';
-import { DOWN, kitchenMatch, LEFT, only, put, RIGHT, run, UP } from './helpers';
+import { NO_INPUT, secondsToTicks, type MatchInputs } from '../../src';
+import { DOWN, input, kitchenMatch, LEFT, only, put, RIGHT, run, UP } from './helpers';
 
 const R = 0.35;
 
@@ -180,5 +180,25 @@ describe('dash', () => {
     expect([p.dazedTicks, p.knockImmuneTicks, p.dashCooldown]).toEqual([1, 0, 0]);
     run(s, 5);
     expect(p.dazedTicks).toBe(0);
+  });
+});
+
+describe('wall collision is mirror-symmetric (side fairness)', () => {
+  // KITCHEN_ARENA's market (columns 9-11, between the doorway walls, with the bottom wall below
+  // row 5) is its own mirror image about x = 10.5. Wall seams sit at x = 10 and its mirror x = 11.
+  const W = 21;
+  it.each([0.1, 0.2, 0.3, 0.45, 0.6, 0.8])('mirrored moves along the bottom wall end mirrored (start %s right of the seam)', (off) => {
+    const s = kitchenMatch();
+    put(s, 1, 2.5, 3.5); // teammates out of the way, in their own kitchens
+    put(s, 3, 18.5, 3.5);
+    put(s, 0, 10 + off, 5.2, DOWN);
+    put(s, 2, W - (10 + off), 5.2, DOWN);
+    const go = (x: number, dash: boolean): MatchInputs => [input({ move: { x, y: 1 }, dash }), NO_INPUT, input({ move: { x: -x, y: 1 }, dash }), NO_INPUT];
+    for (const [x, dash, ticks] of [[-0.8, true, 3], [0.6, false, 4], [-1, true, 5], [0.3, false, 3], [-0.4, true, 5]] as const) {
+      run(s, ticks, go(x, dash));
+      const [a, b] = [s.players[0].pos, s.players[2].pos];
+      expect(b.y).toBeCloseTo(a.y, 12);
+      expect(b.x).toBeCloseTo(W - a.x, 12);
+    }
   });
 });
