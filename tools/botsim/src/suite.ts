@@ -165,7 +165,15 @@ function spec(o: SuiteOptions, point: SweepPoint, seed: number, slots: MatchSpec
   };
 }
 
-const solo = (skill?: number): MatchSpec['slots'] => [skill === undefined ? { difficulty: 'normal' } : { difficulty: 'normal', skill }, null, null, null];
+/**
+ * Calibration crew: two bots at the given skill against an empty kitchen. "10% faster crew" means the crew's
+ * throughput (points per round) is 1.10x, which is what gap-2v2 pits against a normal crew. Calibrating on a lone
+ * bot overshot: the solo curve is flatter, so the chosen skill gave a 2v2 crew well over a 10% edge.
+ */
+const solo = (skill?: number): MatchSpec['slots'] => {
+  const bot = skill === undefined ? { difficulty: 'normal' as const } : { difficulty: 'normal' as const, skill };
+  return [bot, bot, null, null];
+};
 
 async function calibrate(o: SuiteOptions, point: SweepPoint, pool: MatchPool): Promise<{ result: CalibrationResult; matches: number }> {
   const c = o.calibration;
@@ -282,7 +290,7 @@ export async function runSuite(o: SuiteOptions, log: (msg: string) => void = () 
       let calibration: CalibrationResult | null = null;
       const needsCal = o.scenarios.some((s) => s.calibrated);
       if (needsCal && o.calibration.fixedSkill === undefined) {
-        log(`[${point.label}] calibrating gap-2v2 skill (${(o.calibration.skills.length + 1) * o.calibration.matches} solo matches)...`);
+        log(`[${point.label}] calibrating gap-2v2 skill (${(o.calibration.skills.length + 1) * o.calibration.matches} crew-vs-empty matches)...`);
         const cal = await calibrate(o, point, pool);
         calibration = cal.result;
         matchesRun += cal.matches;

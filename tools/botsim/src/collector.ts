@@ -11,7 +11,8 @@
  *   a plate when the round ended.
  * - steal: after a knock, the next pickup of the popped item was by the knocker's crew.
  * - stuck: a bot-controlled player whose position did not change and who pressed no grab/work/throw
- *   for more than `stuckSeconds` of ticks during which tickets were on the board.
+ *   for more than `stuckSeconds` of ticks during which tickets were on the board (the last
+ *   ENDGAME_GRACE_SECONDS of a round don't count: no new dish can be finished then).
  */
 import {
   isPlaying,
@@ -29,6 +30,9 @@ import {
   type TeamId,
 } from '@line-war/sim';
 import type { CriticRecord, Pair, RoundRecord, StuckEvent, TicketCounts } from './types';
+
+/** Final seconds of a round in which idling is not counted as stuck (shorter than any dish). */
+export const ENDGAME_GRACE_SECONDS = 20;
 
 const foodKey = (f: Food): string => `${f.kind}:${f.state}`;
 
@@ -295,6 +299,8 @@ export class Collector {
     this.plates = snapshotPlates(state);
 
     const ticketsUp = state.tickets.length > 0;
+    // Near the end of a round no new dish can be finished, so a bot that stops is choosing well, not stuck.
+    const endgame = state.round.tick >= (state.config.roundSeconds - ENDGAME_GRACE_SECONDS) * this.tickRate;
     for (const p of state.players) {
       if (!this.opts.botSlots[p.id]) continue;
       // Anchor = where the current idle spell began. Pushing against a wall or a player jitters the
@@ -308,7 +314,7 @@ export class Collector {
         this.flagged[p.id] = false;
         continue;
       }
-      if (!ticketsUp) continue;
+      if (!ticketsUp || endgame) continue;
       this.idleTicks[p.id]!++;
       if (this.idleTicks[p.id]! > this.stuckTicks && !this.flagged[p.id]) {
         this.flagged[p.id] = true;

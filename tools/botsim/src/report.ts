@@ -131,7 +131,7 @@ function calibrationSection(p: PointResult): string {
   const rows = c.rows.map((r) => [f2(r.skill), f1(r.pointsPerRound), `${r.ratio.toFixed(3)}×`]);
   const chosen = c.skill === null ? 'none (gap-2v2 runs at the baseline skill)' : `**${c.skill.toFixed(3)}**${c.achieved ? ` (≈${c.achieved.toFixed(3)}×)` : ''}`;
   return [
-    `Solo throughput: one normal bot at the given skill vs an idle crew, points per round. Baseline (normal, no skill override): **${f1(c.baseline)}**.`,
+    `Crew throughput: two normal bots at the given skill vs an empty kitchen, points per round. Baseline (normal, no skill override): **${f1(c.baseline)}**.`,
     '',
     rows.length ? table(['Skill', 'Points/round', 'vs baseline'], rows) : '',
     '',
@@ -210,7 +210,7 @@ export function renderMarkdown(r: SuiteResult, meta: ReportMeta = {}): string {
         'Calibration',
         o.calibration.fixedSkill !== undefined
           ? `fixed skill ${o.calibration.fixedSkill}`
-          : `${o.calibration.matches} solo matches × ${o.calibration.skills.length + 1} skills, target ${o.calibration.target}×`,
+          : `${o.calibration.matches} crew-vs-empty matches × ${o.calibration.skills.length + 1} skills, target ${o.calibration.target}×`,
       ],
       ['Workers', `${o.workers}`],
       ['Matches run', `${r.matchesRun} in ${seconds.toFixed(1)} s (${(r.matchesRun / Math.max(seconds, 1e-9)).toFixed(1)} matches/s)`],
