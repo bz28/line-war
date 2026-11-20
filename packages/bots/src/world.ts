@@ -142,7 +142,7 @@ function buildKitchen(state: MatchState, team: TeamId): Kitchen {
   }
   // Bank tiles: our kitchen floor tiles that touch a doorway (zone none) tile; any of our floor if none do.
   const ownFloor: number[] = [];
-  for (let i = 0; i < nav.n; i++) {
+  for (const i of nav.order()) {
     if (!nav.open[i] || state.arena.tiles[i]?.kind !== 'floor' || tileOwner(state, i) !== team) continue;
     ownFloor.push(i);
     const [x, y] = nav.xy(i);
