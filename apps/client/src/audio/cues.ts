@@ -65,8 +65,8 @@ export const CUES: Record<CueId, CueSpec> = {
   // Charms: a soft chime when one appears, a bright music-box run when your crew banks one.
   charmSpawn: spec('alert', -11, 1, 0.3),
   charmBank: spec('alert', -9, 1, 0.2),
-  charmBankRival: spec('alert', -12, 1, 0.2),
-  charmFade: spec('feedback', -15, 1, 0.2),
+  charmBankRival: spec('alert', -10, 1, 0.2),
+  charmFade: spec('feedback', -12, 1, 0.2),
   heatDown: spec('alert', -14, 2, 0.2),
   fireOut: spec('alert', -16, 2, 0.15),
   burnt: spec('alert', -12, 2, 0.15),
@@ -78,9 +78,9 @@ export const CUES: Record<CueId, CueSpec> = {
   critic: spec('stinger', -11, 1, 1),
   prepBell: spec('stinger', -10, 1, 1),
   serviceBell: spec('stinger', -11, 1, 1),
-  rushFanfare: spec('stinger', -8, 1, 1),
+  rushFanfare: spec('stinger', -10, 1, 1),
   lastCallBell: spec('stinger', -10, 1, 1),
-  roundWhistle: spec('stinger', -15, 1, 1),
+  roundWhistle: spec('stinger', -18, 1, 1),
   matchWin: spec('stinger', -9, 1, 1),
   matchEnd: spec('stinger', -11, 1, 1),
 };
