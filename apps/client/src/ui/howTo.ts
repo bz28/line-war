@@ -214,9 +214,22 @@ const section = (n: number, title: string, tag: HTMLElement | null, ...body: (HT
   );
 
 /**
- * Page tabs, shown only on short screens (CSS, max-height 800px): there the manual shows one
- * section at a time so it fits without scrolling. On tall screens every section shows at once.
+ * Turn the manual to `page` (1-based, clamped). The tabs, the page dots and the page number
+ * follow, and `data-dir` tells the CSS which way the new page slides in.
  */
+export function turnPage(manual: HTMLElement, page: number): void {
+  const n = Math.max(1, Math.min(SECTIONS.length, page));
+  const cur = Number(manual.dataset.page ?? '1');
+  if (n === cur) return;
+  manual.dataset.dir = n > cur ? 'next' : 'prev';
+  manual.dataset.page = String(n);
+  manual.querySelectorAll('.lw-howto-tab').forEach((t, j) => t.setAttribute('aria-selected', j + 1 === n ? 'true' : 'false'));
+  manual.querySelectorAll('.lw-howto-dot').forEach((d, j) => d.classList.toggle('lw-on', j + 1 === n));
+  const folio = manual.querySelector('.lw-howto-folio');
+  if (folio) folio.textContent = `Page ${n} of ${SECTIONS.length}`;
+}
+
+/** The manual's page tabs: one section per page, at every screen size, so nothing ever scrolls. */
 function pageTabs(page: HTMLElement): HTMLElement {
   const tabs = SECTIONS.map((title, i) =>
     h(
@@ -229,10 +242,7 @@ function pageTabs(page: HTMLElement): HTMLElement {
         'aria-controls': `lw-howto-sec-${i + 1}`,
         'aria-selected': i === 0 ? 'true' : 'false',
         'data-key': `howto-tab-${i + 1}`,
-        onclick: () => {
-          page.dataset.page = String(i + 1);
-          tabs.forEach((t, j) => t.setAttribute('aria-selected', j === i ? 'true' : 'false'));
-        },
+        onclick: () => turnPage(page, i + 1),
       },
       h('span', { class: 'lw-howto-sec-n' }, String(i + 1)),
       title,
@@ -241,11 +251,36 @@ function pageTabs(page: HTMLElement): HTMLElement {
   return h('div', { class: 'lw-howto-tabs', role: 'tablist', 'aria-label': 'Manual pages' }, tabs);
 }
 
+/** Footer: how to turn pages (keys and pad shoulders), page dots, the folio, and Back. */
+function pageFoot(back: () => void): HTMLElement {
+  return h(
+    'div',
+    { class: 'lw-howto-foot' },
+    h(
+      'p',
+      { class: 'lw-howto-turn' },
+      h('kbd', {}, 'Q'),
+      h('kbd', {}, 'E'),
+      h('span', { class: 'lw-howto-or' }, 'or'),
+      h('kbd', {}, 'LB'),
+      h('kbd', {}, 'RB'),
+      h('span', {}, 'turn pages'),
+    ),
+    h(
+      'div',
+      { class: 'lw-howto-pager', 'aria-hidden': 'true' },
+      h('span', { class: 'lw-howto-dots' }, SECTIONS.map((_, i) => h('i', { class: `lw-howto-dot${i === 0 ? ' lw-on' : ''}` }))),
+      h('span', { class: 'lw-howto-folio' }, `Page 1 of ${SECTIONS.length}`),
+    ),
+    button('Back', back, { class: 'lw-btn lw-btn-primary', 'data-key': 'menu-Back' }),
+  );
+}
+
 export function howToScreen(settings: Settings, actions: { back(): void }): HTMLElement {
   const level = levelById(settings.level);
   const page = h(
     'div',
-    { class: 'lw-panel lw-howto', 'data-page': '1' },
+    { class: 'lw-panel lw-howto', 'data-page': '1', 'data-arrows-turn-pages': '' },
     h(
       'header',
       { class: 'lw-howto-head' },
@@ -260,7 +295,7 @@ export function howToScreen(settings: Settings, actions: { back(): void }): HTML
     section(2, SECTIONS[1], null, winTiles(settings.level)),
     section(3, SECTIONS[2], h('span', { class: 'lw-howto-level', 'data-level': level.id }, `Tonight at ${level.name}`), ...menuSection(level)),
     section(4, SECTIONS[3], null, controls(settings)),
-    h('div', { class: 'lw-howto-foot' }, button('Back', actions.back, { class: 'lw-btn lw-btn-primary', 'data-key': 'menu-Back' })),
+    pageFoot(actions.back),
   );
   return page;
 }

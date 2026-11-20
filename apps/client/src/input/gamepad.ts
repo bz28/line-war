@@ -10,6 +10,8 @@ export const PAD = {
   B: 1, // Circle
   X: 2, // Square
   Y: 3, // Triangle
+  LB: 4, // L1
+  RB: 5, // R1
   SELECT: 8,
   START: 9,
   UP: 12,
@@ -23,7 +25,7 @@ export const PAD_ACTIONS = { grab: PAD.A, work: PAD.X, dash: PAD.B, throw: PAD.Y
 export type PadAction = keyof typeof PAD_ACTIONS;
 
 /** Face-button names as printed on an Xbox-layout pad (the standard mapping's labels). */
-const BUTTON_NAMES: Partial<Record<number, string>> = { [PAD.A]: 'A', [PAD.B]: 'B', [PAD.X]: 'X', [PAD.Y]: 'Y', [PAD.START]: 'Start', [PAD.SELECT]: 'Select' };
+const BUTTON_NAMES: Partial<Record<number, string>> = { [PAD.A]: 'A', [PAD.B]: 'B', [PAD.X]: 'X', [PAD.Y]: 'Y', [PAD.LB]: 'LB', [PAD.RB]: 'RB', [PAD.START]: 'Start', [PAD.SELECT]: 'Select' };
 
 /** Prompt label for a standard-mapping button index, e.g. 0 -> "A". */
 export const padButtonLabel = (button: number): string => BUTTON_NAMES[button] ?? `Button ${button + 1}`;

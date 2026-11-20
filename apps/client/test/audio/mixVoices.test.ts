@@ -37,10 +37,13 @@ describe('volume math', () => {
 
   it('frequent sounds are quiet and low priority; the must-hear ones are loud and high priority', () => {
     // gainDb is a voice gain (recipes differ in density); measured loudness is in the PR level table.
-    for (const id of ['grab', 'chopKnock', 'drop'] as const) {
+    for (const id of ['chopKnock', 'drop'] as const) {
       expect(CUES[id].category).toBe('frequent');
       expect(CUES[id].gainDb).toBeLessThanOrEqual(-24);
     }
+    // Grab is frequent (low steal priority) but core feedback: it is held >= 6 dB over the music
+    // bed with a short music dip (polish pass 4), so it is no longer quiet.
+    expect(CUES.grab.category).toBe('frequent');
     for (const id of ['critic', 'deliverRival', 'burnWarn'] as const) {
       expect(CATEGORY_PRIORITY[CUES[id].category]).toBeGreaterThanOrEqual(CATEGORY_PRIORITY.alert);
       expect(CUES[id].gainDb).toBeGreaterThan(-12);

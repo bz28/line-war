@@ -4,17 +4,62 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#12152B" />
-    <title>LINE WAR</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect width=%228%22 height=%2216%22 fill=%22%232EC4A6%22/%3E%3Crect x=%228%22 width=%228%22 height=%2216%22 fill=%22%23FF6B3D%22/%3E%3C/svg%3E" />
+    <title>LINE WAR · 2v2 cooking battle</title>
+    <meta name="description" content="Two crews. One market. Every plate is a fight. A competitive 2v2 cooking game: race the rival crew to every ticket, knock their food loose in the market, and collect lantern-bunny charms. Free in your browser." />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="LINE WAR" />
+    <meta property="og:title" content="LINE WAR · 2v2 cooking battle" />
+    <meta property="og:description" content="Two crews. One market. Every plate is a fight. Race the rival crew to every ticket. Free in your browser." />
+    <meta property="og:url" content="https://bz28.github.io/line-war/" />
+    <meta property="og:image" content="https://bz28.github.io/line-war/og.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="LINE WAR: Jade and Ember crews cooking on either side of a lantern-lit night market." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="LINE WAR · 2v2 cooking battle" />
+    <meta name="twitter:description" content="Two crews. One market. Every plate is a fight. Free in your browser." />
+    <meta name="twitter:image" content="https://bz28.github.io/line-war/og.jpg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet" />
+    <script>
+      // The font stylesheet loads without blocking first paint (the splash below needs no web fonts).
+      window.lwFontsCss = new Promise(function (resolve) { window.lwFontsCssDone = resolve; });
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet" media="print" onload="this.media = 'all'; lwFontsCssDone()" onerror="lwFontsCssDone()" />
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet" /></noscript>
     <style>
       html, body { margin: 0; height: 100%; overflow: hidden; background: #12152B; color: #FFF3D6; font-family: 'M PLUS Rounded 1c', system-ui, sans-serif; }
       #app { position: relative; height: 100%; }
+      /* First paint: a lantern-bunny glow on the night sky while the fonts load (ui/splash.ts lifts it). */
+      #lw-splash {
+        position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
+        background: radial-gradient(120% 70% at 50% 0%, #2E3456 0%, transparent 70%), #12152B;
+        transition: opacity 0.35s ease-out, visibility 0s linear 0.35s;
+      }
+      #lw-splash.lw-splash--out { opacity: 0; visibility: hidden; }
+      .lw-splash-lantern { position: relative; width: 84px; transform-origin: 50% 0; animation: lw-splash-swing 2.2s ease-in-out infinite alternate; }
+      .lw-splash-lantern::before {
+        content: ''; position: absolute; inset: -70% -110%; border-radius: 50%;
+        background: radial-gradient(closest-side, rgba(255, 200, 87, 0.45), rgba(255, 159, 28, 0.12) 55%, transparent);
+        animation: lw-splash-glow 1.4s ease-in-out infinite alternate;
+      }
+      .lw-splash-lantern svg { position: relative; display: block; width: 100%; height: auto; }
+      @keyframes lw-splash-swing { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
+      @keyframes lw-splash-glow { from { opacity: 0.55; transform: scale(0.94); } to { opacity: 1; transform: scale(1.04); } }
+      @media (prefers-reduced-motion: reduce) { .lw-splash-lantern, .lw-splash-lantern::before { animation: none; } }
     </style>
   </head>
   <body>
+    <div id="lw-splash" role="status" aria-label="Loading LINE WAR"><div class="lw-splash-lantern"><svg viewBox="-1.6 -2.05 3.2 3.65" aria-hidden="true"><defs><clipPath id="lwsplashb"><ellipse cx="0" cy="0" rx="1" ry="0.84"/></clipPath><radialGradient id="lwsplashg0" gradientUnits="userSpaceOnUse" cx="-0.12" cy="-0.02" r="1.12"><stop offset="0" stop-color="#FFF3D6"/><stop offset="0.5" stop-color="#FFC857"/><stop offset="1" stop-color="#FF9F1C"/></radialGradient></defs><path d="M-0.56 -0.612C-0.785 -1.107 -0.883 -1.579 -0.641 -1.654C-0.399 -1.728 -0.214 -1.283 -0.12 -0.748Z" fill="#FFC857" stroke="#2A2238" stroke-width="0.085" stroke-linecap="round" stroke-linejoin="round"/><path d="M0.196 -0.822C0.496 -1.222 0.838 -1.503 1.018 -1.325C1.198 -1.147 0.921 -0.802 0.524 -0.498Z" fill="#FFC857" stroke="#2A2238" stroke-width="0.085" stroke-linecap="round" stroke-linejoin="round"/><path d="M-0.445 -0.747C-0.594 -1.116 -0.677 -1.46 -0.561 -1.495C-0.446 -1.531 -0.32 -1.201 -0.235 -0.813Z" fill="#FF8A6B"/><path d="M0.342 -0.797C0.574 -1.079 0.817 -1.293 0.903 -1.208C0.989 -1.123 0.777 -0.877 0.498 -0.643Z" fill="#FF8A6B"/><ellipse cx="0" cy="-1.02" rx="0.13" ry="0.13" fill="none" stroke="#8A5A3B" stroke-width="0.07" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="0" cy="0" rx="1" ry="0.84" fill="url(#lwsplashg0)" stroke="#2A2238" stroke-width="0.085" stroke-linecap="round" stroke-linejoin="round"/><path d="M0 -0.84C-0.95 -0.62 -0.95 0.62 0 0.84M0 -0.84C0.95 -0.62 0.95 0.62 0 0.84" fill="none" stroke="#FF9F1C" stroke-width="0.05" stroke-linecap="round" stroke-linejoin="round" opacity="0.55" clip-path="url(#lwsplashb)"/><path d="M-1 -0.5Q0 -0.62 1 -0.5M-1 0.56Q0 0.68 1 0.56" fill="none" stroke="#FF9F1C" stroke-width="0.045" stroke-linecap="round" stroke-linejoin="round" opacity="0.45" clip-path="url(#lwsplashb)"/><ellipse cx="-0.46" cy="-0.4" rx="0.28" ry="0.14" transform="rotate(-34.377 -0.46 -0.4)" fill="#FFF3D6" opacity="0.5"/><ellipse cx="-0.3" cy="0.02" rx="0.088" ry="0.122" fill="#2A2238"/><ellipse cx="-0.328" cy="-0.025" rx="0.034" ry="0.038" fill="#FFF3D6"/><ellipse cx="-0.56" cy="0.21" rx="0.14" ry="0.085" fill="#FF8A6B" opacity="0.6"/><ellipse cx="0.3" cy="0.02" rx="0.088" ry="0.122" fill="#2A2238"/><ellipse cx="0.272" cy="-0.025" rx="0.034" ry="0.038" fill="#FFF3D6"/><ellipse cx="0.56" cy="0.21" rx="0.14" ry="0.085" fill="#FF8A6B" opacity="0.6"/><path d="M-0.085 0.165Q0 0.3 0.085 0.165Q0 0.21 -0.085 0.165Z" fill="#2A2238" stroke="#2A2238" stroke-width="0.03" stroke-linecap="round" stroke-linejoin="round"/><path d="M-0.37 -0.93L0.37 -0.93Q0.44 -0.93 0.44 -0.86L0.44 -0.8Q0.44 -0.73 0.37 -0.73L-0.37 -0.73Q-0.44 -0.73 -0.44 -0.8L-0.44 -0.86Q-0.44 -0.93 -0.37 -0.93Z" fill="#8A5A3B" stroke="#2A2238" stroke-width="0.06" stroke-linecap="round" stroke-linejoin="round"/><path d="M-0.37 -0.91L0.37 -0.91Q0.4 -0.91 0.4 -0.88L0.4 -0.88Q0.4 -0.85 0.37 -0.85L-0.37 -0.85Q-0.4 -0.85 -0.4 -0.88L-0.4 -0.88Q-0.4 -0.91 -0.37 -0.91Z" fill="#C98E5A"/><path d="M-0.3 0.74L0.3 0.74Q0.36 0.74 0.36 0.8L0.36 0.86Q0.36 0.92 0.3 0.92L-0.3 0.92Q-0.36 0.92 -0.36 0.86L-0.36 0.8Q-0.36 0.74 -0.3 0.74Z" fill="#8A5A3B" stroke="#2A2238" stroke-width="0.06" stroke-linecap="round" stroke-linejoin="round"/><path d="M-0.295 0.76L0.295 0.76Q0.32 0.76 0.32 0.785L0.32 0.785Q0.32 0.81 0.295 0.81L-0.295 0.81Q-0.32 0.81 -0.32 0.785L-0.32 0.785Q-0.32 0.76 -0.295 0.76Z" fill="#C98E5A"/><path d="M0 0.92L0 1.1" fill="none" stroke="#E5484D" stroke-width="0.07" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="0" cy="1.11" rx="0.075" ry="0.07" fill="#E5484D" stroke="#2A2238" stroke-width="0.04" stroke-linecap="round" stroke-linejoin="round"/><path d="M-0.09 1.15L0.09 1.15L0.14 1.44Q0 1.5 -0.14 1.44Z" fill="#E5484D" stroke="#2A2238" stroke-width="0.045" stroke-linecap="round" stroke-linejoin="round"/><path d="M-0.04 1.2L-0.06 1.42M0.04 1.2L0.06 1.42" fill="none" stroke="#2A2238" stroke-width="0.025" stroke-linecap="round" stroke-linejoin="round" opacity="0.35"/><path d="M0 -1L-0.3 -1.16Q-0.36 -1 -0.3 -0.84Z" fill="#E5484D" stroke="#2A2238" stroke-width="0.05" stroke-linecap="round" stroke-linejoin="round"/><path d="M0 -1L0.3 -1.16Q0.36 -1 0.3 -0.84Z" fill="#E5484D" stroke="#2A2238" stroke-width="0.05" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="0" cy="-1" rx="0.07" ry="0.07" fill="#E5484D" stroke="#2A2238" stroke-width="0.04" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
+    <script>
+      // Start the title's fonts now, in parallel with the game bundle (ui/splash.ts awaits the same loads).
+      window.lwFontsCss.then(function () {
+        if (document.fonts && document.fonts.load) ['400 1em "Dela Gothic One"', '800 1em "M PLUS Rounded 1c"', '700 1em "M PLUS Rounded 1c"'].forEach(function (f) { document.fonts.load(f, 'LINE WAR Play').catch(function () {}); });
+      });
+    </script>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

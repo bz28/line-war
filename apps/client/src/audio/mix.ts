@@ -28,10 +28,21 @@ export function busGains(v: Volumes): { music: number; effects: number } {
   return { music: master * sliderToGain(v.music) * MUSIC_BUS_GAIN, effects: master * sliderToGain(v.effects) };
 }
 
-/** Music sits under the effects so gameplay sounds always read. */
-export const MUSIC_BUS_GAIN = dbToGain(-19);
+/**
+ * Mix target (polish pass 4), measured on real bot rounds rendered offline in Chrome at the
+ * shipped 0.8 sliders: the full mix lands at about -18 LUFS integrated, and the music sits
+ * 6-8 LU under the effects in their busiest moments (the loudest fifth of effect blocks).
+ * Music sits under the effects so gameplay sounds always read.
+ */
+export const MUSIC_BUS_GAIN = dbToGain(-14);
 /** Music ducks this far under important stingers (Critic, phase changes, rival serves). */
 export const MUSIC_DUCK_DB = -7;
+/** Music dip under core feedback cues (cues.ts MUSIC_DIPS): attack and release time constants, longest hold (s). */
+export const MUSIC_DIP_ATTACK = 0.005;
+/** The dip starts this far ahead of the cue (s), within the scheduling lead. */
+export const MUSIC_DIP_LEAD = 0.015;
+export const MUSIC_DIP_HOLD = 0.2;
+export const MUSIC_DIP_RELEASE = 0.12;
 
 /** Pan range used for world-x panning: never hard-left/right, which sounds unnatural on speakers. */
 export const PAN_WIDTH = 0.7;
@@ -49,10 +60,10 @@ export const MAX_VOICES = 16;
 /** Master compressor (glue) then a brick-wall-ish limiter. */
 export const COMPRESSOR = { threshold: -18, knee: 8, ratio: 3, attack: 0.004, release: 0.2 } as const;
 export const LIMITER = { threshold: -3, knee: 0, ratio: 20, attack: 0.001, release: 0.08 } as const;
-/** Drive into the compressor (the mix is built quiet; this brings it up to game loudness). */
-export const INPUT_TRIM = dbToGain(5);
-/** Post-limiter output trim. */
-export const OUTPUT_GAIN = dbToGain(-1);
+/** Drive into the compressor (the mix is built quiet; this brings it up to the -18 LUFS target). */
+export const INPUT_TRIM = dbToGain(9);
+/** Post-limiter output trim (unity: peaks measure about -2.5 dBFS, never clipping). */
+export const OUTPUT_GAIN = dbToGain(0);
 
 /** Hit-stop: the whole mix ducks behind a low-pass while the match is frozen, then opens back up. */
 export const HIT_STOP_DIP_HZ = 520;
