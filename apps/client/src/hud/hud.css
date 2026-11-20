@@ -597,21 +597,48 @@
 }
 @keyframes lw-stamp-in { from { opacity: 0; transform: rotate(-14deg) scale(2.4); } }
 .lw-moment--count {
-  background: none;
-  filter: none;
+  /*
+   * The 3-2-1 never lands on the floor: it takes over the clock lantern in the HUD band, as a
+   * dark medallion with a lantern rim, so the market crates stay readable on every level.
+   */
+  position: absolute;
+  /* The grid area starts below the moments' padding (3 --s), so step back over it and the band. */
+  top: calc(var(--band) * -1 - var(--s) * 3 + var(--s) * 0.3);
+  left: 50%;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: calc(var(--s) * 10);
+  height: calc(var(--s) * 10);
+  margin-left: calc(var(--s) * -5);
   padding: 0;
-  animation: lw-count 0.9s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 38%, var(--slate) 0%, var(--night-deep) 72%);
+  box-shadow:
+    inset 0 0 0 calc(var(--s) * 0.32) var(--lantern),
+    inset 0 0 0 calc(var(--s) * 0.55) var(--ink),
+    0 calc(var(--s) * 0.4) 0 var(--night-deep),
+    0 0 calc(var(--s) * 3.2) color-mix(in srgb, var(--lantern) 55%, transparent);
+  filter: none;
+  transform: none;
+  animation: lw-count-plate 0.25s ease-out both;
 }
 .lw-moment--count .lw-moment-title {
-  font-size: calc(var(--s) * 9);
+  font-size: calc(var(--s) * 6.6);
+  line-height: 1;
+  margin-top: calc(var(--s) * 0.45);
   color: var(--lantern);
-  -webkit-text-stroke: calc(var(--s) * 0.25) var(--ink);
+  -webkit-text-stroke: calc(var(--s) * 0.22) var(--ink);
   paint-order: stroke fill;
-  text-shadow: calc(var(--s) * 0.3) calc(var(--s) * 0.5) 0 var(--night-deep), 0 0 calc(var(--s) * 3) color-mix(in srgb, var(--lantern) 60%, transparent);
+  text-shadow: calc(var(--s) * 0.2) calc(var(--s) * 0.35) 0 var(--ink), 0 0 calc(var(--s) * 2) color-mix(in srgb, var(--lantern) 70%, transparent);
+  animation: lw-count 0.9s cubic-bezier(0.2, 1.5, 0.4, 1) both;
 }
-/* With the coach note up, the count drops just below it so both read during prep. */
-.lw-hud--coaching .lw-moment--count { margin-top: calc(var(--s) * 6.6); }
-.lw-hud--coaching .lw-moment--count .lw-moment-title { font-size: calc(var(--s) * 7); }
+/* While it counts, the clock lantern steps back: the medallion is the clock. */
+.lw-clock { transition: opacity 0.2s, transform 0.2s; }
+.lw-hud--count .lw-clock { opacity: 0; transform: scale(0.9); }
+.lw-moment--count.lw-moment--out { animation: lw-count-out 0.2s ease-in forwards; }
+@keyframes lw-count-plate { from { opacity: 0; transform: scale(0.85); } }
+@keyframes lw-count-out { to { opacity: 0; transform: scale(1.08); } }
 @keyframes lw-count { 0% { opacity: 0; transform: scale(2.2); } 30% { opacity: 1; transform: scale(1); } 100% { opacity: 0.85; transform: scale(0.94); } }
 
 /* Round / match result card */
@@ -627,9 +654,31 @@
 .lw-moment.lw-ember .lw-moment-title { color: var(--ember-dark); }
 .lw-moment--matchOver .lw-moment-title { font-size: calc(var(--s) * 3.8); }
 .lw-moment--roundOver .lw-moment-sub, .lw-moment--matchOver .lw-moment-sub { color: color-mix(in srgb, var(--ink) 65%, transparent); font-size: calc(var(--s) * 0.95); }
-.lw-result { display: flex; align-items: center; justify-content: center; gap: calc(var(--s) * 2.4); margin: calc(var(--s) * 1.4) 0 calc(var(--s) * 0.6); }
-.lw-result-vs { font-weight: 800; font-size: calc(var(--s) * 1); color: color-mix(in srgb, var(--ink) 50%, transparent); }
-.lw-result-crew { display: grid; justify-items: center; gap: calc(var(--s) * 0.3); min-width: calc(var(--s) * 11); padding: calc(var(--s) * 0.8) calc(var(--s) * 1.2); border-radius: calc(var(--s) * 0.6); }
+.lw-moment { --res-crew: calc(var(--s) * 14); --res-mid: calc(var(--s) * 9); }
+/* Three fixed columns (crew, label, crew), shared with the round ledger so each score sits under its crew. */
+.lw-result { display: grid; grid-template-columns: var(--res-crew) var(--res-mid) var(--res-crew); column-gap: calc(var(--s) * 1.2); align-items: center; justify-content: center; margin: calc(var(--s) * 1.4) 0 calc(var(--s) * 0.6); }
+.lw-result-vs { display: grid; justify-items: center; gap: calc(var(--s) * 0.3); font-weight: 800; font-size: calc(var(--s) * 1); color: color-mix(in srgb, var(--ink) 50%, transparent); }
+.lw-result-label { font-size: calc(var(--s) * 0.8); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; color: color-mix(in srgb, var(--ink) 62%, transparent); }
+
+/* Round card receipt (round 2 on): the same rows as the match-over ledger, scaled with the HUD. */
+.lw-rledger { display: grid; margin: calc(var(--s) * 0.2) auto calc(var(--s) * 0.6); width: max-content; font-weight: 700; font-size: calc(var(--s) * 1); font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--ink) 72%, transparent); }
+.lw-rledger-row { display: grid; grid-template-columns: var(--res-crew) var(--res-mid) var(--res-crew); column-gap: calc(var(--s) * 1.2); align-items: center; padding: calc(var(--s) * 0.18) 0; animation: lw-rledger-in 0.32s ease-out backwards; }
+.lw-rledger-row + .lw-rledger-row { border-top: calc(var(--s) * 0.1) dashed color-mix(in srgb, var(--ink) 16%, transparent); }
+.lw-rledger-row:nth-child(2) { animation-delay: 0.08s; }
+.lw-rledger-row:nth-child(3) { animation-delay: 0.16s; }
+.lw-rledger-label { justify-self: center; font-size: calc(var(--s) * 0.8); font-weight: 800; color: color-mix(in srgb, var(--ink) 55%, transparent); white-space: nowrap; }
+.lw-rledger-pts { position: relative; display: flex; justify-content: center; padding: calc(var(--s) * 0.22) calc(var(--s) * 0.6); border-radius: calc(var(--s) * 0.5); }
+.lw-rledger-pts.lw-won { background: color-mix(in srgb, var(--crew-c) 16%, transparent); box-shadow: inset 0 0 0 calc(var(--s) * 0.1) color-mix(in srgb, var(--crew-c) 70%, transparent); color: var(--ink); font-weight: 800; }
+.lw-rledger-pts.lw-jade { --crew-c: var(--jade); }
+.lw-rledger-pts.lw-ember { --crew-c: var(--ember); }
+.lw-rledger-mark { position: absolute; right: calc(var(--s) * 0.5); top: 50%; transform: translateY(-50%); }
+.lw-rledger-mark svg { display: block; width: calc(var(--s) * 1.05); height: auto; }
+.lw-rledger-row.lw-now .lw-rledger-label { color: var(--ink); }
+.lw-rledger-row.lw-total { margin-top: calc(var(--s) * 0.25); padding-top: calc(var(--s) * 0.45); border-top: calc(var(--s) * 0.16) solid color-mix(in srgb, var(--ink) 70%, transparent); }
+.lw-rledger-row.lw-total .lw-rledger-pts span { font-family: var(--font-display); font-weight: 400; font-size: calc(var(--s) * 1.45); line-height: 1; color: var(--ink); }
+.lw-rledger-row.lw-total .lw-rledger-label { color: var(--ink); font-size: calc(var(--s) * 0.85); }
+@keyframes lw-rledger-in { from { opacity: 0; transform: translateX(calc(var(--s) * -0.6)); } }
+.lw-result-crew { display: grid; justify-items: center; gap: calc(var(--s) * 0.3); box-sizing: border-box; padding: calc(var(--s) * 0.8) calc(var(--s) * 1.2); border-radius: calc(var(--s) * 0.6); }
 .lw-result-crew.lw-won { background: color-mix(in srgb, var(--crew-c) 18%, transparent); box-shadow: inset 0 0 0 calc(var(--s) * 0.18) var(--crew-c); }
 .lw-result-crew.lw-jade { --crew-c: var(--jade); }
 .lw-result-crew.lw-ember { --crew-c: var(--ember); }

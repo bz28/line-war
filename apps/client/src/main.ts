@@ -20,6 +20,7 @@ import { AudioUnlock } from './audio/unlock';
 import { App, type MatchSession, type StartSession } from './ui/app';
 import { addUnlocks, displayTeam, humanTeams, loadCollection, saveCollection, unlocksFromEvents } from './collection/store';
 import { recordRoundEnds, type RoundResult } from './ui/results';
+import { liftSplash, titleFontsReady } from './ui/splash';
 
 /**
  * One InputSource per player slot, built from settings. With `only`, just those slots are built
@@ -115,6 +116,7 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
     locate: (pos) => worldRenderer?.toClient(pos) ?? null,
     coach: coach ? { ...coach, storage } : undefined,
     onScoreLand: (team) => audio.scoreLand(team),
+    rounds: () => rounds,
     displayCharms: display && displayCrew !== null ? { [displayCrew]: display } : undefined,
   });
   const world = document.createElement('div');
@@ -235,4 +237,8 @@ const startSession: StartSession = (settings, host, hooks): MatchSession => {
   };
 };
 
-new App({ root: document.getElementById('app')!, startSession, onGesture: audioUnlock.wake });
+// The title mounts when its fonts are in (or after a short cap), then the first-paint splash lifts.
+void titleFontsReady(document.fonts).then(() => {
+  new App({ root: document.getElementById('app')!, startSession, onGesture: audioUnlock.wake });
+  liftSplash(document.getElementById('lw-splash'));
+});

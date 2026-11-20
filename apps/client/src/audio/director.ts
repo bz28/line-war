@@ -7,13 +7,13 @@
  *
  * Graph:  voices -> effects bus --\
  *         loops  -> effects bus ---> trim -> freeze -> impact low-pass -> compressor -> limiter -> output
- *         music  -> duck -> muffle -> music bus --/                      /
+ *         music  -> duck -> dip -> muffle -> music bus --/                      /
  *         knock + knockThud -> direct bus -> trim ------------------------/  (skip the hit-stop dip)
  */
 import { teamOf, type MatchState, type PlayerId, type TeamId } from '@line-war/sim';
 import type { Renderer } from '../render/types';
 import type { Settings } from '../settings/types';
-import { CATEGORY_PRIORITY, CUES, cuesForEvents, DUCKING_CUES, IMPACT_CUES, type Cue, type CueId } from './cues';
+import { CATEGORY_PRIORITY, CUES, cuesForEvents, DUCKING_CUES, IMPACT_CUES, MUSIC_DIPS, type Cue, type CueId } from './cues';
 import { burnBeepInterval, burnWarnings, criticAnnouncements, inFlightIds, loopTargets, workHits } from './derive';
 import { LoopChannel, type LoopId } from './loops';
 import {
@@ -28,6 +28,10 @@ import {
   INPUT_TRIM,
   LIMITER,
   MAX_VOICES,
+  MUSIC_DIP_ATTACK,
+  MUSIC_DIP_HOLD,
+  MUSIC_DIP_LEAD,
+  MUSIC_DIP_RELEASE,
   MUSIC_DUCK_DB,
   OUTPUT_GAIN,
   SCORE_LAND_RIVAL_PITCH,
@@ -60,6 +64,8 @@ interface Graph {
   effects: GainNode;
   music: GainNode;
   duck: GainNode;
+  /** Short music dip under core feedback cues (MUSIC_DIPS), in series with the stinger duck. */
+  dip: GainNode;
   muffle: BiquadFilterNode;
   /** Whole-mix low-pass, closed briefly during a knock hit-stop. */
   impact: BiquadFilterNode;
@@ -254,8 +260,10 @@ export class AudioDirector implements Renderer {
     muffle.type = 'lowpass';
     muffle.frequency.value = 20000;
     muffle.connect(music);
+    const dip = ctx.createGain();
+    dip.connect(muffle);
     const duck = ctx.createGain();
-    duck.connect(muffle);
+    duck.connect(dip);
 
     const loops: Record<LoopId, LoopChannel> = {
       sizzle: new LoopChannel(ctx, effects, 'sizzle'),
@@ -266,7 +274,7 @@ export class AudioDirector implements Renderer {
       if (mode !== 'lastCall') return;
       this.play({ id: 'clockTick', pan: 0, pitch: this.clockBeat++ % 2 === 0 ? 0 : -5 }, time);
     });
-    return { ctx, effects, music, duck, muffle, impact, freeze, direct, out, loops, seq };
+    return { ctx, effects, music, duck, dip, muffle, impact, freeze, direct, out, loops, seq };
   }
 
   private applyVolumes(): void {
@@ -385,6 +393,16 @@ export class AudioDirector implements Renderer {
       d.cancelScheduledValues(when);
       d.setTargetAtTime(dbToGain(MUSIC_DUCK_DB), when, 0.03);
       d.setTargetAtTime(1, when + Math.min(len, 1.2), 0.4);
+    }
+    const dipDb = MUSIC_DIPS[cue.id];
+    if (dipDb !== undefined && !this.paused) {
+      // A quick sidechain-style dip: the music opens a pocket for the cue, then comes straight back.
+      const d = g.dip.gain;
+      // Cues are booked LEAD ahead, so the pocket can open just before the cue lands.
+      const open = Math.max(ctx.currentTime, when - MUSIC_DIP_LEAD);
+      d.cancelScheduledValues(open);
+      d.setTargetAtTime(dbToGain(dipDb), open, MUSIC_DIP_ATTACK);
+      d.setTargetAtTime(1, when + Math.min(len, MUSIC_DIP_HOLD), MUSIC_DIP_RELEASE);
     }
     return admit.voice;
   }
