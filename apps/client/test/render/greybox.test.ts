@@ -57,7 +57,11 @@ describe('GreyboxRenderer', () => {
   it('renders a fresh match (empty board, prep)', () => {
     const s = createMatch({ arena: NIGHT_MARKET, recipes: RECIPES, ingredients: INGREDIENTS, config: makeConfig() });
     const { calls } = renderOnce(s, 0);
-    expect(texts(calls)).toContain('Tickets arrive when service starts');
+    expect(texts(calls)).toContain('PREP');
+    expect(texts(calls).some((t) => t.includes('tickets arrive then'))).toBe(true);
+    // Prep must not darken the kitchens: no full-width banner strip over the world.
+    const worldStrips = calls.filter((c) => c.name === 'fillRect' && c.args[3] === 88);
+    expect(worldStrips).toEqual([]);
     expect(badNumbers(calls)).toEqual([]);
   });
 
