@@ -14,8 +14,7 @@
   --lw-focus: 0 0 0 3px var(--lw-gold);
 }
 
-.lw-stage { display: flex; align-items: center; justify-content: center; }
-.lw-stage canvas { display: block; }
+.lw-stage { align-items: stretch; }
 
 .lw-overlay {
   position: fixed; inset: 0; z-index: 10;
