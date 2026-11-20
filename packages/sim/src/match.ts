@@ -14,7 +14,6 @@ import type {
   TeamId,
   TeamState,
   TileDef,
-  Tuning,
   Zone,
 } from './types';
 import { teamOf } from './types';
@@ -58,8 +57,6 @@ export interface CreateMatchOptions {
   charms?: readonly CharmVariantDef[];
   /** The level's charm count per round (RULES §10); overrides tuning.charmsPerRound when given. */
   charmsPerRound?: number;
-  /** The level's overrides of tuning values (e.g. panBurnSeconds), applied over config.tuning. charmsPerRound still wins. */
-  tuning?: Partial<Tuning>;
 }
 
 const freshTeam = (): TeamState => ({ score: 0, roundsWon: 0, heat: 0, cleanStreak: 0 });
@@ -108,8 +105,8 @@ export function spawnPlayers(arena: ArenaRuntime, swapped: boolean): MatchState[
 
 export function createMatch(opts: CreateMatchOptions): MatchState {
   const arena = buildArena(opts.arena);
-  const tuning = { ...opts.config.tuning, ...opts.tuning, ...(opts.charmsPerRound === undefined ? {} : { charmsPerRound: opts.charmsPerRound }) };
-  const config = opts.tuning === undefined && opts.charmsPerRound === undefined ? opts.config : { ...opts.config, tuning };
+  const config =
+    opts.charmsPerRound === undefined ? opts.config : { ...opts.config, tuning: { ...opts.config.tuning, charmsPerRound: opts.charmsPerRound } };
   return {
     tick: 0,
     config,

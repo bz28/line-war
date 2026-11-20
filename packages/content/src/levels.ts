@@ -1,4 +1,4 @@
-import type { ArenaDef, CharmVariantDef, IngredientDef, IngredientKind, RecipeDef, Tuning } from '@line-war/sim';
+import type { ArenaDef, CharmVariantDef, IngredientDef, IngredientKind, RecipeDef } from '@line-war/sim';
 import { LEVEL_CHARMS } from './charms';
 import { HARBOR_PIER } from './arenas/harborPier';
 import { NIGHT_MARKET } from './arenas/nightMarket';
@@ -19,8 +19,6 @@ export interface LevelDef {
   charms: CharmVariantDef[];
   /** Charms per round on this level (RULES §10); pass to createMatch({ charmsPerRound }). */
   charmsPerRound: number;
-  /** This level's overrides of tuning values (e.g. panBurnSeconds); pass to createMatch({ tuning }). */
-  tuning?: Partial<Tuning>;
 }
 
 type Ingredients = Record<IngredientKind, IngredientDef>;
@@ -79,11 +77,8 @@ export const LEVELS: LevelDef[] = [
     recipes: menu(roofIngredients, { salad: 3, steak: 2, soup: 0, burger: 3, fish: 2 }),
     ingredients: roofIngredients,
     charms: LEVEL_CHARMS[ROOFTOP_GARDEN.id]!,
-    // Its market is the busiest of the three levels: one charm per round.
+    // Its market is the busiest of the three levels: one charm per round keeps knocks in the 2-6 bar.
     charmsPerRound: 1,
-    // Rooftop's menu is all pans bar the salad, so burns ran ~3/round. A longer pan
-    // burn window lifts the calibrated 10%-faster crew from ~63% to ~67% (botsim, tools/botsim/reports/balance-rooftop).
-    tuning: { panBurnSeconds: 6 },
   },
 ];
 

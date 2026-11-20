@@ -47,7 +47,7 @@ const seededSlots = (seed: number, slots: readonly (BotOptions | null)[]): (BotO
 export function runMatch(opts: RunMatchOptions): MatchRecord {
   const config = buildConfig(opts.seed, opts.config, opts.tuning);
   const level = opts.arena ?? LEVELS[0]!;
-  const state: MatchState = createMatch({ arena: level.arena, recipes: level.recipes, ingredients: level.ingredients, charms: level.charms, charmsPerRound: opts.tuning?.charmsPerRound ?? level.charmsPerRound, tuning: { ...level.tuning, ...opts.tuning }, config });
+  const state: MatchState = createMatch({ arena: level.arena, recipes: level.recipes, ingredients: level.ingredients, charms: level.charms, charmsPerRound: opts.tuning?.charmsPerRound ?? level.charmsPerRound, config });
   const slots = [0, 1, 2, 3].map((i) => opts.slots[i] ?? null);
   const brains = (opts.createBots ?? defaultCreateBots)(seededSlots(opts.seed, slots));
   const collector = new Collector(state, {

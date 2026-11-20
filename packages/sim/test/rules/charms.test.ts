@@ -153,13 +153,6 @@ describe('charm spawning (RULES §10)', () => {
     expect(charmSpawnTiles(s)).toEqual([tileIndex(s.arena, 4, 1), tileIndex(s.arena, 5, 1), tileIndex(s.arena, 4, 2), tileIndex(s.arena, 5, 2)]);
   });
 
-  it('createMatch({ tuning }) applies level tuning overrides, and charmsPerRound still wins', () => {
-    const s = createMatch({ arena: TEST_ARENA, recipes: RULE_RECIPES, ingredients: TEST_INGREDIENTS, charms: CHARMS, charmsPerRound: 2, tuning: { panBurnSeconds: 6, charmsPerRound: 5 }, config: makeConfig(FAST) });
-    expect(s.config.tuning.panBurnSeconds).toBe(6);
-    expect(s.config.tuning.charmsPerRound).toBe(2);
-    expect(s.config.tuning.chopSeconds).toBe(makeConfig(FAST).tuning.chopSeconds);
-  });
-
   it('createMatch({ charmsPerRound }) sets the level count over tuning', () => {
     const s = createMatch({ arena: TEST_ARENA, recipes: RULE_RECIPES, ingredients: TEST_INGREDIENTS, charms: CHARMS, charmsPerRound: 2, config: makeConfig(FAST) });
     expect(s.config.tuning.charmsPerRound).toBe(2);
