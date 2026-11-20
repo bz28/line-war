@@ -1,6 +1,6 @@
 import type { MatchState, TeamId, Ticket } from '@line-war/sim';
 import { criticExclusiveSeconds, sortTickets, ticketTimeLeft, ticketValue } from '../render/format';
-import { crewMark, foodIcon } from './icons';
+import { foodIcon, LOCK } from './icons';
 import { crewName, formatMult, formatScore } from './text';
 
 /** Why a slip left the line. 'cleared' = removed without an event (new round). */
@@ -18,10 +18,11 @@ interface SlipView {
   el: HTMLElement;
   value: HTMLElement;
   secs: HTMLElement;
-  backCount: HTMLElement | null;
+  /** Critic only: the lock tag shown while one crew has it exclusively. */
+  lock: { root: HTMLElement; name: HTMLElement; count: HTMLElement } | null;
   slot: number;
   /** Last values written to the DOM, so frames only touch what changed. */
-  shown: { value: number; secs: number; age: number; urgent: boolean; facedown: boolean | null };
+  shown: { value: number; secs: number; age: number; urgent: boolean; locked: boolean | null; count: string };
   leaveAt: number | null;
 }
 
@@ -129,24 +130,29 @@ export class TicketLine {
     front.append(foot, el('div', 'lw-slip-fresh'));
     card.append(front);
 
-    let backCount: HTMLElement | null = null;
-    if (t.isCritic) {
-      const back = el('div', 'lw-slip-face lw-slip-back');
-      const mark = el('div', 'lw-slip-mark');
-      backCount = el('div', 'lw-slip-count');
-      back.append(el('div', 'lw-slip-critic', 'Critic'), mark, el('div', 'lw-slip-first'), backCount);
-      card.append(back);
-    }
     swing.append(pin, card);
+    // The Critic is face-up for everyone; while one crew has it exclusively a lock tag in that
+    // crew's colour hangs under it with the seconds until everyone may serve it.
+    let lock: SlipView['lock'] = null;
+    if (t.isCritic) {
+      const root = el('div', 'lw-slip-lock');
+      const icon = el('span', 'lw-slip-lock-icon');
+      icon.innerHTML = LOCK;
+      const lockName = el('span', 'lw-slip-lock-name');
+      const count = el('span', 'lw-slip-lock-count');
+      root.append(icon, lockName, count);
+      swing.append(root);
+      lock = { root, name: lockName, count };
+    }
     slip.append(swing);
     return {
       ticket: t,
       el: slip,
       value,
       secs,
-      backCount,
+      lock,
       slot: -1,
-      shown: { value: -1, secs: -1, age: -1, urgent: false, facedown: null },
+      shown: { value: -1, secs: -1, age: -1, urgent: false, locked: null, count: '' },
       leaveAt: null,
     };
   }
@@ -187,23 +193,25 @@ export class TicketLine {
       v.secs.textContent = `${secs}s`;
     }
     if (t.isCritic) {
-      const facedown = t.visibleTo !== null;
-      if (facedown !== sh.facedown) {
-        sh.facedown = facedown;
-        v.el.classList.toggle('lw-slip--facedown', facedown);
-        v.el.dataset.facedown = String(facedown);
-        if (facedown && t.visibleTo !== null) {
-          const team = t.visibleTo;
-          v.el.dataset.team = String(team);
-          v.el.querySelector('.lw-slip-mark')!.innerHTML = crewMark(team);
-          v.el.querySelector('.lw-slip-first')!.textContent = `${crewName(team)} sees it first`;
-        }
+      const locked = t.visibleTo !== null;
+      if (locked !== sh.locked) {
+        sh.locked = locked;
+        v.el.classList.toggle('lw-slip--locked', locked);
+        v.el.dataset.locked = String(locked);
+        if (t.visibleTo !== null) {
+          v.el.dataset.lockTeam = String(t.visibleTo);
+          v.lock!.name.textContent = `${crewName(t.visibleTo)} only`;
+        } else delete v.el.dataset.lockTeam;
         v.el.querySelector('.lw-slip-critic')!.textContent = `Critic ${formatMult(s.config.tuning.criticMultiplier)}`;
       }
-      if (facedown && v.backCount) {
+      if (locked && v.lock) {
         const left = criticExclusiveSeconds(s, t);
         const txt = left === null || !Number.isFinite(left) ? '' : String(Math.ceil(left));
-        if (v.backCount.textContent !== txt) v.backCount.textContent = txt;
+        if (txt !== sh.count) {
+          sh.count = txt;
+          v.lock.count.textContent = txt;
+          v.lock.root.setAttribute('aria-label', `${v.lock.name.textContent}${txt ? ` for ${txt} more seconds` : ''}`);
+        }
       }
     }
   }
@@ -217,7 +225,7 @@ export class TicketLine {
     v.leaveAt = now + (this.reducedMotion() ? REDUCED_EXIT_MS : EXIT_MS[reason]);
     v.el.dataset.state = reason;
     v.el.classList.add(`lw-slip--${reason}`);
-    v.el.classList.remove('lw-slip--facedown');
+    v.el.classList.remove('lw-slip--locked');
     v.el.setAttribute('aria-hidden', 'true');
     if (served) {
       v.el.dataset.team = String(served.team);

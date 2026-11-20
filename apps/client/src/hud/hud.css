@@ -330,7 +330,7 @@
 .lw-slip--urgent .lw-slip-swing { animation: lw-shiver 0.45s ease-in-out infinite alternate; }
 @keyframes lw-shiver { from { transform: rotate(-3deg); } to { transform: rotate(3deg); } }
 
-/* The Critic: gold, glowing, and face-down while only one crew may see it. */
+/* The Critic: gold and glowing, with a lock tag while only one crew may serve it. */
 .lw-slip--critic .lw-slip-front {
   background-color: var(--lantern);
   background-image: radial-gradient(120% 80% at 30% 0%, var(--paper) 0%, transparent 55%), linear-gradient(to bottom, transparent 55%, color-mix(in srgb, var(--lantern-hot) 70%, transparent));
@@ -357,23 +357,42 @@
   line-height: 1.3;
   white-space: nowrap;
 }
-.lw-slip-back {
+.lw-slip[data-lock-team='0'] { --lock: var(--jade); --lock-dark: var(--jade-dark); --lock-light: var(--jade-light); }
+.lw-slip[data-lock-team='1'] { --lock: var(--ember); --lock-dark: var(--ember-dark); --lock-light: var(--ember-light); }
+/* Lock tag: hangs under a face-up Critic while only the trailing crew may serve it. */
+.lw-slip-lock {
   position: absolute;
-  inset: 0;
-  transform: rotateY(180deg);
+  z-index: 2;
+  left: 50%;
+  top: calc(100% - var(--s) * 0.45);
+  display: none;
   align-items: center;
-  justify-content: flex-start;
-  gap: calc(var(--s) * 0.2);
+  gap: calc(var(--s) * 0.25);
+  padding: calc(var(--s) * 0.12) calc(var(--s) * 0.45) calc(var(--s) * 0.12) calc(var(--s) * 0.32);
+  border-radius: calc(var(--s) * 0.35);
+  background: var(--lock-dark);
+  box-shadow: inset 0 0 0 calc(var(--s) * 0.12) var(--lock), calc(var(--s) * 0.12) calc(var(--s) * 0.2) 0 color-mix(in srgb, var(--night-deep) 60%, transparent);
   color: var(--paper);
-  text-align: center;
-  background-color: var(--crew-dark);
-  background-image: repeating-linear-gradient(45deg, transparent 0 calc(var(--s) * 0.5), color-mix(in srgb, var(--crew) 35%, transparent) calc(var(--s) * 0.5) calc(var(--s) * 1));
+  white-space: nowrap;
+  transform: translateX(-50%) rotate(-3deg);
+  animation: lw-lock-in 0.35s cubic-bezier(0.2, 1.6, 0.4, 1) both;
 }
-.lw-slip-back .lw-slip-critic { margin-bottom: 0; }
-.lw-slip-mark svg { display: block; width: calc(var(--s) * 2.4); height: auto; filter: drop-shadow(0 1px 0 var(--night-deep)); }
-.lw-slip-first { font-weight: 800; font-size: calc(var(--s) * 0.68); line-height: 1.15; }
-.lw-slip-count { font-family: var(--font-display); font-size: calc(var(--s) * 1.8); line-height: 1; color: var(--lantern); }
-.lw-slip--facedown .lw-slip-card { transform: rotateY(180deg); }
+@keyframes lw-lock-in { from { opacity: 0; transform: translateX(-50%) rotate(-12deg) scale(1.8); } }
+.lw-slip--locked .lw-slip-lock { display: flex; }
+.lw-slip-lock-icon { display: block; width: calc(var(--s) * 0.8); color: var(--lock-light); }
+.lw-slip-lock-icon svg { display: block; width: 100%; height: auto; }
+.lw-slip-lock-name { font-weight: 800; font-size: calc(var(--s) * 0.78); line-height: 1.2; }
+.lw-slip-lock-count {
+  min-width: calc(var(--s) * 1.1);
+  font-family: var(--font-display);
+  font-size: calc(var(--s) * 1);
+  line-height: 1.1;
+  text-align: center;
+  color: var(--ink);
+  background: var(--lantern);
+  border-radius: 99px;
+}
+.lw-slip--locked .lw-slip-front { box-shadow: inset 0 0 0 calc(var(--s) * 0.2) var(--lock); }
 
 /* Exits */
 .lw-slip--served .lw-slip-swing { animation: lw-slip-served 1.3s cubic-bezier(0.5, 0, 0.6, 1) forwards; }

@@ -136,28 +136,35 @@ describe('HUD ticket line', () => {
     expect(slip(b.id)).toBeNull();
   });
 
-  it('draws a one-crew Critic face down with that crew and a countdown, then reveals it in gold', () => {
+  it('shows a one-crew Critic face-up with a lock tag in that crew colour, then unlocks it', () => {
     const s = at(match(), 120);
-    const t = ticket(s, 'steak', { isCritic: true, baseValue: 300, visibleTo: 1, revealAllAtTick: s.tick + secondsToTicks(s.config, 3) });
+    const t = ticket(s, 'steak', { isCritic: true, baseValue: 300, visibleTo: 0, revealAllAtTick: s.tick + secondsToTicks(s.config, 3) });
     const { frame, slip } = setup(s);
     frame();
     const el = slip(t.id)!;
     expect(el.classList.contains('lw-slip--critic')).toBe(true);
-    expect(el.dataset.facedown).toBe('true');
-    expect(el.classList.contains('lw-slip--facedown')).toBe(true);
-    expect(el.querySelector('.lw-slip-first')!.textContent).toBe('Ember sees it first');
-    expect(el.querySelector('.lw-slip-count')!.textContent).toBe('3');
-    expect(el.querySelector('.lw-slip-mark svg')).not.toBeNull();
+    // Face-up for everyone: the recipe is readable during the early window.
+    expect(el.querySelector('.lw-slip-name')!.textContent).toBe('Steak');
+    expect(el.querySelectorAll('.lw-slip-front .lw-food')).toHaveLength(2);
+    expect(el.querySelector('.lw-slip-front .lw-slip-critic')!.textContent).toBe('Critic ×3');
+    expect(el.dataset.locked).toBe('true');
+    expect(el.dataset.lockTeam).toBe('0');
+    expect(el.classList.contains('lw-slip--locked')).toBe(true);
+    const lock = el.querySelector('.lw-slip-lock')!;
+    expect(lock.querySelector('.lw-slip-lock-name')!.textContent).toBe('Jade only');
+    expect(lock.querySelector('.lw-slip-lock-count')!.textContent).toBe('3');
+    expect(lock.querySelector('svg')).not.toBeNull();
     s.tick += secondsToTicks(s.config, 1.5);
     frame();
-    expect(el.querySelector('.lw-slip-count')!.textContent).toBe('2');
+    expect(lock.querySelector('.lw-slip-lock-count')!.textContent).toBe('2');
     t.visibleTo = null;
     t.revealAllAtTick = null;
     frame();
-    expect(el.dataset.facedown).toBe('false');
-    expect(el.classList.contains('lw-slip--facedown')).toBe(false);
+    expect(el.dataset.locked).toBe('false');
+    expect(el.dataset.lockTeam).toBeUndefined();
+    expect(el.classList.contains('lw-slip--locked')).toBe(false);
     expect(el.querySelector('.lw-slip-front .lw-slip-critic')!.textContent).toBe('Critic ×3');
-    expect(slip(t.id)).toBe(el); // flipped in place, not rebuilt
+    expect(slip(t.id)).toBe(el); // unlocked in place, not rebuilt
   });
 });
 

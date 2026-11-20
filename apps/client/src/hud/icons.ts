@@ -122,3 +122,6 @@ export const CLOCK_LANTERN = `<svg class="lw-clock-svg" viewBox="0 0 120 132" ar
 <rect x="38" y="110" width="44" height="12" rx="4" fill="${P.bambooDark}"/><rect x="38" y="110" width="44" height="4" rx="2" fill="${P.bamboo}"/>
 <path d="M60 122v8" stroke="${P.danger}" stroke-width="4" stroke-linecap="round"/>
 </svg>`;
+
+/** Padlock for the Critic's one-crew window. Drawn in currentColor so the crew colour comes from CSS. */
+export const LOCK = `<svg viewBox="0 0 16 18" aria-hidden="true"><path d="M4.5 8V5.5a3.5 3.5 0 0 1 7 0V8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="2" y="7.5" width="12" height="9.5" rx="2.2" fill="currentColor"/><circle cx="8" cy="11.6" r="1.5" fill="${P.ink}"/><path d="M8 12.4v2" stroke="${P.ink}" stroke-width="1.4" stroke-linecap="round"/></svg>`;
