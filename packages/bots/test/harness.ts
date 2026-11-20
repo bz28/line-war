@@ -27,6 +27,8 @@ export interface RunOptions {
   /** Seed passed to each bot (default: derived from the match seed). */
   botSeed?: number;
   onTick?: (state: MatchState, inputs: MatchInputs, bots: (Bot | null)[]) => void;
+  /** Reuse brains from an earlier match instead of creating new ones from `slots`. */
+  brains?: ReturnType<typeof createBotsDebug>;
 }
 
 export interface RoundStats {
@@ -68,7 +70,7 @@ export function newMatch(seed: number, config: RunOptions['config'] = {}): Match
 export function runMatch(opts: RunOptions): MatchStats {
   const state = newMatch(opts.seed, opts.config);
   const slots = opts.slots.map((s, i) => (s ? { ...s, seed: s.seed ?? (opts.botSeed ?? opts.seed) * 31 + i } : null));
-  const { brains: bots, bots: handles } = createBotsDebug(slots);
+  const { brains: bots, bots: handles } = opts.brains ?? createBotsDebug(slots);
   const cfg = state.config;
   const roundTicks = cfg.roundSeconds * cfg.tuning.tickRate + cfg.tuning.intermissionSeconds * cfg.tuning.tickRate + 10;
   const maxTicks = opts.maxTicks ?? roundTicks * cfg.bestOf + 100;

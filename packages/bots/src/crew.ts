@@ -167,6 +167,8 @@ export class Crew {
 
   sync(state: MatchState): void {
     if (this.syncedTick === state.tick) return;
+    // Time went backwards: reused for a new match, so nothing on the board is real any more.
+    if (state.tick < this.syncedTick) this.roundIndex = -1;
     this.syncedTick = state.tick;
     if (this.roundIndex !== state.round.index) {
       this.roundIndex = state.round.index;

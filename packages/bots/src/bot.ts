@@ -97,7 +97,9 @@ export class Bot {
       this.resetRound(-1);
       return NO_INPUT;
     }
-    if (this.roundIndex !== state.round.index || state.tick < this.lastTick) this.resetRound(state.round.index);
+    // Time went backwards: these brains are being reused for a new match. Start from scratch.
+    if (state.tick < this.lastTick) this.resetMatch();
+    if (this.roundIndex !== state.round.index) this.resetRound(state.round.index);
     this.lastTick = state.tick;
     const me = state.players[this.id];
     const k = kitchenFor(state, me.team);
@@ -140,6 +142,25 @@ export class Bot {
   private count(m: Map<string, number>, key: string): void {
     const k = key.split(':')[0]!;
     m.set(k, (m.get(k) ?? 0) + 1);
+  }
+
+  /** Forget everything tied to the old match's clock (a reused brain must not wait for old ticks). */
+  private resetMatch(): void {
+    this.endTask();
+    this.resetRound(-1);
+    this.taskSince = 0;
+    this.readyAt = 0;
+    this.lastGrab = -99;
+    this.presses = 0;
+    this.pathTick = 0;
+    this.pathFrom = -1;
+    this.nextGlance = 0;
+    this.best = Infinity;
+    this.bestTick = 0;
+    this.stuck = 0;
+    this.sidestepUntil = 0;
+    this.huntUntil = 0;
+    this.chaseUntil = 0;
   }
 
   private resetRound(index: number): void {
