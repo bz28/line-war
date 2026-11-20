@@ -53,3 +53,15 @@ export const LIMITER = { threshold: -3, knee: 0, ratio: 20, attack: 0.001, relea
 export const INPUT_TRIM = dbToGain(5);
 /** Post-limiter output trim. */
 export const OUTPUT_GAIN = dbToGain(-1);
+
+/** Hit-stop: the whole mix ducks behind a low-pass while the match is frozen, then opens back up. */
+export const HIT_STOP_DIP_HZ = 520;
+/** Open (no filtering) frequency of the impact filter. */
+export const IMPACT_OPEN_HZ = 20000;
+/** Time constants (s) of the dip closing and reopening. */
+export const HIT_STOP_CLOSE = 0.006;
+export const HIT_STOP_OPEN = 0.07;
+/** Score tokens: the local crew's sign ticks bright, the rival's a fourth lower. */
+export const SCORE_LAND_RIVAL_PITCH = -5;
+/** Pan of the crew signs (HUD band: Jade left, Ember right). */
+export const SIGN_PAN = 0.55;

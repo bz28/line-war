@@ -220,6 +220,7 @@ export class App {
     this.overlay.classList.toggle('lw-opaque', this.screen === 'title' || this.screen === 'howto');
     this.overlay.replaceChildren(panel);
     this.overlay.hidden = false;
+    this.stage.dataset.menu = this.screen;
     // Focus the first control so keyboard and gamepad navigation work immediately.
     panel.querySelector<HTMLElement>('button, select, input')?.focus();
   }
@@ -227,5 +228,6 @@ export class App {
   private hideOverlay(): void {
     this.overlay.hidden = true;
     this.overlay.replaceChildren();
+    delete this.stage.dataset.menu;
   }
 }

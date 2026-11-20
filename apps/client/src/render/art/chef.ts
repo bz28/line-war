@@ -27,6 +27,14 @@ export interface ChefAnim {
   hopAt: number;
 }
 
+/**
+ * Screen y of a point drawn at body-space `py` once the chef is lifted (hop) and squashed about
+ * the feet, so overlays (dizzy stars, refusal badge) ride the hop instead of floating behind.
+ */
+export function riderY(py: number, feetY: number, lift: number, squash: number): number {
+  return feetY + (py - feetY) * (1 - squash) - lift;
+}
+
 export const newChefAnim = (): ChefAnim => ({ walk: 0, x: NaN, y: NaN, speed: 0, landAt: -1e9, dashing: false, hitAt: -1e9, dazed: false, hopAt: -1e9 });
 
 export interface ChefCtx {
@@ -164,6 +172,10 @@ export function drawChef(ctx: Ctx, c: ChefCtx, p: PlayerState, x: number, y: num
 
     ctx.save();
     const lift = c.lift ?? 0;
+    // Squash about the feet (landing, knock impact, serve hop); overlays reuse it via riderY.
+    const land = Math.max(0, 1 - (now - anim.landAt) / 160);
+    const hit = Math.max(0, 1 - (now - anim.hitAt) / 260);
+    const squash = dashing || reduced ? 0 : Math.max(land * 0.16, hit * 0.24) + (c.squash ?? 0);
     if (lift > 0) ctx.translate(0, -lift);
     if (p.knockImmuneTicks > 0 && !dazed) ctx.globalAlpha = reduced ? 0.75 : 0.6 + 0.4 * (Math.floor(now / 90) % 2);
     // Squash & stretch about the feet.
@@ -175,10 +187,7 @@ export function drawChef(ctx: Ctx, c: ChefCtx, p: PlayerState, x: number, y: num
       ctx.scale(1.24, 0.82);
       ctx.rotate(-a);
     } else {
-      const land = Math.max(0, 1 - (now - anim.landAt) / 160);
-      const hit = Math.max(0, 1 - (now - anim.hitAt) / 260);
-      const k = reduced ? 0 : Math.max(land * 0.16, hit * 0.24) + (c.squash ?? 0);
-      if (k !== 0) ctx.scale(1 + k, 1 - k);
+      if (squash !== 0) ctx.scale(1 + squash, 1 - squash);
       if (moving && !reduced) ctx.rotate(f.x * 0.07);
     }
     ctx.translate(-x, -feetY);
@@ -369,7 +378,7 @@ export function drawChef(ctx: Ctx, c: ChefCtx, p: PlayerState, x: number, y: num
     for (let k = 0; k < 3; k++) {
       const a = (reduced ? 0 : now / 220) + (k * TAU) / 3;
       const sx = x + Math.cos(a) * R * 0.8;
-      const sy = headY - R * 0.75 + Math.sin(a) * R * 0.28;
+      const sy = riderY(headY - R * 0.75, feetY, lift, squash) + Math.sin(a) * R * 0.28;
       starPath(ctx, sx, sy, R * 0.24, R * 0.1, a);
       fill(ctx, PALETTE.lantern);
       stroke(ctx, PALETTE.ink, 1);
@@ -380,7 +389,7 @@ export function drawChef(ctx: Ctx, c: ChefCtx, p: PlayerState, x: number, y: num
   if (c.refusedAge < 600) {
     const k = Math.min(1, c.refusedAge / 90);
     const bx = x;
-    const by = headY - R * 1.05;
+    const by = riderY(headY - R * 1.05, feetY, lift, squash);
     const r = R * 0.38 * (0.6 + 0.4 * k);
     circle(ctx, bx, by, r);
     fill(ctx, PALETTE.danger);
