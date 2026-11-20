@@ -36,6 +36,10 @@ export interface Kitchen {
   idleTile: number;
   /** Every station this team owns (kitchen), for fires. */
   owned: number[];
+  /** Market tiles right in front of the rival kitchen's doorways (where carriers can be cut off). */
+  rivalDoorFront: number[];
+  /** Market tile between the crates and the rival doorway: where to watch for carriers. */
+  watchTile: number;
 }
 
 const kitchenCache = new WeakMap<object, Map<string, Kitchen>>();
@@ -73,6 +77,8 @@ function buildKitchen(state: MatchState, team: TeamId): Kitchen {
     assembly: [],
     idleTile: -1,
     owned: [],
+    rivalDoorFront: [],
+    watchTile: -1,
   };
   for (let i = 0; i < state.arena.tiles.length; i++) {
     const def = state.arena.tiles[i]!;
@@ -110,6 +116,37 @@ function buildKitchen(state: MatchState, team: TeamId): Kitchen {
       default:
         break;
     }
+  }
+  const rival = (1 - team) as TeamId;
+  for (let i = 0; i < nav.n; i++) {
+    if (state.arena.zones[i] !== 'none' || !nav.open[i]) continue;
+    const [x, y] = nav.xy(i);
+    const nb: number[] = [];
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < nav.w && ny < nav.h) nb.push(ny * nav.w + nx);
+    }
+    // A doorway tile that opens onto the rival kitchen: the market tiles beside it are where carriers pass.
+    if (!nb.some((j) => tileOwner(state, j) === rival && state.arena.tiles[j]?.kind === 'floor')) continue;
+    for (const j of nb) if (nav.market[j] && nav.open[j] && !k.rivalDoorFront.includes(j)) k.rivalDoorFront.push(j);
+  }
+  const mid = (tiles: number[]): Vec2 | null => {
+    if (!tiles.length) return null;
+    let x = 0;
+    let y = 0;
+    for (const t of tiles) {
+      const c = nav.center(t);
+      x += c.x;
+      y += c.y;
+    }
+    return { x: x / tiles.length, y: y / tiles.length };
+  };
+  const crates = mid([...k.crate.values()]);
+  const door = mid(k.rivalDoorFront);
+  if (crates && door) {
+    const w = nav.openTileNear({ x: (crates.x + door.x) / 2, y: (crates.y + door.y) / 2 });
+    k.watchTile = w >= 0 && nav.market[w] ? w : -1;
   }
   const accessTile = (t: number): number => nav.access.get(t)?.[0]?.tile ?? -1;
   const near = (from: number, targets: number[]): number => {

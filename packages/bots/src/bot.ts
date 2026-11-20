@@ -10,7 +10,6 @@ import {
   type MatchState,
   type PlayerId,
   type PlayerInput,
-  type PlayerState,
   type Vec2,
 } from '@line-war/sim';
 import type { Crew } from './crew';
@@ -18,7 +17,7 @@ import { STEP_COST, type Nav } from './nav';
 import { BotRng } from './rng';
 import type { SkillParams } from './skill';
 import { DONE, FAIL, type Act, type Ctx, type Task } from './tasks';
-import { itemIndex, kitchenFor, type Kitchen } from './world';
+import { itemIndex, kitchenFor } from './world';
 
 const ARRIVE_DIST = 0.18;
 /** Interaction target offset (RULES §1: pos + facing × 0.75). */
@@ -31,9 +30,13 @@ const REPATH_TICKS = 40;
 const GRAB_GAP_TICKS = 3;
 const MAX_PRESSES = 6;
 const MAX_TASK_TICKS = 30 * 30;
+const URGENT_PRIORITY = 74;
 
 /** Tiles: how far away a carrier can be for a bot to go after them. */
 const HUNT_RANGE = 7;
+const HUNT_TICKS = 120;
+/** Seconds we want to be in place before the rival reaches their doorway. */
+const CUT_MARGIN_SECONDS = 0.4;
 
 const BODY_OFFSETS: readonly [number, number][] = [
   [0, 0],
@@ -61,6 +64,8 @@ export class Bot {
   private pathKey = '';
   private pathIdx = 0;
   private pathTick = 0;
+  private pathFrom = -1;
+  private nextGlance = 0;
   private best = Infinity;
   private bestTick = 0;
   private stuck = 0;
@@ -112,6 +117,7 @@ export class Bot {
     const market = this.marketPlay(ctx);
     if (market) return market;
 
+    this.maybePreempt(ctx);
     let act: Act | null = null;
     for (let tries = 0; tries < 3 && act === null; tries++) {
       if (!this.task) this.startTask(ctx, this.crew.chooseTask(ctx));
@@ -145,6 +151,20 @@ export class Bot {
     this.huntTarget = null;
     this.chase = null;
     this.considered.clear();
+  }
+
+  /**
+   * With empty hands, drop a routine job for an urgent one (food about to be done or burn, a
+   * fire) that nobody else has picked up. Checked a few times a second, like a glance around.
+   */
+  private maybePreempt(ctx: Ctx): void {
+    const { state, me } = ctx;
+    if (!this.task || me.holding || state.tick < this.nextGlance) return;
+    this.nextGlance = state.tick + Math.max(1, Math.round(this.params.glanceTicks * (0.75 + 0.5 * this.rng.next())));
+    const cand = this.crew.chooseTask(ctx);
+    if (cand.key === this.task.key || cand.priority < URGENT_PRIORITY || cand.priority < this.task.priority + 15) return;
+    this.endTask();
+    this.startTask(ctx, cand);
   }
 
   private startTask(ctx: Ctx, t: Task): void {
@@ -307,7 +327,8 @@ export class Bot {
       if (dist(me.pos, c) <= ARRIVE_DIST * 0.8) return null;
       return this.toward(me.pos, c, ctx);
     }
-    const onPath = this.path !== null && (this.path[this.pathIdx] === cur || this.path[this.pathIdx - 1] === cur || (this.pathIdx === 0 && true));
+    // Pushed off the path (by a player, or a wall slide) means a fresh path.
+    const onPath = this.path !== null && (cur === this.pathFrom || this.path.includes(cur));
     if (this.path === null || this.pathKey !== goalKey || !onPath || state.tick - this.pathTick > REPATH_TICKS) {
       this.repath(ctx, goals, goalKey, this.stuck > 0);
       if (this.path === null) {
@@ -393,6 +414,7 @@ export class Bot {
     let path = nav.path(ctx.tile, goals, extra, avoidPlayers ? blocked : null);
     if (path === null && avoidPlayers) path = nav.path(ctx.tile, goals, extra, null);
     this.path = path;
+    this.pathFrom = ctx.tile;
     this.pathKey = goalKey;
     this.pathIdx = 0;
     this.pathTick = state.tick;
@@ -447,21 +469,25 @@ export class Bot {
         if (!this.considered.has(episode)) this.considered.set(episode, this.rng.chance(chance) ? 1 : 0);
         if (this.huntTarget === r.id || this.considered.get(episode) === 1) return { ...NO_INPUT, move: { x: ux, y: uy }, dash: true };
       }
-      // Hunt a nearby rival carrying a premium item.
-      if (this.huntTarget === null && !me.holding && !this.taskIsUrgent()) {
-        for (const r of state.players) {
-          if (r.team === me.team || !r.holding || r.knockImmuneTicks > 0) continue;
-          const it = r.holding;
-          const premium = it.type === 'ingredient' ? !!state.ingredients[it.kind]?.premium : it.contents.length > 0;
-          const rt = nav.tileAt(r.pos);
-          if (!premium || rt < 0 || nav.market[rt] !== 1 || dist(me.pos, r.pos) > HUNT_RANGE) continue;
-          const episode = -(r.id * 100000 + (it.id % 100000));
-          if (!this.considered.has(episode)) this.considered.set(episode, this.rng.chance(this.params.huntChance) ? 1 : 0);
-          if (this.considered.get(episode) === 1) {
-            this.huntTarget = r.id;
-            this.huntUntil = state.tick + 75;
-            break;
-          }
+    }
+    // Hunt a rival carrying a premium item: chase one that's close, or (with time on our hands)
+    // run out and wait in front of their doorway if we can get there first.
+    if (this.huntTarget === null && !me.holding && canDash && !this.taskIsUrgent()) {
+      const spare = !this.task || this.task.priority < 40;
+      for (const r of state.players) {
+        if (r.team === me.team || !r.holding || r.knockImmuneTicks > 0) continue;
+        const it = r.holding;
+        const premium = it.type === 'ingredient' ? !!state.ingredients[it.kind]?.premium : it.contents.length > 0;
+        const rt = nav.tileAt(r.pos);
+        if (!premium || rt < 0 || nav.market[rt] !== 1) continue;
+        const close = nearMarket && dist(me.pos, r.pos) <= HUNT_RANGE;
+        if (!close && !(spare && this.cutOff(ctx, r) !== null)) continue;
+        const episode = -(r.id * 100000 + (it.id % 100000));
+        if (!this.considered.has(episode)) this.considered.set(episode, this.rng.chance(this.params.huntChance) ? 1 : 0);
+        if (this.considered.get(episode) === 1) {
+          this.huntTarget = r.id;
+          this.huntUntil = state.tick + HUNT_TICKS;
+          break;
         }
       }
     }
@@ -471,7 +497,17 @@ export class Bot {
       if (me.holding || !r.holding || r.knockImmuneTicks > 0 || state.tick > this.huntUntil || rt < 0 || nav.market[rt] !== 1) {
         this.huntTarget = null;
       } else {
-        // Cut them off: aim where they will be by the time we get there.
+        const cut = this.cutOff(ctx, r);
+        if (cut !== null && dist(me.pos, r.pos) > t.dashDistance) {
+          // Wait in their way, facing them.
+          const mv = this.walk(ctx, [cut], 'cut');
+          if (mv) return this.input(mv);
+          const dx = r.pos.x - me.pos.x;
+          const dy = r.pos.y - me.pos.y;
+          const l = vecLength(dx, dy) || 1;
+          return this.input({ x: (dx / l) * 0.01, y: (dy / l) * 0.01 });
+        }
+        // Chase: aim where they will be by the time we get there.
         const lead = Math.min(1, dist(me.pos, r.pos) / t.playerSpeed);
         const aim = { x: r.pos.x + r.vel.x * lead, y: r.pos.y + r.vel.y * lead };
         const ax = aim.x - me.pos.x;
@@ -508,6 +544,28 @@ export class Bot {
     return null;
   }
 
+  /**
+   * The market tile in front of the rival's doorway that `r` will most likely use, if we can be
+   * standing on it before they reach it.
+   */
+  private cutOff(ctx: Ctx, r: { pos: Vec2 }): number | null {
+    const { k, state } = ctx;
+    const nav = k.nav;
+    let best = -1;
+    let bestD = Infinity;
+    for (const t of k.rivalDoorFront) {
+      const d = dist(r.pos, nav.center(t));
+      if (d < bestD) {
+        bestD = d;
+        best = t;
+      }
+    }
+    if (best < 0) return null;
+    const speed = state.config.tuning.playerSpeed;
+    const mine = nav.tiles(ctx.tile, best) / (speed * this.params.moveScale) + this.params.reactionTicks / state.config.tuning.tickRate;
+    return mine + CUT_MARGIN_SECONDS < bestD / speed ? best : null;
+  }
+
   private taskIsUrgent(): boolean {
     const key = this.task?.key ?? '';
     return key.startsWith('plate:') || key.startsWith('fire:') || key.startsWith('burnt:');
@@ -536,4 +594,3 @@ function dist(a: Vec2, b: Vec2): number {
   return vecLength(a.x - b.x, a.y - b.y);
 }
 
-export type { Kitchen, PlayerState };

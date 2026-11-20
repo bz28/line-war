@@ -24,10 +24,12 @@ export interface SkillParams {
   huntChance: number;
   /** Strength of avoiding rivals while carrying in the market (0 = ignore them). */
   defend: number;
-  /** Chance per decision that the crew plans one more dish in parallel than the baseline. */
-  extraOrderChance: number;
+  /** Mean number of dishes a crew juggles beyond one per bot (multitasking). */
+  extraOrders: number;
   /** How early (seconds) a bot heads to a stove before the food is done. */
   stoveLeadSeconds: number;
+  /** Ticks between glances around the kitchen for something urgent (food done, fire). */
+  glanceTicks: number;
 }
 
 const clamp01 = (x: number): number => (x < 0 ? 0 : x > 1 ? 1 : x);
@@ -41,12 +43,13 @@ export function skillParams(skillIn: number): SkillParams {
     reactionTicks: lerp(13, 3.5, s),
     hesitateChance: lerp(0.3, 0.02, s),
     hesitateTicks: [4, Math.round(lerp(30, 10, s))],
-    moveScale: lerp(0.84, 1, s),
+    moveScale: lerp(0.8, 1, s),
     ticketNoise: lerp(0.8, 0.05, s),
     knockChance: clamp01(lerp(-0.25, 1.1, s)),
-    huntChance: clamp01(lerp(-0.6, 0.9, s)),
+    huntChance: clamp01(lerp(-0.4, 1, s)),
     defend: clamp01(lerp(-0.8, 1.2, s)),
-    extraOrderChance: clamp01(lerp(-0.2, 1.2, s)),
+    extraOrders: Math.max(0, lerp(-0.3, 2, s)),
     stoveLeadSeconds: lerp(0.3, 2.5, s),
+    glanceTicks: lerp(45, 5, s),
   };
 }

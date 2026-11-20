@@ -43,6 +43,8 @@ export abstract class Task {
   abstract readonly key: string;
   /** Crew claims held while this task runs (released when it ends). */
   claims: string[] = [];
+  /** Score the crew planner gave this task when it was chosen (for pre-emption). */
+  priority = 0;
   abstract step(ctx: Ctx): StepResult;
 }
 
@@ -699,6 +701,20 @@ export class ParkTask extends Task {
       ctx.crew.claim(`tile:${this.counter}`, ctx.me.id);
     }
     return { kind: 'use', tile: this.counter };
+  }
+}
+
+/** Nothing to cook: stand in the market where rival carriers pass (the bot's hunt logic does the rest). */
+export class WatchTask extends Task {
+  readonly key = 'watch';
+  private ticks = 0;
+  constructor(readonly tile: number) {
+    super();
+    this.claims = [this.key];
+  }
+  step(ctx: Ctx): StepResult {
+    if (++this.ticks > 90) return DONE;
+    return ctx.tile === this.tile ? { kind: 'wait' } : { kind: 'goto', tile: this.tile };
   }
 }
 
