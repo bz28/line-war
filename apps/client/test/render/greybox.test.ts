@@ -97,6 +97,24 @@ describe('GreyboxRenderer', () => {
     expect(texts(calls)).not.toContain('+72');
   });
 
+  it('keeps effects from every tick when one frame runs several steps (onTick)', () => {
+    const s = buildDemoState();
+    const { canvas, calls } = fakeCanvas();
+    const r = new GreyboxRenderer(canvas, s, { now: () => 0, autoResize: false });
+    const delivered = s.events.find((e) => e.type === 'delivered');
+    expect(delivered).toBeDefined();
+    // Tick N carries the delivery; ticks N+1 and N+2 have no events. Only the last is rendered.
+    r.onTick(s);
+    s.tick++;
+    s.events = [];
+    r.onTick(s);
+    s.tick++;
+    r.onTick(s);
+    calls.length = 0;
+    r.render(s, 0);
+    expect(texts(calls)).toContain(`+${(delivered as { points: number }).points}`);
+  });
+
   it('resize keeps aspect ratio and sets CSS + backing size', () => {
     const s = buildDemoState();
     const { canvas } = fakeCanvas();
