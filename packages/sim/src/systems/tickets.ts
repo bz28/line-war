@@ -3,7 +3,7 @@
  * Ticket spawning (weighted recipes, max on board, rush rate, critic), expiry, and delivery.
  * Spec: docs/RULES.md §7 (and §8 for the points).
  */
-import { tileIndexAtPos, tileOwner } from '../grid';
+import { tileOwner } from '../grid';
 import { isPlaying, newId } from '../match';
 import { matchesRecipe } from '../recipes';
 import { weightedIndex } from '../rng';
@@ -11,10 +11,8 @@ import { secondsToTicks, timerTicks } from '../tuning';
 import type { MatchState, PlateItem, PlayerId, RecipeDef, TeamId, Ticket } from '../types';
 import { roundTimes } from './rules/timing';
 import { isPlateCold } from './kitchen/plate';
+import { interactTarget } from './kitchen/world';
 import { registerCleanDelivery, scoreDelivery } from './scoring';
-
-/** RULES §1: the interaction target is the tile containing pos + facing × 0.75. */
-const TARGET_PROBE_DISTANCE = 0.75;
 
 export const isVisibleTo = (ticket: Ticket, team: TeamId): boolean => ticket.visibleTo === null || ticket.visibleTo === team;
 
@@ -108,10 +106,7 @@ function refuse(state: MatchState, player: PlayerId, reason: Extract<DeliveryRes
 /** True if the player's interaction target (RULES §1) is a pass their team owns this round. */
 export function facesOwnPass(state: MatchState, player: PlayerId): boolean {
   const p = state.players[player];
-  const target = tileIndexAtPos(state.arena, {
-    x: p.pos.x + p.facing.x * TARGET_PROBE_DISTANCE,
-    y: p.pos.y + p.facing.y * TARGET_PROBE_DISTANCE,
-  });
+  const { tile: target } = interactTarget(state, p);
   if (target === null) return false;
   return state.arena.tiles[target]?.kind === 'pass' && tileOwner(state, target) === p.team;
 }
