@@ -14,6 +14,8 @@ import { tryKnock } from './market';
 
 /** Passes of wall resolution / player separation per tick. */
 const RESOLVE_PASSES = 4;
+/** Wall pushes per resolve (one tile each, deepest first); enough for any corner a circle can touch. */
+const WALL_PASSES = 8;
 
 export function updateMovement(state: MatchState, inputs: MatchInputs): void {
   const t = state.config.tuning;
@@ -110,15 +112,21 @@ function moveWithCollision(state: MatchState, p: PlayerState, dx: number, dy: nu
   }
 }
 
-/** Circle vs tile: push the player out of every tile that is solid for their team. */
+/**
+ * Circle vs tile: push the player out of every tile that is solid for their team, deepest
+ * overlap first (one push per pass). Resolving in a fixed tile order instead would make a
+ * player sliding along a wall seam get nudged differently on the left and right of the map.
+ */
 export function resolveWalls(state: MatchState, p: PlayerState): void {
   const r = state.config.tuning.playerRadius;
-  for (let pass = 0; pass < RESOLVE_PASSES; pass++) {
-    let moved = false;
+  for (let pass = 0; pass < WALL_PASSES; pass++) {
     const x0 = Math.floor(p.pos.x - r);
     const x1 = Math.floor(p.pos.x + r);
     const y0 = Math.floor(p.pos.y - r);
     const y1 = Math.floor(p.pos.y + r);
+    let bestX = 0;
+    let bestY = 0;
+    let bestDepth = 0;
     for (let ty = y0; ty <= y1; ty++) {
       for (let tx = x0; tx <= x1; tx++) {
         if (isOpenFor(state, p.team, tx, ty)) continue;
@@ -128,10 +136,13 @@ export function resolveWalls(state: MatchState, p: PlayerState): void {
         const oy = p.pos.y - cy;
         const d = vecLength(ox, oy);
         if (d >= r - EPS) continue;
+        let nx: number;
+        let ny: number;
+        let depth: number;
         if (d > EPS) {
-          const k = (r - d) / d;
-          p.pos.x += ox * k;
-          p.pos.y += oy * k;
+          depth = r - d;
+          nx = ox * (depth / d);
+          ny = oy * (depth / d);
         } else {
           // Centre inside the tile: leave through the nearest face.
           const left = p.pos.x - tx;
@@ -139,24 +150,35 @@ export function resolveWalls(state: MatchState, p: PlayerState): void {
           const up = p.pos.y - ty;
           const down = ty + 1 - p.pos.y;
           const m = Math.min(left, right, up, down);
-          if (m === left) p.pos.x = tx - r;
-          else if (m === right) p.pos.x = tx + 1 + r;
-          else if (m === up) p.pos.y = ty - r;
-          else p.pos.y = ty + 1 + r;
+          depth = r + m;
+          nx = m === left ? tx - r - p.pos.x : m === right ? tx + 1 + r - p.pos.x : 0;
+          ny = m === left || m === right ? 0 : m === up ? ty - r - p.pos.y : ty + 1 + r - p.pos.y;
         }
-        moved = true;
+        if (depth > bestDepth) {
+          bestDepth = depth;
+          bestX = nx;
+          bestY = ny;
+        }
       }
     }
-    if (!moved) return;
+    if (bestDepth === 0) return;
+    p.pos.x += bestX;
+    p.pos.y += bestY;
   }
 }
 
-/** Player-player collision: push overlapping pairs apart, equal split, then re-resolve walls. */
+/**
+ * Player-player collision: push overlapping pairs apart, equal split, then re-resolve walls.
+ * Every pair's push in a pass is measured from the same positions and applied together, so the
+ * result doesn't depend on player-id order (which would favour one team in a crowd).
+ */
 function separatePlayers(state: MatchState): void {
   const min = 2 * state.config.tuning.playerRadius;
   const ps = state.players;
+  const push = ps.map(() => ({ x: 0, y: 0 }));
   for (let pass = 0; pass < RESOLVE_PASSES; pass++) {
     let moved = false;
+    for (const d of push) d.x = d.y = 0;
     for (let i = 0; i < ps.length; i++) {
       for (let j = i + 1; j < ps.length; j++) {
         const a = ps[i]!;
@@ -169,14 +191,18 @@ function separatePlayers(state: MatchState): void {
         const nx = d > EPS ? ox / d : 1;
         const ny = d > EPS ? oy / d : 0;
         const half = (min - d) / 2;
-        a.pos.x -= nx * half;
-        a.pos.y -= ny * half;
-        b.pos.x += nx * half;
-        b.pos.y += ny * half;
+        push[i]!.x -= nx * half;
+        push[i]!.y -= ny * half;
+        push[j]!.x += nx * half;
+        push[j]!.y += ny * half;
         moved = true;
       }
     }
-    for (const p of ps) resolveWalls(state, p);
+    for (const p of ps) {
+      p.pos.x += push[p.id]!.x;
+      p.pos.y += push[p.id]!.y;
+      resolveWalls(state, p);
+    }
     if (!moved) return;
   }
 }
