@@ -5,17 +5,24 @@ import type { InputSource } from './types';
 /** Tracks held keys for the whole page; one instance shared by all keyboard slots. */
 export class KeyboardState {
   private held = new Set<string>();
-  private onDown = (e: KeyboardEvent) => {
-    this.held.add(e.code);
-    if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
+  /** Keys whose browser default (scrolling, quick-find...) is suppressed while playing. */
+  private captured = new Set<string>();
+  private onDown = (e: Event) => {
+    const { code } = e as KeyboardEvent;
+    this.held.add(code);
+    if (this.captured.has(code)) e.preventDefault();
   };
-  private onUp = (e: KeyboardEvent) => this.held.delete(e.code);
+  private onUp = (e: Event) => this.held.delete((e as KeyboardEvent).code);
   private onBlur = () => this.held.clear();
 
-  constructor(private target: Window = window) {
+  constructor(private target: EventTarget = window) {
     target.addEventListener('keydown', this.onDown);
     target.addEventListener('keyup', this.onUp);
     target.addEventListener('blur', this.onBlur);
+  }
+  /** Set the keys to capture (usually every bound key while a match is running; none in menus). */
+  setCaptured(codes: Iterable<string>): void {
+    this.captured = new Set(codes);
   }
   isDown(code: string): boolean {
     return this.held.has(code);

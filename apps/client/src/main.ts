@@ -1,15 +1,41 @@
 import { INGREDIENTS, NIGHT_MARKET, RECIPES } from '@line-war/content';
-import { createMatch, makeConfig, step, type MatchInputs, type PlayerId } from '@line-war/sim';
+import { createMatch, makeConfig, NO_INPUT, step, type MatchInputs, type MatchState, type PlayerId } from '@line-war/sim';
 import { idleBot, type BotBrain } from './bots/types';
+import { browserGamepads, GamepadInput } from './input/gamepad';
 import { KeyboardInput, KeyboardState } from './input/keyboard';
 import type { InputSource } from './input/types';
 import { startLoop } from './loop';
 import { GreyboxRenderer } from './render/greybox';
 import type { Renderer } from './render/types';
-import { DEFAULT_SETTINGS, type Settings } from './settings/types';
+import type { BotDifficulty, Settings } from './settings/types';
+import { App, type MatchSession, type StartSession } from './ui/app';
 
-/** Wiring only. Menus, settings persistence, gamepads and bots plug in here. */
-function startMatch(settings: Settings, root: HTMLElement) {
+/** THE place bots are created. Swap in the bots package here when it lands. */
+function createBot(_difficulty: BotDifficulty): BotBrain {
+  return idleBot;
+}
+
+/** One InputSource per player slot, built from settings. */
+function createInputSources(settings: Settings, keyboard: KeyboardState, getState: () => MatchState): InputSource[] {
+  return settings.slots.map((slot, i): InputSource => {
+    switch (slot.kind) {
+      case 'keyboard':
+        return new KeyboardInput(keyboard, slot.bindings);
+      case 'gamepad':
+        return new GamepadInput(slot.index, browserGamepads);
+      case 'bot': {
+        const brain = createBot(slot.difficulty);
+        return { poll: () => brain.decide(getState(), i as PlayerId) };
+      }
+      case 'none':
+        return { poll: () => NO_INPUT };
+    }
+  });
+}
+
+const boundKeys = (settings: Settings) => settings.slots.flatMap((s) => (s.kind === 'keyboard' ? Object.values(s.bindings) : []));
+
+const startSession: StartSession = (settings, host, hooks): MatchSession => {
   const state = createMatch({
     arena: NIGHT_MARKET,
     recipes: RECIPES,
@@ -17,21 +43,75 @@ function startMatch(settings: Settings, root: HTMLElement) {
     config: makeConfig({ ...settings.match, seed: (Math.random() * 2 ** 31) | 0 }),
   });
   const keyboard = new KeyboardState();
-  const sources: (InputSource | { bot: BotBrain })[] = settings.slots.map((slot) =>
-    slot.kind === 'keyboard' ? new KeyboardInput(keyboard, slot.bindings) : { bot: idleBot },
-  );
+  let sources = createInputSources(settings, keyboard, () => state);
+  let paused = false;
+  let overNotified = false;
+
   const canvas = document.createElement('canvas');
-  root.replaceChildren(canvas);
+  const fps = document.createElement('div');
+  fps.className = 'lw-fps';
+  host.replaceChildren(canvas, fps);
   const renderer: Renderer = new GreyboxRenderer(canvas, state);
 
-  startLoop(
+  const applyDisplay = (s: Settings) => {
+    fps.hidden = !s.display.showFps;
+    keyboard.setCaptured(paused ? [] : boundKeys(s));
+  };
+  let current = settings;
+  applyDisplay(current);
+
+  /** Poll human sources once and discard, so a button held while leaving a menu is not an edge. */
+  const primeHumans = () => {
+    for (const s of sources) if (s instanceof KeyboardInput || s instanceof GamepadInput) s.poll();
+  };
+
+  let frames = 0;
+  let fpsSince = performance.now();
+  const stop = startLoop(
     state.config.tuning.tickRate,
     () => {
-      const inputs = sources.map((s, i) => ('bot' in s ? s.bot.decide(state, i as PlayerId) : s.poll())) as MatchInputs;
-      step(state, inputs);
+      if (paused) return;
+      step(state, sources.map((s) => s.poll()) as MatchInputs);
+      if (state.round.phase === 'matchOver' && !overNotified) {
+        overNotified = true;
+        hooks.onMatchOver();
+      }
     },
-    (alpha) => renderer.render(state, alpha),
+    (alpha) => {
+      renderer.render(state, alpha);
+      frames++;
+      const now = performance.now();
+      if (now - fpsSince >= 500) {
+        fps.textContent = `${Math.round((frames * 1000) / (now - fpsSince))} fps`;
+        frames = 0;
+        fpsSince = now;
+      }
+    },
   );
-}
 
-startMatch(DEFAULT_SETTINGS, document.getElementById('app')!);
+  return {
+    state,
+    setPaused(p) {
+      if (p === paused) return;
+      paused = p;
+      if (!p) primeHumans();
+      applyDisplay(current);
+    },
+    applySettings(s) {
+      current = s;
+      for (const src of sources) src.dispose?.();
+      sources = createInputSources(s, keyboard, () => state);
+      primeHumans();
+      applyDisplay(s);
+    },
+    dispose() {
+      stop();
+      for (const src of sources) src.dispose?.();
+      keyboard.dispose();
+      renderer.dispose?.();
+      host.replaceChildren();
+    },
+  };
+};
+
+new App({ root: document.getElementById('app')!, startSession });
