@@ -6,6 +6,7 @@
 import {
   isVisibleTo,
   tileOwner,
+  vecLength,
   type Food,
   type IngredientKind,
   type Item,
@@ -46,6 +47,8 @@ export interface Kitchen {
   watchTiles: number[];
   /** Own-kitchen floor tiles next to a doorway: stepping on one banks a carried charm (RULES §10). */
   bankTiles: number[];
+  /** Doorway (zone none) tiles that open onto our kitchen floor: where a rival can wall us in. */
+  doorTiles: number[];
 }
 
 const kitchenCache = new WeakMap<object, Map<string, Kitchen>>();
@@ -87,6 +90,7 @@ function buildKitchen(state: MatchState, team: TeamId): Kitchen {
     rivalDoorFront: [],
     watchTiles: [],
     bankTiles: [],
+    doorTiles: [],
   };
   // Scan from this team's own side so every list (and every "first" pick from it) mirrors the rival's.
   for (const i of nav.order()) {
@@ -151,8 +155,8 @@ function buildKitchen(state: MatchState, team: TeamId): Kitchen {
       const ny = y + dy;
       const j = ny * nav.w + nx;
       if (nx >= 0 && ny >= 0 && nx < nav.w && ny < nav.h && nav.open[j] && state.arena.zones[j] === 'none' && tileOwner(state, j) === null) {
-        k.bankTiles.push(i);
-        break;
+        if (!k.bankTiles.includes(i)) k.bankTiles.push(i);
+        if (!k.doorTiles.includes(j)) k.doorTiles.push(j);
       }
     }
   }
@@ -183,7 +187,7 @@ function buildKitchen(state: MatchState, team: TeamId): Kitchen {
         const j = ny * nav.w + nx;
         if (nx < 0 || ny < 0 || nx >= nav.w || ny >= nav.h || !nav.open[j] || !nav.market[j]) continue;
         const c = nav.center(j);
-        const d = Math.hypot(c.x - door.x, c.y - door.y);
+        const d = vecLength(c.x - door.x, c.y - door.y);
         if (d < altD) {
           altD = d;
           alt = j;

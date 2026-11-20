@@ -16,6 +16,7 @@ import {
   type PlayerInput,
 } from '../../src';
 import { IDLE, TEST_ARENA, TEST_INGREDIENTS } from '../fixtures';
+import { KITCHEN_ARENA, KITCHEN_RECIPES } from '../kitchen/helpers';
 import { ofType, RULE_RECIPES, stepN, stepToRoundTick, type ConfigOverrides } from './helpers';
 
 const CHARMS: CharmVariantDef[] = [
@@ -419,5 +420,65 @@ describe('charm determinism', () => {
       step(copy, scripted(t));
     }
     expect(JSON.stringify(copy)).toBe(JSON.stringify(s));
+  });
+});
+
+describe('charm spawn fallback when the middle column is littered (RULES §10)', () => {
+  /** Kitchen test arena: market columns 9-11, middle column 10 (crate at (10,1)), rows 0-6 → centre row 3. */
+  function kitchenCharms(seed = 1): MatchState {
+    const config = makeConfig({ ...FAST, seed, tuning: { charmsPerRound: 1 } });
+    return createMatch({ arena: KITCHEN_ARENA, recipes: KITCHEN_RECIPES, ingredients: TEST_INGREDIENTS, charms: CHARMS, config });
+  }
+  const litter = (s: MatchState, x: number, y: number): void => {
+    s.floorItems.push({ item: { id: s.nextId++, type: 'ingredient', kind: 'lettuce', state: 'raw' }, pos: { x: x + 0.5, y: y + 0.5 }, vel: { x: 0, y: 0 }, thrownBy: 0, thrownAtTick: null, travelled: 0 });
+  };
+  const at = (s: MatchState, x: number, y: number): number => tileIndex(s.arena, x, y);
+
+  it('falls back to the free market tiles nearest the centre, in mirror pairs', () => {
+    const s = kitchenCharms();
+    for (let y = 2; y <= 5; y++) litter(s, 10, y);
+    expect(charmSpawnTiles(s)).toEqual([at(s, 9, 3), at(s, 11, 3)]);
+    // One side of a pair taken: the pair is skipped, so the set stays mirror-symmetric.
+    litter(s, 9, 3);
+    expect(charmSpawnTiles(s)).toEqual([at(s, 9, 2), at(s, 11, 2), at(s, 9, 4), at(s, 11, 4)]);
+    // A free middle tile always wins over the fallback.
+    s.floorItems = s.floorItems.filter((f) => !(f.pos.x === 10.5 && f.pos.y === 4.5));
+    expect(charmSpawnTiles(s)).toEqual([at(s, 10, 4)]);
+  });
+
+  it('litter on the whole middle column no longer denies the charm, and either side of the pair can get it', () => {
+    const tiles = new Set<number>();
+    for (let seed = 1; seed <= 12; seed++) {
+      const s = kitchenCharms(seed);
+      for (let y = 2; y <= 5; y++) litter(s, 10, y);
+      const events = stepToRoundTick(s, charmDueTick(s, 0));
+      const [ev] = ofType(events, 'charmSpawned');
+      expect(ev, `seed ${seed}`).toBeDefined();
+      tiles.add(ev!.tile);
+    }
+    expect([...tiles].sort((a, b) => a - b)).toEqual([3 * KITCHEN_ARENA.rows[0]!.length + 9, 3 * KITCHEN_ARENA.rows[0]!.length + 11]);
+  });
+});
+
+describe('charms and stations: trash and counters (RULES §10)', () => {
+  it("can't be trashed or put on a counter (still held, then banked at the end of the tick)", () => {
+    const config = makeConfig({ ...FAST, tuning: { charmsPerRound: 0 } });
+    const s = createMatch({ arena: KITCHEN_ARENA, recipes: KITCHEN_RECIPES, ingredients: TEST_INGREDIENTS, charms: CHARMS, config });
+    stepToRoundTick(s, 31);
+    const p = s.players[0];
+    // Trash (5,5) from (5,4) facing down; counter (5,1) from (5,2) facing up.
+    for (const [pos, facing, tile] of [
+      [{ x: 5.5, y: 4.5 }, { x: 0, y: 1 }, tileIndex(s.arena, 5, 5)],
+      [{ x: 5.5, y: 2.5 }, { x: 0, y: -1 }, tileIndex(s.arena, 5, 1)],
+    ] as const) {
+      const item = charm(s);
+      p.holding = item;
+      p.pos = { ...pos };
+      p.facing = { ...facing };
+      step(s, inputs(0, { grab: true }));
+      expect(s.stations[String(tile)]!.item).toBeNull();
+      expect(ofType(s.events, 'drop')).toHaveLength(0);
+      expect(ofType(s.events, 'charmBanked').map((e) => e.itemId)).toEqual([item.id]);
+    }
   });
 });

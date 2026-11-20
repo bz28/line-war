@@ -2,7 +2,7 @@ import type { ArenaDef } from '@line-war/sim';
 import { BASE_LEGEND } from './legend';
 
 /**
- * Harbor Pier. A pond splits the market. Each kitchen has one narrow door at the top: steak waits between the doors, fish across the water.
+ * Harbor Pier. A pond splits the market. Each kitchen has one door at the top, two lanes wide through the first kitchen tile: steak waits between the doors, fish across the water.
  * Must stay left-right mirrored. Kitchens are columns 1-7 and 17-23, the market 9-15.
  */
 export const HARBOR_PIER: ArenaDef = {
@@ -10,7 +10,7 @@ export const HARBOR_PIER: ArenaDef = {
   name: 'Harbor Pier',
   rows: [
     '#########################',
-    '#XX.KK.C.........C.KK.XX#',
+    '#XXCKK.............KKCXX#',
     '#...........S...........#',
     '#C.....C#.......#C.....C#',
     '#l.CC..C#.#####.#C..CC.l#',

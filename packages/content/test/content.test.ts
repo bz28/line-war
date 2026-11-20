@@ -1,4 +1,4 @@
-import { buildArena, createMatch, makeConfig } from '@line-war/sim';
+import { buildArena, charmSpawnTiles, createMatch, makeConfig } from '@line-war/sim';
 import { describe, expect, it } from 'vitest';
 import { INGREDIENTS, LEVELS, NIGHT_MARKET, RECIPES, levelById } from '../src';
 
@@ -52,6 +52,53 @@ describe.each(LEVELS.map((l) => [l.name, l] as const))('level %s', (_name, level
       expect(open.length).toBeGreaterThanOrEqual(2);
       for (const y of open) expect(arena.zones[y * arena.width + col]).toBe('none');
     }
+  });
+
+  it('has no 1-lane kitchen entrance: every doorway is 2+ lanes wide through the door AND the first kitchen tile', () => {
+    // A rival can't be knocked outside the market, so a single body on a 1-lane entrance (door tile
+    // plus the kitchen tile behind it) seals the kitchen (audit: Harbor Pier's old door).
+    const arena = buildArena(level.arena);
+    const floor = (x: number, y: number) => arena.tiles[y * arena.width + x]?.kind === 'floor';
+    const narrow: string[] = [];
+    for (const [door, inside] of [[8, 7], [16, 17]] as const) {
+      // Runs of open doorway rows; each run that opens onto the kitchen is one entrance.
+      let run: number[] = [];
+      const flush = () => {
+        const lanes = run.filter((y) => floor(inside, y));
+        if (lanes.length === 0) return;
+        let best = 0;
+        let cur = 0;
+        for (const y of run) {
+          cur = floor(inside, y) ? cur + 1 : 0;
+          best = Math.max(best, cur);
+        }
+        if (best < 2) narrow.push(`door x=${door} rows ${run.join(',')}: ${best} lane`);
+      };
+      for (let y = 0; y < arena.height; y++) {
+        if (floor(door, y)) run.push(y);
+        else {
+          flush();
+          run = [];
+        }
+      }
+      flush();
+    }
+    expect(narrow).toEqual([]);
+  });
+
+  it('still spawns a charm, mirror-fairly, when every middle-column tile is littered (RULES §10 fallback)', () => {
+    const state = createMatch({ arena: level.arena, recipes: level.recipes, ingredients: level.ingredients, charms: level.charms, config: makeConfig() });
+    const before = charmSpawnTiles(state);
+    expect(before.length).toBeGreaterThan(0);
+    for (const t of before) {
+      const x = t % state.arena.width;
+      const y = Math.floor(t / state.arena.width);
+      state.floorItems.push({ item: { id: state.nextId++, type: 'ingredient', kind: 'bun', state: 'raw' }, pos: { x: x + 0.5, y: y + 0.5 }, vel: { x: 0, y: 0 }, thrownBy: 0, thrownAtTick: null, travelled: 0 });
+    }
+    const fallback = charmSpawnTiles(state);
+    expect(fallback.length).toBeGreaterThan(0);
+    const mirror = (t: number) => t - (t % state.arena.width) + (state.arena.width - 1 - (t % state.arena.width));
+    expect(new Set(fallback.map(mirror))).toEqual(new Set(fallback));
   });
 
   it('lets the owning team (both teams for the market) face every station straight on from a reachable floor tile', () => {

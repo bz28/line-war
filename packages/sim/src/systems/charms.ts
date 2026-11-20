@@ -24,26 +24,34 @@ export function charmDueTick(state: MatchState, k: number): number {
   return t.prepEnd + Math.floor(((k + 1) * (t.lastCallStart - t.prepEnd)) / (n + 1));
 }
 
-/** The market's middle column(s): halfway between its leftmost and rightmost columns. */
-function middleColumns(state: MatchState): number[] {
+/** Column and row bounds of the market zone (its bounding box), or null if there is no market. */
+function marketBounds(state: MatchState): { x0: number; x1: number; y0: number; y1: number } | null {
   const { arena } = state;
-  let lo = Infinity;
-  let hi = -Infinity;
+  let x0 = Infinity;
+  let x1 = -Infinity;
+  let y0 = Infinity;
+  let y1 = -Infinity;
   for (let i = 0; i < arena.tiles.length; i++) {
     if (zoneAt(arena, i) !== 'market') continue;
     const x = i % arena.width;
-    if (x < lo) lo = x;
-    if (x > hi) hi = x;
+    const y = (i - x) / arena.width;
+    x0 = Math.min(x0, x);
+    x1 = Math.max(x1, x);
+    y0 = Math.min(y0, y);
+    y1 = Math.max(y1, y);
   }
-  if (!Number.isFinite(lo)) return [];
-  const sum = lo + hi;
-  return sum % 2 === 0 ? [sum / 2] : [(sum - 1) / 2, (sum + 1) / 2];
+  return Number.isFinite(x0) ? { x0, x1, y0, y1 } : null;
 }
 
-/** Free floor tiles of the middle column(s), in tile-index order. */
+/**
+ * Where the next charm may spawn (RULES §10), in tile-index order: the free floor tiles of the
+ * market's middle column(s); if none is free, the free market floor tiles nearest the market's
+ * centre whose mirror tile is free too (so the set is always side-symmetric).
+ */
 export function charmSpawnTiles(state: MatchState): number[] {
   const { arena } = state;
-  const cols = new Set(middleColumns(state));
+  const b = marketBounds(state);
+  if (!b) return [];
   const taken = new Set<number>();
   for (const fi of state.floorItems) {
     const t = tileIndexAtPos(arena, fi.pos);
@@ -53,10 +61,28 @@ export function charmSpawnTiles(state: MatchState): number[] {
     const t = tileIndexAtPos(arena, p.pos);
     if (t !== null) taken.add(t);
   }
-  const out: number[] = [];
+  const free = (i: number): boolean => zoneAt(arena, i) === 'market' && arena.tiles[i]?.kind === 'floor' && !taken.has(i);
+  const sum = b.x0 + b.x1;
+  const mid = sum % 2 === 0 ? [sum / 2] : [(sum - 1) / 2, (sum + 1) / 2];
+  const middle: number[] = [];
+  for (let i = 0; i < arena.tiles.length; i++) if (mid.includes(i % arena.width) && free(i)) middle.push(i);
+  if (middle.length > 0) return middle;
+  // Fallback: nearest to the centre, in doubled coordinates so distances stay integers.
+  let best = Infinity;
+  let out: number[] = [];
   for (let i = 0; i < arena.tiles.length; i++) {
-    if (!cols.has(i % arena.width) || zoneAt(arena, i) !== 'market' || arena.tiles[i]?.kind !== 'floor' || taken.has(i)) continue;
-    out.push(i);
+    const x = i % arena.width;
+    const y = (i - x) / arena.width;
+    const mirror = i - x + sum - x;
+    if (!free(i) || !free(mirror)) continue;
+    const dx = 2 * x - sum;
+    const dy = 2 * y - (b.y0 + b.y1);
+    const d = dx * dx + dy * dy;
+    if (d < best) {
+      best = d;
+      out = [];
+    }
+    if (d === best) out.push(i);
   }
   return out;
 }
