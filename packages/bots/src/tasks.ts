@@ -21,6 +21,8 @@ export type Act =
   | { kind: 'pick'; item: number }
   /** Walk to a floor tile and stand there. */
   | { kind: 'goto'; tile: number }
+  /** Put what I'm holding down on the floor of my own kitchen. */
+  | { kind: 'drop' }
   | { kind: 'wait' };
 
 export const DONE = 'done' as const;
@@ -164,6 +166,22 @@ function plateOnSurface(ctx: Ctx, o: Order): { tile: number; plate: PlateItem } 
   return { tile: loc.tile, plate: loc.item };
 }
 
+/** Ticks to wait for a counter to free up before getting rid of what we hold another way. */
+const NO_SURFACE_WAIT_TICKS = 60;
+
+/**
+ * Holding something with no free counter: wait a little (a crewmate may clear one), then trash an
+ * ingredient (cheap to replace) or set a plate down on our kitchen floor. Never waits forever.
+ */
+export function noSurface(ctx: Ctx, wait: { stalled: number }): StepResult {
+  if (++wait.stalled < NO_SURFACE_WAIT_TICKS) return { kind: 'wait' };
+  if (ctx.me.holding?.type === 'ingredient') {
+    const tr = nearest(ctx, ctx.k.trash, () => true);
+    if (tr !== null) return { kind: 'use', tile: tr };
+  }
+  return { kind: 'drop' };
+}
+
 // ---------- prepare one ingredient of a dish ----------
 
 /**
@@ -176,6 +194,7 @@ export class PrepSlotTask extends Task {
   private vessel: number | null = null;
   private counter: number | null = null;
   private waited = 0;
+  readonly wait = { stalled: 0 };
 
   constructor(
     readonly order: Order,
@@ -305,7 +324,7 @@ export class PrepSlotTask extends Task {
   private park(ctx: Ctx): StepResult {
     if (this.counter === null || !surfaceFree(ctx, this.counter)) {
       this.counter = freeCounter(ctx, true);
-      if (this.counter === null) return { kind: 'wait' };
+      if (this.counter === null) return noSurface(ctx, this.wait);
       this.claimTile(ctx, this.counter);
     }
     return { kind: 'use', tile: this.counter };
@@ -318,6 +337,7 @@ export class PlateRunTask extends Task {
   readonly key: string;
   private putDown = false;
   private counter: number | null = null;
+  readonly wait = { stalled: 0 };
 
   constructor(readonly order: Order) {
     super();
@@ -404,7 +424,7 @@ export class PlateRunTask extends Task {
     this.putDown = true;
     if (this.counter === null || !surfaceFree(ctx, this.counter)) {
       this.counter = freeCounter(ctx, true);
-      if (this.counter === null) return { kind: 'wait' };
+      if (this.counter === null) return noSurface(ctx, this.wait);
       const key = `tile:${this.counter}`;
       if (!this.claims.includes(key)) this.claims.push(key);
       ctx.crew.claim(key, ctx.me.id);
@@ -501,6 +521,7 @@ export class TrashTask extends Task {
   readonly key: string;
   private trashed = false;
   private counter: number | null = null;
+  readonly wait = { stalled: 0 };
   constructor(readonly itemId: number) {
     super();
     this.key = `item:${itemId}`;
@@ -520,7 +541,7 @@ export class TrashTask extends Task {
       this.trashed = true;
       if (this.counter === null || !surfaceFree(ctx, this.counter)) {
         this.counter = freeCounter(ctx);
-        if (this.counter === null) return { kind: 'wait' };
+        if (this.counter === null) return noSurface(ctx, this.wait);
         this.claims.push(`tile:${this.counter}`);
         ctx.crew.claim(`tile:${this.counter}`, me.id);
       }
@@ -622,6 +643,7 @@ export class StockTask extends Task {
 export class DisposeTask extends Task {
   readonly key = 'dispose';
   private counter: number | null = null;
+  readonly wait = { stalled: 0 };
   step(ctx: Ctx): StepResult {
     const h = ctx.me.holding;
     if (!h) return DONE;
@@ -637,7 +659,7 @@ export class DisposeTask extends Task {
         }
       }
       if (this.counter !== null) return { kind: 'use', tile: this.counter };
-      if (h.type === 'plate' && h.contents.length === 0) return { kind: 'wait' };
+      if (h.type === 'plate') return noSurface(ctx, this.wait);
     }
     const tr = nearest(ctx, ctx.k.trash, () => true);
     return tr === null ? FAIL : { kind: 'use', tile: tr };
@@ -649,6 +671,7 @@ export class RescueTask extends Task {
   readonly key: string;
   private counter: number | null = null;
   private putDown = false;
+  readonly wait = { stalled: 0 };
   constructor(readonly tile: number) {
     super();
     this.key = `rescue:${tile}`;
@@ -680,7 +703,7 @@ export class RescueTask extends Task {
     this.putDown = true;
     if (this.counter === null || !surfaceFree(ctx, this.counter)) {
       this.counter = freeCounter(ctx, true);
-      if (this.counter === null) return { kind: 'wait' };
+      if (this.counter === null) return noSurface(ctx, this.wait);
       this.claims.push(`tile:${this.counter}`);
       ctx.crew.claim(`tile:${this.counter}`, me.id);
     }

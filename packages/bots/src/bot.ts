@@ -53,7 +53,14 @@ const NO_WAY = 'noWay' as const;
 type Walk = Vec2 | null | typeof NO_WAY;
 
 const actKey = (a: Act): string =>
-  a.kind === 'pick' ? `pick:${a.item}` : a.kind === 'wait' ? 'wait' : `${a.kind}:${a.tile}`;
+  a.kind === 'pick' ? `pick:${a.item}` : a.kind === 'wait' || a.kind === 'drop' ? a.kind : `${a.kind}:${a.tile}`;
+
+const ORTHO: readonly [number, number][] = [
+  [0, 1],
+  [1, 0],
+  [0, -1],
+  [-1, 0],
+];
 
 export class Bot {
   private task: Task | null = null;
@@ -237,6 +244,8 @@ export class Bot {
         return this.taskMove(ctx, this.walk(ctx, [act.tile], key));
       case 'pick':
         return this.pick(ctx, act.item, key, () => this.failTask(ctx));
+      case 'drop':
+        return this.drop(ctx, key);
       default:
         break;
     }
@@ -266,6 +275,28 @@ export class Bot {
     if (act.kind === 'work') return { ...NO_INPUT, work: true };
     if (act.kind === 'face') return NO_INPUT;
     return this.press(ctx, () => this.failTask(ctx));
+  }
+
+  /** Face a floor tile of our own kitchen and press Grab: the held item is dropped there (RULES §2). */
+  private drop(ctx: Ctx, key: string): PlayerInput {
+    const { state, me, k } = ctx;
+    const nav = k.nav;
+    if (!me.holding) return NO_INPUT;
+    const ownFloor = (t: number | null): boolean =>
+      t !== null && t >= 0 && nav.open[t] === 1 && state.arena.tiles[t]?.kind === 'floor' && tileOwner(state, t) === me.team;
+    if (ownFloor(interactTarget(state, me).tile)) return this.press(ctx, () => this.failTask(ctx));
+    if (ownFloor(ctx.tile)) {
+      const [x, y] = nav.xy(ctx.tile);
+      for (const [dx, dy] of ORTHO) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= nav.w || ny >= nav.h || !ownFloor(ny * nav.w + nx)) continue;
+        // Facing it already but the target falls short (off-centre): step to the tile centre.
+        if (me.facing.x * dx + me.facing.y * dy > 0.999) return this.input(this.toward(me.pos, nav.center(ctx.tile), ctx));
+        return { ...NO_INPUT, move: { x: dx * 0.01, y: dy * 0.01 } };
+      }
+    }
+    return this.taskMove(ctx, this.walk(ctx, [k.idleTile], key));
   }
 
   /** A task's walk: no way there fails the task. */

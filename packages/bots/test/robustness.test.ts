@@ -1,8 +1,8 @@
 /** Regression tests for review findings: reused brains, odd options, edge cases in the executor. */
 import { describe, expect, it } from 'vitest';
-import { newId, type FloorItem } from '@line-war/sim';
+import { NO_INPUT, newId, step, tileOwner, type FloorItem, type MatchInputs, type PlayerId } from '@line-war/sim';
 import { createBotsDebug, navFor } from '../src';
-import { bot, runMatch, type Slots } from './harness';
+import { bot, newMatch, runMatch, type Slots } from './harness';
 
 const T = 120_000;
 
@@ -102,5 +102,32 @@ describe('floor items in front of stations', () => {
     }
     expect(checks).toBeGreaterThan(100);
     expect(junkScoops).toBe(0);
+  }, T);
+});
+
+describe('nowhere to put things', () => {
+  it('a bot holding a plate with every counter taken sets it down on its kitchen floor', () => {
+    const state = newMatch(3, { prepSeconds: 30 });
+    const { brains } = createBotsDebug([bot('normal'), null, null, null]);
+    // Every surface in kitchen 0 holds a clean plate; player 0 holds one more.
+    for (const key in state.stations) {
+      const st = state.stations[key]!;
+      const kind = state.arena.tiles[st.tile]?.kind;
+      if ((kind === 'counter' || kind === 'board') && tileOwner(state, st.tile) === 0) {
+        st.item = { id: newId(state), type: 'plate', dirty: false, contents: [], platedAtTick: null, cold: false };
+      }
+    }
+    const held = newId(state);
+    state.players[0].holding = { id: held, type: 'plate', dirty: false, contents: [], platedAtTick: null, cold: false };
+    for (let t = 0; t < 300; t++) {
+      const inputs = [0, 1, 2, 3].map((i) => brains[i]?.decide(state, i as PlayerId) ?? NO_INPUT) as MatchInputs;
+      step(state, inputs);
+    }
+    expect(state.round.phase).toBe('prep');
+    expect(state.players[0].holding).toBeNull();
+    const fi = state.floorItems.find((f) => f.item.id === held);
+    expect(fi).toBeDefined();
+    const nav = navFor(state, 0);
+    expect(tileOwner(state, nav.tileAt(fi!.pos))).toBe(0);
   }, T);
 });
